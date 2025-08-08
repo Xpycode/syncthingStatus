@@ -55,13 +55,19 @@ struct SyncthingFolderStatus: Codable {
     let stateChanged: String
 }
 
-// Data model for the /rest/db/completion endpoint
 struct SyncthingDeviceCompletion: Codable {
     let completion: Double
     let globalBytes: Int
     let needBytes: Int
 }
 
+// MARK: - PreferenceKey for dynamic height
+struct ViewHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
 
 // MARK: - API Key XML Parser
 class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
@@ -121,17 +127,8 @@ class SyncthingClient: ObservableObject {
             configPath = alternativeConfigPath
         }
         
-        guard let finalPath = configPath else {
-            print("Could not find Syncthing config.xml in standard locations.")
-            return
-        }
-        
-        print("Looking for config at: \(finalPath.path)")
-        
-        guard let xmlData = try? Data(contentsOf: finalPath) else {
-            print("Failed to read config file data at \(finalPath.path)")
-            return
-        }
+        guard let finalPath = configPath else { return }
+        guard let xmlData = try? Data(contentsOf: finalPath) else { return }
         
         let parser = XMLParser(data: xmlData)
         let delegate = ApiKeyParserDelegate()
@@ -139,45 +136,27 @@ class SyncthingClient: ObservableObject {
         
         if parser.parse(), let key = delegate.apiKey {
             self.apiKey = key
-            print("API key found: \(self.apiKey?.prefix(5) ?? "none")...")
         } else {
             print("Failed to parse or find API key in config.xml.")
         }
     }
     
     private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
-        guard let url = URL(string: "\(baseURL)/rest/\(endpoint)") else {
-            throw URLError(.badURL)
-        }
+        guard let url = URL(string: "\(baseURL)/rest/\(endpoint)") else { throw URLError(.badURL) }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         
-        guard let apiKey = apiKey else {
-            throw URLError(.userAuthenticationRequired, userInfo: ["message": "API key is missing."])
-        }
+        guard let apiKey = apiKey else { throw URLError(.userAuthenticationRequired) }
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         
         let (data, response) = try await session.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.cannotParseResponse)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
         }
         
-        if httpResponse.statusCode != 200 {
-            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
-            print("HTTP Error: \(httpResponse.statusCode) for endpoint \(endpoint). Body: \(responseBody)")
-            throw URLError(.badServerResponse, userInfo: ["statusCode": httpResponse.statusCode, "body": responseBody])
-        }
-        
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            print("JSON Decoding Error for \(T.self) on endpoint \(endpoint): \(error)")
-            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
-            print("Raw Response: \(responseString)")
-            throw error
-        }
+        return try JSONDecoder().decode(T.self, from: data)
     }
     
     func fetchStatus() async {
@@ -188,35 +167,26 @@ class SyncthingClient: ObservableObject {
                 self.isConnected = true
             }
         } catch {
-            print("Failed to fetch system status: \(error)")
             await MainActor.run { self.isConnected = false }
         }
     }
     
     func fetchConfig() async {
+        guard let localDeviceID = await MainActor.run(body: { self.systemStatus?.myID }) else { return }
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
-            let localDeviceID = await MainActor.run { self.systemStatus?.myID }
-            
             await MainActor.run {
-                // Filter out the local device from the list
                 self.devices = config.devices.filter { $0.deviceID != localDeviceID }
                 self.folders = config.folders
             }
-        } catch {
-            print("Failed to fetch config: \(error)")
-        }
+        } catch { print("Failed to fetch config: \(error)") }
     }
     
     func fetchConnections() async {
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
-            await MainActor.run {
-                self.connections = connectionsResponse.connections
-            }
-        } catch {
-            print("Failed to fetch connections: \(error)")
-        }
+            await MainActor.run { self.connections = connectionsResponse.connections }
+        } catch { print("Failed to fetch connections: \(error)") }
     }
     
     func fetchFolderStatus() async {
@@ -224,12 +194,8 @@ class SyncthingClient: ObservableObject {
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
-                await MainActor.run {
-                    self.folderStatuses[folder.id] = status
-                }
-            } catch {
-                print("Failed to fetch status for folder \(folder.id): \(error)")
-            }
+                await MainActor.run { self.folderStatuses[folder.id] = status }
+            } catch { print("Failed to fetch status for folder \(folder.id): \(error)") }
         }
     }
     
@@ -238,18 +204,13 @@ class SyncthingClient: ObservableObject {
         for device in devicesToFetch {
             do {
                 let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
-                await MainActor.run {
-                    self.deviceCompletions[device.deviceID] = completion
-                }
-            } catch {
-                print("Failed to fetch completion for device \(device.deviceID): \(error)")
-            }
+                await MainActor.run { self.deviceCompletions[device.deviceID] = completion }
+            } catch { print("Failed to fetch completion for device \(device.deviceID): \(error)") }
         }
     }
     
     func refresh() async {
         guard apiKey != nil else {
-            print("Refresh aborted: API Key is not available.")
             await MainActor.run { self.isConnected = false }
             return
         }
@@ -257,9 +218,8 @@ class SyncthingClient: ObservableObject {
         await fetchStatus()
         
         if await MainActor.run(body: { self.isConnected }) {
-            await fetchConfig() // populates devices and folders
+            await fetchConfig()
             
-            // These can run concurrently now
             async let connectionsTask: () = fetchConnections()
             async let folderStatusTask: () = fetchFolderStatus()
             async let deviceCompletionTask: () = fetchDeviceCompletions()
@@ -273,14 +233,15 @@ class SyncthingClient: ObservableObject {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
-    var syncthingClient = SyncthingClient()
+    lazy var syncthingClient = SyncthingClient()
     private var timer: Timer?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let statusButton = statusItem?.button {
-            updateStatusIcon()
+            statusButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Loading")?.withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
+            statusButton.image?.isTemplate = true
             statusButton.action = #selector(statusItemClicked)
             statusButton.target = self
         }
@@ -292,11 +253,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func setupPopover() {
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 400, height: 500)
         popover?.behavior = .transient
-        popover?.contentViewController = NSHostingController(rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient))
+        popover?.contentViewController = NSHostingController(
+            rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient)
+        )
     }
-    
+
+    func updatePopoverSize(height: CGFloat) {
+        guard let popover else { return }
+        
+        // Determine max height based on the screen the status item is on.
+        // Add some padding so the popover doesn't touch the screen edges.
+        let screenPadding: CGFloat = 100.0
+        let maxHeight: CGFloat
+        
+        if let screen = statusItem?.button?.window?.screen {
+            maxHeight = screen.visibleFrame.height - screenPadding
+        } else if let mainScreen = NSScreen.main {
+            // Fallback to main screen
+            maxHeight = mainScreen.visibleFrame.height - screenPadding
+        } else {
+            // Absolute fallback if no screen info is available
+            maxHeight = 700
+        }
+        
+        let newHeight = min(height, maxHeight)
+        let newSize = NSSize(width: 400, height: newHeight)
+        
+        // Only resize if the new size is different, to avoid unnecessary redraws
+        if popover.contentSize != newSize {
+            popover.contentSize = newSize
+        }
+    }
+
     private func startMonitoring() {
         Task {
             await syncthingClient.refresh()
@@ -311,27 +300,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    private func updateStatusIcon() {
+    func updateStatusIcon() {
         guard let statusButton = statusItem?.button else { return }
         
+        let iconName: String
+        let accessibilityDescription: String
+        
         if !syncthingClient.isConnected {
-            statusButton.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Syncthing Disconnected")
-            statusButton.image?.isTemplate = true
-            return
-        }
-        
-        let isSyncing = syncthingClient.deviceCompletions.values.contains { $0.completion < 100 } ||
-                        syncthingClient.folderStatuses.values.contains { $0.state == "syncing" }
-        
-        let allFoldersIdle = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
-
-        if isSyncing {
-            statusButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Syncing")
-        } else if allFoldersIdle {
-            statusButton.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "All Synced")
+            iconName = "exclamationmark.triangle.fill"
+            accessibilityDescription = "Disconnected"
         } else {
-            statusButton.image = NSImage(systemSymbolName: "pause.circle.fill", accessibilityDescription: "Sync Issues")
+            let isSyncing = syncthingClient.deviceCompletions.values.contains { $0.completion < 100 } ||
+                            syncthingClient.folderStatuses.values.contains { $0.state == "syncing" }
+            let allFoldersIdle = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
+
+            if isSyncing {
+                iconName = "arrow.triangle.2.circlepath"
+                accessibilityDescription = "Syncing"
+            } else if allFoldersIdle {
+                iconName = "checkmark.circle.fill"
+                accessibilityDescription = "Synced"
+            } else {
+                iconName = "pause.circle.fill"
+                accessibilityDescription = "Paused or Out of Sync"
+            }
         }
+        statusButton.image = NSImage(systemSymbolName: iconName, accessibilityDescription: accessibilityDescription)
         statusButton.image?.isTemplate = true
     }
     
@@ -375,156 +369,163 @@ private func formatBytes(_ bytes: Int) -> String {
     return bcf.string(fromByteCount: Int64(bytes))
 }
 
-// MARK: - ContentView (SwiftUI)
+// MARK: - ContentView
 struct ContentView: View {
     let appDelegate: AppDelegate
     @ObservedObject var syncthingClient: SyncthingClient
     
-    init(appDelegate: AppDelegate, syncthingClient: SyncthingClient) {
-        self.appDelegate = appDelegate
-        self.syncthingClient = syncthingClient
-    }
-    
     var body: some View {
-        VStack(spacing: 16) {
-            // Header
-            HStack {
-                Image(systemName: syncthingClient.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundColor(syncthingClient.isConnected ? .green : .red)
-                Text("Syncthing Monitor")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                Spacer()
-                Button("Refresh") {
-                    Task {
-                        await syncthingClient.refresh()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+        VStack(spacing: 0) {
+            HeaderView(isConnected: syncthingClient.isConnected) {
+                Task { await syncthingClient.refresh() }
             }
-            .padding(.top)
+            .padding([.top, .horizontal])
             
-            Divider()
+            Divider().padding(.vertical, 8)
             
             if !syncthingClient.isConnected {
-                // Disconnected state
-                VStack(spacing: 12) {
-                    Image(systemName: "wifi.slash")
-                        .font(.largeTitle)
-                        .foregroundColor(.red)
-                    Text("Syncthing Not Connected")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                    Text("Make sure Syncthing is running and the API key is set.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Button("Open Syncthing Web UI") {
-                        if let url = URL(string: "http://127.0.0.1:8384") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
+                DisconnectedView()
             } else {
-                // Connected state
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // System Status
-                        if let status = syncthingClient.systemStatus {
-                            GroupBox("System Status") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Device ID:")
-                                            .fontWeight(.medium)
-                                        Spacer()
-                                        Text(String(status.myID.prefix(12)) + "...")
-                                            .font(.system(.caption, design: .monospaced))
-                                    }
-                                    HStack {
-                                        Text("Uptime:")
-                                            .fontWeight(.medium)
-                                        Spacer()
-                                        Text(formatUptime(status.uptime))
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        
-                        // Devices Status
-                        GroupBox("Remote Devices") {
-                            if syncthingClient.devices.isEmpty {
-                                Text("No remote devices configured")
-                                    .foregroundColor(.secondary)
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(syncthingClient.devices) { device in
-                                        DeviceStatusRow(
-                                            device: device,
-                                            connection: syncthingClient.connections[device.deviceID],
-                                            completion: syncthingClient.deviceCompletions[device.deviceID]
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Folders Status
-                        GroupBox("Folder Sync Status") {
-                            if syncthingClient.folders.isEmpty {
-                                Text("No folders configured")
-                                    .foregroundColor(.secondary)
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(syncthingClient.folders) { folder in
-                                        FolderStatusRow(
-                                            folder: folder,
-                                            status: syncthingClient.folderStatuses[folder.id]
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                VStack(spacing: 16) {
+                    if let status = syncthingClient.systemStatus {
+                        SystemStatusView(status: status)
                     }
-                    .padding(.horizontal)
-                }
-            }
-            
-            Spacer()
-            
-            // Footer
-            HStack {
-                Button("Open Web UI") {
-                    if let url = URL(string: "http://127.0.0.1:8384") {
-                        NSWorkspace.shared.open(url)
+                    
+                    VStack(spacing: 16) {
+                        RemoteDevicesView(syncthingClient: syncthingClient)
+                        FolderSyncStatusView(syncthingClient: syncthingClient)
                     }
                 }
-                .disabled(!syncthingClient.isConnected)
-                
-                Spacer()
-                
-                Button("Quit") {
-                    appDelegate.quit()
-                }
-                .foregroundColor(.red)
+                .padding(.horizontal)
             }
-            .padding(.bottom)
+            
+            Spacer(minLength: 0)
+            
+            FooterView(appDelegate: appDelegate, isConnected: syncthingClient.isConnected)
+                .padding()
         }
-        .padding(.horizontal)
-        .onAppear {
-            Task {
-                await syncthingClient.refresh()
+        .background(
+            GeometryReader { geometry in
+                Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
             }
+        )
+        .onPreferenceChange(ViewHeightKey.self) { newHeight in
+            appDelegate.updatePopoverSize(height: newHeight)
         }
-        .frame(width: 400, height: 500)
+        .frame(width: 400) // Keep a fixed width
     }
 }
 
-// MARK: - Device Status Row
+// MARK: - Component Views
+struct HeaderView: View {
+    let isConnected: Bool
+    let onRefresh: () -> Void
+    
+    var body: some View {
+        HStack {
+            Image(systemName: isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundColor(isConnected ? .green : .red)
+            Text("Syncthing Monitor").font(.headline)
+            Spacer()
+            Button("Refresh", action: onRefresh).buttonStyle(.bordered).controlSize(.small)
+        }
+    }
+}
+
+struct DisconnectedView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "wifi.slash").font(.largeTitle).foregroundColor(.red)
+            Text("Syncthing Not Connected").font(.title3).fontWeight(.medium)
+            Text("Make sure Syncthing is running and the API key is set.")
+                .font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
+            Button("Open Syncthing Web UI") {
+                if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
+            }.buttonStyle(.borderedProminent)
+            Spacer()
+        }
+    }
+}
+
+struct FooterView: View {
+    let appDelegate: AppDelegate
+    let isConnected: Bool
+    
+    var body: some View {
+        HStack {
+            Button("Open Web UI") {
+                if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
+            }.disabled(!isConnected)
+            Spacer()
+            Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
+        }
+    }
+}
+
+struct SystemStatusView: View {
+    let status: SyncthingStatus
+    
+    var body: some View {
+        GroupBox("System Status") {
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Device ID:").fontWeight(.medium)
+                    Spacer()
+                    Text(String(status.myID.prefix(12)) + "...").font(.system(.caption, design: .monospaced))
+                }
+                Divider()
+                HStack {
+                    Text("Uptime:").fontWeight(.medium)
+                    Spacer()
+                    Text(formatUptime(status.uptime))
+                }
+            }
+        }
+    }
+}
+
+struct RemoteDevicesView: View {
+    @ObservedObject var syncthingClient: SyncthingClient
+    
+    var body: some View {
+        GroupBox("Remote Devices") {
+            if syncthingClient.devices.isEmpty {
+                Text("No remote devices configured").foregroundColor(.secondary).padding(.vertical, 4)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(syncthingClient.devices) { device in
+                        DeviceStatusRow(
+                            device: device,
+                            connection: syncthingClient.connections[device.deviceID],
+                            completion: syncthingClient.deviceCompletions[device.deviceID]
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct FolderSyncStatusView: View {
+    @ObservedObject var syncthingClient: SyncthingClient
+    
+    var body: some View {
+        GroupBox("Folder Sync Status") {
+            if syncthingClient.folders.isEmpty {
+                Text("No folders configured").foregroundColor(.secondary).padding(.vertical, 4)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(syncthingClient.folders) { folder in
+                        FolderStatusRow(folder: folder, status: syncthingClient.folderStatuses[folder.id])
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Row Views
 struct DeviceStatusRow: View {
     let device: SyncthingDevice
     let connection: SyncthingConnection?
@@ -532,53 +533,33 @@ struct DeviceStatusRow: View {
     
     var body: some View {
         HStack {
-            Circle()
-                .fill(connection?.connected == true ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
-            
+            Circle().fill(connection?.connected == true ? .green : .red).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
-                Text(device.name)
-                    .fontWeight(.medium)
-                Text(String(device.deviceID.prefix(12)) + "...")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
+                Text(device.name).fontWeight(.medium)
+                Text(String(device.deviceID.prefix(12)) + "...").font(.system(.caption, design: .monospaced)).foregroundColor(.secondary)
             }
-            
             Spacer()
-            
             if let connection, connection.connected {
                 if let completion, completion.completion < 100 {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Syncing (\(Int(completion.completion))%)")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                        Text("~ \(formatBytes(completion.needBytes)) left")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
+                        Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
                     }
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Up to date")
-                            .font(.caption)
-                            .foregroundColor(.green)
+                        Text("Up to date").font(.caption).foregroundColor(.green)
                         if let version = connection.clientVersion {
-                            Text(version)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                            Text(version).font(.caption2).foregroundColor(.secondary)
                         }
                     }
                 }
             } else {
-                Text("Disconnected")
-                    .font(.caption)
-                    .foregroundColor(.red)
+                Text("Disconnected").font(.caption).foregroundColor(.red)
             }
         }
-        .padding(.vertical, 4)
     }
 }
 
-// MARK: - Folder Status Row
 struct FolderStatusRow: View {
     let folder: SyncthingFolder
     let status: SyncthingFolderStatus?
@@ -587,88 +568,55 @@ struct FolderStatusRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 statusIcon
-                
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(folder.label.isEmpty ? folder.id : folder.label)
-                        .fontWeight(.medium)
-                    Text(folder.path)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    Text(folder.label.isEmpty ? folder.id : folder.label).fontWeight(.medium)
+                    Text(folder.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
                 }
-                
                 Spacer()
-                
                 if let status {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(status.state.capitalized)
-                            .font(.caption)
-                            .foregroundColor(statusColor)
-                        
+                        Text(status.state.capitalized).font(.caption).foregroundColor(statusColor)
                         if status.needFiles > 0 {
-                            Text("\(status.needFiles) items, \(formatBytes(status.needBytes))")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
+                            Text("\(status.needFiles) items, \(formatBytes(status.needBytes))").font(.caption2).foregroundColor(.orange)
                         } else {
-                            Text("Up to date")
-                                .font(.caption2)
-                                .foregroundColor(.green)
+                            Text("Up to date").font(.caption2).foregroundColor(.green)
                         }
                     }
                 }
             }
-            
             if let status, status.state == "syncing", status.needBytes > 0 {
                 let total = Double(status.globalBytes)
                 let current = Double(status.localBytes)
                 if total > 0 {
-                    ProgressView(value: current / total)
-                        .progressViewStyle(LinearProgressViewStyle())
+                    ProgressView(value: current / total).progressViewStyle(.linear)
                 }
             }
         }
-        .padding(.vertical, 4)
     }
     
     private var statusIcon: some View {
         Group {
             if let status {
                 switch status.state {
-                case "idle" where status.needFiles > 0:
-                     Image(systemName: "pause.circle.fill")
-                        .foregroundColor(.orange)
-                case "idle":
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                case "syncing":
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundColor(.blue)
-                case "scanning":
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.blue)
-                default:
-                    Image(systemName: "questionmark.circle")
-                        .foregroundColor(.gray)
+                case "idle" where status.needFiles > 0: Image(systemName: "pause.circle.fill").foregroundColor(.orange)
+                case "idle": Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                case "syncing": Image(systemName: "arrow.triangle.2.circlepath").foregroundColor(.blue)
+                case "scanning": Image(systemName: "magnifyingglass").foregroundColor(.blue)
+                default: Image(systemName: "questionmark.circle").foregroundColor(.gray)
                 }
             } else {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundColor(.red)
+                Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
             }
         }
     }
     
     private var statusColor: Color {
-        guard let status = status else { return .red }
-        
+        guard let status else { return .red }
         switch status.state {
-        case "idle" where status.needFiles > 0:
-            return .orange
-        case "idle":
-            return .green
-        case "syncing", "scanning":
-            return .blue
-        default:
-            return .gray
+        case "idle" where status.needFiles > 0: return .orange
+        case "idle": return .green
+        case "syncing", "scanning": return .blue
+        default: return .gray
         }
     }
 }
@@ -677,12 +625,36 @@ struct FolderStatusRow: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         let appDelegate = AppDelegate()
-        // You can populate mock data in the client for previews
-        // appDelegate.syncthingClient.devices = ...
-        return ContentView(appDelegate: appDelegate, syncthingClient: appDelegate.syncthingClient)
+        let client = appDelegate.syncthingClient
+        
+        client.isConnected = true
+        client.systemStatus = .init(myID: "PREVIEW-ID", tilde: "~", uptime: 12345)
+        client.devices = [
+            .init(deviceID: "DEVICE1-ID", name: "PLEXmini", addresses: []),
+            .init(deviceID: "DEVICE2-ID", name: "M1max", addresses: []),
+            .init(deviceID: "DEVICE3-ID", name: "Another Device", addresses: [])
+        ]
+        client.folders = [
+            .init(id: "folder1", label: "Xcode Projects", path: "/Users/sim/XcodeProjects", devices: []),
+            .init(id: "folder2", label: "SYNCSim", path: "/Users/sim/SYNCSim", devices: []),
+            .init(id: "folder3", label: "Documents", path: "/Users/sim/Documents", devices: [])
+        ]
+        client.connections = [
+            "DEVICE1-ID": .init(connected: true, address: "1.2.3.4", clientVersion: "v1.30.0", type: "TCP"),
+            "DEVICE2-ID": .init(connected: false, address: nil, clientVersion: nil, type: nil),
+            "DEVICE3-ID": .init(connected: true, address: "5.6.7.8", clientVersion: "v1.29.0", type: "QUIC")
+        ]
+        client.deviceCompletions = [
+            "DEVICE1-ID": .init(completion: 99.5, globalBytes: 1000, needBytes: 5)
+        ]
+        client.folderStatuses = [
+            "folder1": .init(globalFiles: 10, globalBytes: 10000, localFiles: 10, localBytes: 10000, needFiles: 0, needBytes: 0, state: "idle", stateChanged: ""),
+            "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", stateChanged: "")
+        ]
+        
+        return ContentView(appDelegate: appDelegate, syncthingClient: client)
     }
 }
-
 
 // MARK: - Main App Structure
 @main
@@ -691,9 +663,7 @@ struct SyncthingStatusApp: App {
     
     var body: some Scene {
         Settings {
-            // ContentView needs an appDelegate, so we create a dummy one for the preview.
-            let appDelegate = AppDelegate()
-            ContentView(appDelegate: appDelegate, syncthingClient: appDelegate.syncthingClient)
+            Text("Settings")
         }
     }
 }
