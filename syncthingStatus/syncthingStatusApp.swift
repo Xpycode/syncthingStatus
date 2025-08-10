@@ -229,10 +229,33 @@ class SyncthingClient: ObservableObject {
     }
 }
 
+// MARK: - Window Controller
+class MainWindowController: NSWindowController {
+    convenience init(syncthingClient: SyncthingClient, appDelegate: AppDelegate) {
+        let contentView = ContentView(appDelegate: appDelegate, syncthingClient: syncthingClient, isPopover: false)
+            .frame(minWidth: 400, idealWidth: 450, minHeight: 500, idealHeight: 600)
+        
+        let hostingView = NSHostingView(rootView: contentView)
+        
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: hostingView.intrinsicContentSize),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Syncthing Status"
+        window.center()
+        
+        self.init(window: window)
+    }
+}
+
 // MARK: - AppDelegate
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
+    var windowController: MainWindowController?
     lazy var syncthingClient = SyncthingClient()
     private var timer: Timer?
     
@@ -247,7 +270,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         setupPopover()
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.accessory) // Start in accessory mode
         startMonitoring()
     }
     
@@ -255,32 +278,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover?.behavior = .transient
         popover?.contentViewController = NSHostingController(
-            rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient)
+            rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, isPopover: true)
         )
     }
 
     func updatePopoverSize(height: CGFloat) {
         guard let popover else { return }
         
-        // Determine max height based on the screen the status item is on.
-        // Add some padding so the popover doesn't touch the screen edges.
         let screenPadding: CGFloat = 100.0
         let maxHeight: CGFloat
         
         if let screen = statusItem?.button?.window?.screen {
             maxHeight = screen.visibleFrame.height - screenPadding
         } else if let mainScreen = NSScreen.main {
-            // Fallback to main screen
             maxHeight = mainScreen.visibleFrame.height - screenPadding
         } else {
-            // Absolute fallback if no screen info is available
             maxHeight = 700
         }
         
         let newHeight = min(height, maxHeight)
         let newSize = NSSize(width: 400, height: newHeight)
         
-        // Only resize if the new size is different, to avoid unnecessary redraws
         if popover.contentSize != newSize {
             popover.contentSize = newSize
         }
@@ -339,6 +357,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    @objc func openMainWindow() {
+        closePopover()
+        
+        if windowController == nil {
+            windowController = MainWindowController(syncthingClient: syncthingClient, appDelegate: self)
+            windowController?.window?.delegate = self
+        }
+        
+        NSApp.setActivationPolicy(.regular)
+        windowController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
     func showPopover(_ sender: NSButton) {
         popover?.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
@@ -350,6 +381,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func quit() {
         timer?.invalidate()
         NSApplication.shared.terminate(nil)
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        windowController = nil
     }
 }
 
@@ -371,8 +407,9 @@ private func formatBytes(_ bytes: Int) -> String {
 
 // MARK: - ContentView
 struct ContentView: View {
-    let appDelegate: AppDelegate
+    weak var appDelegate: AppDelegate?
     @ObservedObject var syncthingClient: SyncthingClient
+    var isPopover: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -386,7 +423,7 @@ struct ContentView: View {
             if !syncthingClient.isConnected {
                 DisconnectedView()
             } else {
-                VStack(spacing: 16) {
+                let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
                         SystemStatusView(status: status)
                     }
@@ -397,12 +434,22 @@ struct ContentView: View {
                     }
                 }
                 .padding(.horizontal)
+
+                if isPopover {
+                    statusContent
+                } else {
+                    ScrollView {
+                        statusContent
+                    }
+                }
             }
             
             Spacer(minLength: 0)
             
-            FooterView(appDelegate: appDelegate, isConnected: syncthingClient.isConnected)
-                .padding()
+            if let appDelegate = appDelegate {
+                FooterView(appDelegate: appDelegate, isConnected: syncthingClient.isConnected, isPopover: isPopover)
+                    .padding()
+            }
         }
         .background(
             GeometryReader { geometry in
@@ -410,9 +457,11 @@ struct ContentView: View {
             }
         )
         .onPreferenceChange(ViewHeightKey.self) { newHeight in
-            appDelegate.updatePopoverSize(height: newHeight)
+            if isPopover {
+                appDelegate?.updatePopoverSize(height: newHeight)
+            }
         }
-        .frame(width: 400) // Keep a fixed width
+        .frame(width: 400)
     }
 }
 
@@ -451,13 +500,23 @@ struct DisconnectedView: View {
 struct FooterView: View {
     let appDelegate: AppDelegate
     let isConnected: Bool
-    
+    let isPopover: Bool
+
     var body: some View {
         HStack {
             Button("Open Web UI") {
                 if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
             }.disabled(!isConnected)
+            
             Spacer()
+            
+            if isPopover {
+                Button("Open in Window") {
+                    appDelegate.openMainWindow()
+                }
+                .buttonStyle(.bordered)
+            }
+            
             Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
         }
     }
@@ -652,7 +711,7 @@ struct ContentView_Previews: PreviewProvider {
             "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", stateChanged: "")
         ]
         
-        return ContentView(appDelegate: appDelegate, syncthingClient: client)
+        return ContentView(appDelegate: appDelegate, syncthingClient: client, isPopover: true)
     }
 }
 
