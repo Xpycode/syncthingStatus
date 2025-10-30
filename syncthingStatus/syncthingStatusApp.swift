@@ -1,12 +1,14 @@
 import Cocoa
 import SwiftUI
 import Foundation
+import Combine
 
-// MARK: - Syncthing Data Models
-struct SyncthingStatus: Codable {
+// MARK: - Syncthing Data Models (Corrected)
+struct SyncthingSystemStatus: Codable {
     let myID: String
-    let tilde: String
+    let tilde: String?
     let uptime: Int
+    let version: String?
 }
 
 struct SyncthingConfig: Codable {
@@ -38,27 +40,37 @@ struct SyncthingConnection: Codable {
     let address: String?
     let clientVersion: String?
     let type: String?
+    let inBytesTotal: Int64
+    let outBytesTotal: Int64
 }
 
 struct SyncthingConnections: Codable {
     let connections: [String: SyncthingConnection]
+    let total: SyncthingConnectionsTotal?
+}
+
+struct SyncthingConnectionsTotal: Codable {
+    let connected: Int?
+    let paused: Int?
+    let inBytesTotal: Int64?
+    let outBytesTotal: Int64?
 }
 
 struct SyncthingFolderStatus: Codable {
     let globalFiles: Int
-    let globalBytes: Int
+    let globalBytes: Int64
     let localFiles: Int
-    let localBytes: Int
+    let localBytes: Int64
     let needFiles: Int
-    let needBytes: Int
+    let needBytes: Int64
     let state: String
-    let stateChanged: String
+    let lastScan: String?
 }
 
 struct SyncthingDeviceCompletion: Codable {
     let completion: Double
-    let globalBytes: Int
-    let needBytes: Int
+    let globalBytes: Int64
+    let needBytes: Int64
 }
 
 // MARK: - PreferenceKey for dynamic height
@@ -72,102 +84,166 @@ struct ViewHeightKey: PreferenceKey {
 // MARK: - API Key XML Parser
 class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
     private var isApiKeyTag = false
+    private var buffer = ""
     var apiKey: String?
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
         if elementName == "apikey" {
             isApiKeyTag = true
+            buffer = ""
         }
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        if isApiKeyTag {
-            apiKey = string
-            isApiKeyTag = false
-        }
+        guard isApiKeyTag else { return }
+        buffer.append(string)
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        guard elementName == "apikey", isApiKeyTag else { return }
+        apiKey = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        isApiKeyTag = false
     }
 }
 
 
 // MARK: - Syncthing API Client
 class SyncthingClient: ObservableObject {
-    private let baseURL = "http://127.0.0.1:8384"
-    private let session = URLSession.shared
+    private let session: URLSession
+    private let settings: SyncthingSettings
+    private var baseURL: URL?
+    private var apiKey: String?
+    private var cachedAutomaticAPIKey: String?
+    private var cancellables = Set<AnyCancellable>()
+    
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
     @Published var connections: [String: SyncthingConnection] = [:]
     @Published var folderStatuses: [String: SyncthingFolderStatus] = [:]
-    @Published var systemStatus: SyncthingStatus?
+    @Published var systemStatus: SyncthingSystemStatus?
     @Published var deviceCompletions: [String: SyncthingDeviceCompletion] = [:]
     
-    private var apiKey: String?
-    
-    init() {
-        loadAPIKey()
-        if apiKey == nil {
-            print("API key could not be loaded. Check Syncthing config.")
-        } else {
-            print("Successfully loaded API key from config.")
-        }
+    init(settings: SyncthingSettings, session: URLSession = .shared) {
+        self.settings = settings
+        self.session = session
+        observeSettings()
     }
     
-    private func loadAPIKey() {
+    private func observeSettings() {
+        Publishers.CombineLatest3(
+            settings.$useAutomaticDiscovery,
+            settings.$baseURLString,
+            settings.$manualAPIKey
+        )
+        .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+        .sink { [weak self] useAuto, _, _ in
+            guard let self else { return }
+            if useAuto {
+                self.cachedAutomaticAPIKey = nil
+            }
+            Task { await self.refresh() }
+        }
+        .store(in: &cancellables)
+    }
+    
+    private func loadAutomaticAPIKey() -> String? {
         let fileManager = FileManager.default
         let homeDir = fileManager.homeDirectoryForCurrentUser
-        
         let standardConfigPath = homeDir.appendingPathComponent("Library/Application Support/Syncthing/config.xml")
         let alternativeConfigPath = homeDir.appendingPathComponent(".config/syncthing/config.xml")
-
-        var configPath: URL?
         
+        let configPath: URL?
         if fileManager.fileExists(atPath: standardConfigPath.path) {
             configPath = standardConfigPath
         } else if fileManager.fileExists(atPath: alternativeConfigPath.path) {
             configPath = alternativeConfigPath
+        } else {
+            configPath = nil
         }
         
-        guard let finalPath = configPath else { return }
-        guard let xmlData = try? Data(contentsOf: finalPath) else { return }
+        guard let finalPath = configPath else { return nil }
+        guard let xmlData = try? Data(contentsOf: finalPath) else { return nil }
         
         let parser = XMLParser(data: xmlData)
         let delegate = ApiKeyParserDelegate()
         parser.delegate = delegate
         
-        if parser.parse(), let key = delegate.apiKey {
-            self.apiKey = key
-        } else {
-            print("Failed to parse or find API key in config.xml.")
+        guard parser.parse(), let key = delegate.apiKey else { return nil }
+        return key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private func prepareCredentials() -> Bool {
+        let trimmedBase = settings.trimmedBaseURL
+        guard let resolvedBaseURL = URL(string: trimmedBase), !trimmedBase.isEmpty else {
+            print("Syncthing base URL is invalid or empty.")
+            return false
         }
+        baseURL = resolvedBaseURL
+        
+        if settings.useAutomaticDiscovery {
+            if cachedAutomaticAPIKey == nil {
+                cachedAutomaticAPIKey = loadAutomaticAPIKey()
+                if cachedAutomaticAPIKey != nil {
+                    print("Successfully loaded API key from config.")
+                } else {
+                    print("API key could not be loaded. Check Syncthing config.")
+                }
+            }
+            guard let key = cachedAutomaticAPIKey else { return false }
+            apiKey = key
+        } else {
+            guard let manualKey = settings.resolvedManualAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines), !manualKey.isEmpty else {
+                print("Manual API key is empty.")
+                return false
+            }
+            apiKey = manualKey
+        }
+        
+        return true
+    }
+    
+    private func endpointURL(for endpoint: String) -> URL? {
+        guard let baseURL else { return nil }
+        return URL(string: "rest/\(endpoint)", relativeTo: baseURL)
     }
     
     private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
-        guard let url = URL(string: "\(baseURL)/rest/\(endpoint)") else { throw URLError(.badURL) }
+        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
-        guard let apiKey = apiKey else { throw URLError(.userAuthenticationRequired) }
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         
         let (data, response) = try await session.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
         
-        return try JSONDecoder().decode(T.self, from: data)
+        guard httpResponse.statusCode == 200 else {
+            print("Syncthing request to \(endpoint) failed with HTTP \(httpResponse.statusCode)")
+            throw URLError(.badServerResponse)
+        }
+        
+        let decoder = JSONDecoder()
+        return try decoder.decode(T.self, from: data)
     }
     
     func fetchStatus() async {
         do {
-            let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingStatus.self)
+            let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
             await MainActor.run {
                 self.systemStatus = status
                 self.isConnected = true
             }
         } catch {
-            await MainActor.run { self.isConnected = false }
+            print("Failed to fetch system/status: \(error)")
+            await MainActor.run {
+                self.isConnected = false
+                self.systemStatus = nil
+            }
         }
     }
     
@@ -179,14 +255,18 @@ class SyncthingClient: ObservableObject {
                 self.devices = config.devices.filter { $0.deviceID != localDeviceID }
                 self.folders = config.folders
             }
-        } catch { print("Failed to fetch config: \(error)") }
+        } catch {
+            print("Failed to fetch system/config: \(error)")
+        }
     }
     
     func fetchConnections() async {
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
             await MainActor.run { self.connections = connectionsResponse.connections }
-        } catch { print("Failed to fetch connections: \(error)") }
+        } catch {
+            print("Failed to fetch system/connections: \(error)")
+        }
     }
     
     func fetchFolderStatus() async {
@@ -195,7 +275,9 @@ class SyncthingClient: ObservableObject {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
                 await MainActor.run { self.folderStatuses[folder.id] = status }
-            } catch { print("Failed to fetch status for folder \(folder.id): \(error)") }
+            } catch {
+                print("Failed to fetch db/status for folder \(folder.id): \(error)")
+            }
         }
     }
     
@@ -205,13 +287,26 @@ class SyncthingClient: ObservableObject {
             do {
                 let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
                 await MainActor.run { self.deviceCompletions[device.deviceID] = completion }
-            } catch { print("Failed to fetch completion for device \(device.deviceID): \(error)") }
+            } catch {
+                print("Failed to fetch db/completion for device \(device.deviceID): \(error)")
+            }
         }
     }
     
+    @MainActor
+    private func handleDisconnectedState() {
+        isConnected = false
+        devices = []
+        folders = []
+        connections = [:]
+        folderStatuses = [:]
+        systemStatus = nil
+        deviceCompletions = [:]
+    }
+    
     func refresh() async {
-        guard apiKey != nil else {
-            await MainActor.run { self.isConnected = false }
+        guard prepareCredentials() else {
+            await MainActor.run { self.handleDisconnectedState() }
             return
         }
         
@@ -256,8 +351,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var windowController: MainWindowController?
-    lazy var syncthingClient = SyncthingClient()
+    var settingsWindowController: NSWindowController?
+    let settings: SyncthingSettings
+    let syncthingClient: SyncthingClient
     private var timer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    
+    override init() {
+        let settings = SyncthingSettings()
+        self.settings = settings
+        self.syncthingClient = SyncthingClient(settings: settings)
+        super.init()
+        bindClient()
+    }
+    
+    init(settings: SyncthingSettings) {
+        self.settings = settings
+        self.syncthingClient = SyncthingClient(settings: settings)
+        super.init()
+        bindClient()
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -270,7 +383,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         setupPopover()
-        NSApp.setActivationPolicy(.accessory) // Start in accessory mode
+        NSApp.setActivationPolicy(.accessory) 
         startMonitoring()
     }
     
@@ -303,7 +416,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             popover.contentSize = newSize
         }
     }
-
+    
     private func startMonitoring() {
         Task {
             await syncthingClient.refresh()
@@ -378,14 +491,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover?.performClose(nil)
     }
     
+    @objc func openSettings() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        let selectors = ["showSettingsWindow:", "showPreferencesWindow:", "orderFrontSettingsWindow:"]
+        for name in selectors {
+            let selector = Selector(name)
+            if NSApp.sendAction(selector, to: nil, from: nil) {
+                return
+            }
+        }
+        presentFallbackSettingsWindow()
+    }
+    
     func quit() {
         timer?.invalidate()
         NSApplication.shared.terminate(nil)
     }
     
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-        windowController = nil
+        guard let window = notification.object as? NSWindow else { return }
+        if window === windowController?.window {
+            NSApp.setActivationPolicy(.accessory)
+            windowController = nil
+        } else if window === settingsWindowController?.window {
+            settingsWindowController = nil
+            if windowController == nil {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+    }
+    
+    private func bindClient() {
+        syncthingClient.$isConnected
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        syncthingClient.$deviceCompletions
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        syncthingClient.$folderStatuses
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+    }
+    
+    private func presentFallbackSettingsWindow() {
+        if let controller = settingsWindowController {
+            controller.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let hostingController = NSHostingController(rootView: SettingsView(settings: settings))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Settings"
+        window.contentViewController = hostingController
+        window.center()
+        
+        let controller = NSWindowController(window: window)
+        controller.window?.delegate = self
+        settingsWindowController = controller
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -398,11 +574,12 @@ private func formatUptime(_ seconds: Int) -> String {
     return formatter.string(from: duration) ?? "0m"
 }
 
-private func formatBytes(_ bytes: Int) -> String {
+// Corrected to handle Int64
+private func formatBytes(_ bytes: Int64) -> String {
     let bcf = ByteCountFormatter()
     bcf.allowedUnits = [.useAll]
     bcf.countStyle = .file
-    return bcf.string(fromByteCount: Int64(bytes))
+    return bcf.string(fromByteCount: bytes)
 }
 
 // MARK: - ContentView
@@ -421,7 +598,9 @@ struct ContentView: View {
             Divider().padding(.vertical, 8)
             
             if !syncthingClient.isConnected {
-                DisconnectedView()
+                DisconnectedView {
+                    appDelegate?.openSettings()
+                }
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
@@ -482,6 +661,8 @@ struct HeaderView: View {
 }
 
 struct DisconnectedView: View {
+    let openSettings: () -> Void
+    
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
@@ -492,6 +673,15 @@ struct DisconnectedView: View {
             Button("Open Syncthing Web UI") {
                 if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
+            if #available(macOS 13.0, *) {
+                SettingsLink {
+                    Text("Open Settings")
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Button("Open Settings", action: openSettings)
+                    .buttonStyle(.bordered)
+            }
             Spacer()
         }
     }
@@ -508,6 +698,18 @@ struct FooterView: View {
                 if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
             }.disabled(!isConnected)
             
+            if #available(macOS 13.0, *) {
+                SettingsLink {
+                    Text("Settings")
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Button("Settings") {
+                    appDelegate.openSettings()
+                }
+                .buttonStyle(.bordered)
+            }
+            
             Spacer()
             
             if isPopover {
@@ -523,7 +725,7 @@ struct FooterView: View {
 }
 
 struct SystemStatusView: View {
-    let status: SyncthingStatus
+    let status: SyncthingSystemStatus // Updated type
     
     var body: some View {
         GroupBox("System Status") {
@@ -680,14 +882,67 @@ struct FolderStatusRow: View {
     }
 }
 
+struct SettingsView: View {
+    @ObservedObject var settings: SyncthingSettings
+    @State private var showResetConfirmation = false
+    
+    private var isManualMode: Bool {
+        !settings.useAutomaticDiscovery
+    }
+    
+    var body: some View {
+        Form {
+            Section("Connection Mode") {
+                Toggle("Discover API key from Syncthing config.xml", isOn: $settings.useAutomaticDiscovery)
+                Text("Turn this off to point the app at a different Syncthing instance.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("Manual Configuration") {
+                TextField("Base URL", text: $settings.baseURLString, prompt: Text("http://127.0.0.1:8384"))
+                    .textFieldStyle(.roundedBorder)
+                SecureField("API Key", text: $settings.manualAPIKey)
+                    .textFieldStyle(.roundedBorder)
+                Text("Stored securely in your login Keychain.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .disabled(!isManualMode)
+            
+            Section {
+                Button("Reset to Defaults", role: .destructive) {
+                    showResetConfirmation = true
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 420)
+        .padding(20)
+        .alert("Reset Settings", isPresented: $showResetConfirmation) {
+            Button("Reset", role: .destructive) { settings.resetToDefaults() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will restore the built-in localhost configuration and clear any manual API key.")
+        }
+    }
+}
+
 // MARK: - SwiftUI Preview
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        let appDelegate = AppDelegate()
+        let previewDefaults = UserDefaults(suiteName: "PreviewSyncthingSettings") ?? .standard
+        let settings = SyncthingSettings(defaults: previewDefaults, keychainService: "PreviewSyncthingSettings")
+        settings.useAutomaticDiscovery = false
+        settings.baseURLString = "http://127.0.0.1:8384"
+        settings.manualAPIKey = "PREVIEW-KEY"
+        
+        let appDelegate = AppDelegate(settings: settings)
         let client = appDelegate.syncthingClient
         
         client.isConnected = true
-        client.systemStatus = .init(myID: "PREVIEW-ID", tilde: "~", uptime: 12345)
+        // Updated preview data
+        client.systemStatus = .init(myID: "PREVIEW-ID", tilde: "~", uptime: 12345, version: "v1.23.4")
         client.devices = [
             .init(deviceID: "DEVICE1-ID", name: "PLEXmini", addresses: []),
             .init(deviceID: "DEVICE2-ID", name: "M1max", addresses: []),
@@ -699,16 +954,16 @@ struct ContentView_Previews: PreviewProvider {
             .init(id: "folder3", label: "Documents", path: "/Users/sim/Documents", devices: [])
         ]
         client.connections = [
-            "DEVICE1-ID": .init(connected: true, address: "1.2.3.4", clientVersion: "v1.30.0", type: "TCP"),
-            "DEVICE2-ID": .init(connected: false, address: nil, clientVersion: nil, type: nil),
-            "DEVICE3-ID": .init(connected: true, address: "5.6.7.8", clientVersion: "v1.29.0", type: "QUIC")
+            "DEVICE1-ID": .init(connected: true, address: "1.2.3.4", clientVersion: "v1.30.0", type: "TCP", inBytesTotal: 0, outBytesTotal: 0),
+            "DEVICE2-ID": .init(connected: false, address: nil, clientVersion: nil, type: nil, inBytesTotal: 0, outBytesTotal: 0),
+            "DEVICE3-ID": .init(connected: true, address: "5.6.7.8", clientVersion: "v1.29.0", type: "QUIC", inBytesTotal: 0, outBytesTotal: 0)
         ]
         client.deviceCompletions = [
             "DEVICE1-ID": .init(completion: 99.5, globalBytes: 1000, needBytes: 5)
         ]
         client.folderStatuses = [
-            "folder1": .init(globalFiles: 10, globalBytes: 10000, localFiles: 10, localBytes: 10000, needFiles: 0, needBytes: 0, state: "idle", stateChanged: ""),
-            "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", stateChanged: "")
+            "folder1": .init(globalFiles: 10, globalBytes: 10000, localFiles: 10, localBytes: 10000, needFiles: 0, needBytes: 0, state: "idle", lastScan: "2023-01-01T12:00:00Z"),
+            "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", lastScan: "2023-01-01T12:00:00Z")
         ]
         
         return ContentView(appDelegate: appDelegate, syncthingClient: client, isPopover: true)
@@ -722,7 +977,7 @@ struct SyncthingStatusApp: App {
     
     var body: some Scene {
         Settings {
-            Text("Settings")
+            SettingsView(settings: appDelegate.settings)
         }
     }
 }
