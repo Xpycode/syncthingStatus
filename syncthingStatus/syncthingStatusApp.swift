@@ -107,6 +107,12 @@ class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
 }
 
 
+// MARK: - Transfer Rate Tracking
+struct TransferRates {
+    var downloadRate: Double = 0  // bytes per second
+    var uploadRate: Double = 0    // bytes per second
+}
+
 // MARK: - Syncthing API Client
 class SyncthingClient: ObservableObject {
     private let session: URLSession
@@ -115,7 +121,11 @@ class SyncthingClient: ObservableObject {
     private var apiKey: String?
     private var cachedAutomaticAPIKey: String?
     private var cancellables = Set<AnyCancellable>()
-    
+
+    // Transfer rate tracking
+    private var previousConnections: [String: SyncthingConnection] = [:]
+    private var lastUpdateTime: Date?
+
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
@@ -123,6 +133,7 @@ class SyncthingClient: ObservableObject {
     @Published var folderStatuses: [String: SyncthingFolderStatus] = [:]
     @Published var systemStatus: SyncthingSystemStatus?
     @Published var deviceCompletions: [String: SyncthingDeviceCompletion] = [:]
+    @Published var transferRates: [String: TransferRates] = [:]
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -263,9 +274,44 @@ class SyncthingClient: ObservableObject {
     func fetchConnections() async {
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
-            await MainActor.run { self.connections = connectionsResponse.connections }
+            await MainActor.run {
+                self.calculateTransferRates(newConnections: connectionsResponse.connections)
+                self.connections = connectionsResponse.connections
+            }
         } catch {
             print("Failed to fetch system/connections: \(error)")
+        }
+    }
+
+    private func calculateTransferRates(newConnections: [String: SyncthingConnection]) {
+        let currentTime = Date()
+        defer {
+            previousConnections = newConnections
+            lastUpdateTime = currentTime
+        }
+
+        guard let lastTime = lastUpdateTime else { return }
+
+        let timeDelta = currentTime.timeIntervalSince(lastTime)
+        guard timeDelta > 0 else { return }
+
+        for (deviceID, newConnection) in newConnections {
+            guard let oldConnection = previousConnections[deviceID],
+                  newConnection.connected else {
+                transferRates[deviceID] = TransferRates()
+                continue
+            }
+
+            let bytesReceived = newConnection.inBytesTotal - oldConnection.inBytesTotal
+            let bytesSent = newConnection.outBytesTotal - oldConnection.outBytesTotal
+
+            let downloadRate = Double(bytesReceived) / timeDelta
+            let uploadRate = Double(bytesSent) / timeDelta
+
+            transferRates[deviceID] = TransferRates(
+                downloadRate: max(0, downloadRate),
+                uploadRate: max(0, uploadRate)
+            )
         }
     }
     
@@ -582,6 +628,16 @@ private func formatBytes(_ bytes: Int64) -> String {
     return bcf.string(fromByteCount: bytes)
 }
 
+private func formatTransferRate(_ bytesPerSecond: Double) -> String {
+    if bytesPerSecond < 1 {
+        return "0 B/s"
+    }
+    let bcf = ByteCountFormatter()
+    bcf.allowedUnits = [.useAll]
+    bcf.countStyle = .binary
+    return bcf.string(fromByteCount: Int64(bytesPerSecond)) + "/s"
+}
+
 // MARK: - ContentView
 struct ContentView: View {
     weak var appDelegate: AppDelegate?
@@ -774,6 +830,7 @@ struct RemoteDevicesView: View {
                             device: device,
                             connection: syncthingClient.connections[device.deviceID],
                             completion: syncthingClient.deviceCompletions[device.deviceID],
+                            transferRates: syncthingClient.transferRates[device.deviceID],
                             isDetailed: !isPopover
                         )
                     }
@@ -807,6 +864,7 @@ struct DeviceStatusRow: View {
     let device: SyncthingDevice
     let connection: SyncthingConnection?
     let completion: SyncthingDeviceCompletion?
+    let transferRates: TransferRates?
     var isDetailed: Bool = false
 
     var body: some View {
@@ -829,7 +887,11 @@ struct DeviceStatusRow: View {
                 if let completion, completion.completion < 100 {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
-                        Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
+                        if let rates = transferRates, rates.downloadRate > 0 {
+                            Text("↓ \(formatTransferRate(rates.downloadRate))").font(.caption2).foregroundColor(.blue)
+                        } else {
+                            Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
+                        }
                     }
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -865,6 +927,18 @@ struct DeviceStatusRow: View {
 
                     InfoRow(label: "Data Received", value: formatBytes(connection.inBytesTotal))
                     InfoRow(label: "Data Sent", value: formatBytes(connection.outBytesTotal))
+
+                    if let rates = transferRates {
+                        if rates.downloadRate > 0 || rates.uploadRate > 0 {
+                            Divider()
+                            if rates.downloadRate > 0 {
+                                InfoRow(label: "Download Speed", value: formatTransferRate(rates.downloadRate), isHighlighted: true)
+                            }
+                            if rates.uploadRate > 0 {
+                                InfoRow(label: "Upload Speed", value: formatTransferRate(rates.uploadRate), isHighlighted: true)
+                            }
+                        }
+                    }
 
                     if let completion {
                         Divider()
@@ -904,6 +978,7 @@ struct InfoRow: View {
     let label: String
     let value: String
     var isMonospaced: Bool = false
+    var isHighlighted: Bool = false
 
     var body: some View {
         HStack(alignment: .top) {
@@ -916,9 +991,12 @@ struct InfoRow: View {
                 Text(value)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
+                    .foregroundColor(isHighlighted ? .blue : .primary)
             } else {
                 Text(value)
                     .font(.caption)
+                    .fontWeight(isHighlighted ? .semibold : .regular)
+                    .foregroundColor(isHighlighted ? .blue : .primary)
             }
             Spacer()
         }
