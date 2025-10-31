@@ -328,10 +328,10 @@ class SyncthingClient: ObservableObject {
 class MainWindowController: NSWindowController {
     convenience init(syncthingClient: SyncthingClient, appDelegate: AppDelegate) {
         let contentView = ContentView(appDelegate: appDelegate, syncthingClient: syncthingClient, isPopover: false)
-            .frame(minWidth: 400, idealWidth: 450, minHeight: 500, idealHeight: 600)
-        
+            .frame(minWidth: 600, idealWidth: 700, minHeight: 500, idealHeight: 600)
+
         let hostingView = NSHostingView(rootView: contentView)
-        
+
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: hostingView.intrinsicContentSize),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
@@ -341,7 +341,7 @@ class MainWindowController: NSWindowController {
         window.contentView = hostingView
         window.title = "Syncthing Status"
         window.center()
-        
+
         self.init(window: window)
     }
 }
@@ -609,7 +609,7 @@ struct ContentView: View {
 
                     VStack(spacing: 16) {
                         RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
-                        FolderSyncStatusView(syncthingClient: syncthingClient)
+                        FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
                     }
                 }
                 .padding(.horizontal)
@@ -640,7 +640,7 @@ struct ContentView: View {
                 appDelegate?.updatePopoverSize(height: newHeight)
             }
         }
-        .frame(width: 400)
+        .frame(width: isPopover ? 400 : nil)
     }
 }
 
@@ -785,7 +785,8 @@ struct RemoteDevicesView: View {
 
 struct FolderSyncStatusView: View {
     @ObservedObject var syncthingClient: SyncthingClient
-    
+    var isPopover: Bool = true
+
     var body: some View {
         GroupBox("Folder Sync Status") {
             if syncthingClient.folders.isEmpty {
@@ -793,7 +794,7 @@ struct FolderSyncStatusView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(syncthingClient.folders) { folder in
-                        FolderStatusRow(folder: folder, status: syncthingClient.folderStatuses[folder.id])
+                        FolderStatusRow(folder: folder, status: syncthingClient.folderStatuses[folder.id], isDetailed: !isPopover)
                     }
                 }
             }
@@ -845,24 +846,7 @@ struct DeviceStatusRow: View {
     }
 
     private var detailedView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Circle().fill(connection?.connected == true ? .green : .red).frame(width: 10, height: 10)
-                Text(device.name).font(.headline)
-                Spacer()
-                if let connection, connection.connected {
-                    if let completion, completion.completion < 100 {
-                        Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
-                    } else {
-                        Text("Up to date").font(.subheadline).foregroundColor(.green)
-                    }
-                } else {
-                    Text("Disconnected").font(.subheadline).foregroundColor(.red)
-                }
-            }
-
-            Divider()
-
+        DisclosureGroup {
             VStack(spacing: 6) {
                 InfoRow(label: "Device ID", value: device.deviceID, isMonospaced: true)
 
@@ -895,8 +879,23 @@ struct DeviceStatusRow: View {
                     }
                 }
             }
+            .padding(.vertical, 4)
+        } label: {
+            HStack {
+                Circle().fill(connection?.connected == true ? .green : .red).frame(width: 10, height: 10)
+                Text(device.name).font(.headline)
+                Spacer()
+                if let connection, connection.connected {
+                    if let completion, completion.completion < 100 {
+                        Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
+                    } else {
+                        Text("Up to date").font(.subheadline).foregroundColor(.green)
+                    }
+                } else {
+                    Text("Disconnected").font(.subheadline).foregroundColor(.red)
+                }
+            }
         }
-        .padding(.vertical, 4)
     }
 }
 
@@ -929,8 +928,17 @@ struct InfoRow: View {
 struct FolderStatusRow: View {
     let folder: SyncthingFolder
     let status: SyncthingFolderStatus?
-    
+    var isDetailed: Bool = false
+
     var body: some View {
+        if isDetailed {
+            detailedView
+        } else {
+            compactView
+        }
+    }
+
+    private var compactView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 statusIcon
@@ -955,6 +963,70 @@ struct FolderStatusRow: View {
                 let current = Double(status.localBytes)
                 if total > 0 {
                     ProgressView(value: current / total).progressViewStyle(.linear)
+                }
+            }
+        }
+    }
+
+    private var detailedView: some View {
+        DisclosureGroup {
+            VStack(spacing: 6) {
+                InfoRow(label: "Path", value: folder.path)
+
+                if let status {
+                    Divider()
+                    InfoRow(label: "Global Files", value: "\(status.globalFiles) files")
+                    InfoRow(label: "Global Size", value: formatBytes(status.globalBytes))
+
+                    Divider()
+                    InfoRow(label: "Local Files", value: "\(status.localFiles) files")
+                    InfoRow(label: "Local Size", value: formatBytes(status.localBytes))
+
+                    if status.needFiles > 0 {
+                        Divider()
+                        InfoRow(label: "Need to Sync", value: "\(status.needFiles) files")
+                        InfoRow(label: "Need to Sync Size", value: formatBytes(status.needBytes))
+                    }
+
+                    if status.state == "syncing", status.needBytes > 0 {
+                        let total = Double(status.globalBytes)
+                        let current = Double(status.localBytes)
+                        if total > 0 {
+                            Divider()
+                            let percentage = (current / total) * 100
+                            InfoRow(label: "Progress", value: String(format: "%.2f%%", percentage))
+                            ProgressView(value: current / total).progressViewStyle(.linear)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } label: {
+            HStack {
+                statusIcon
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(folder.label.isEmpty ? folder.id : folder.label).font(.headline)
+                    if let status {
+                        HStack(spacing: 4) {
+                            Text("\(status.localFiles) files")
+                            Text("•")
+                            Text(formatBytes(status.localBytes))
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+                if let status {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(status.state.capitalized).font(.subheadline).foregroundColor(statusColor)
+                        if status.needFiles > 0 {
+                            Text("\(status.needFiles) items pending").font(.caption2).foregroundColor(.orange)
+                        } else {
+                            Text("Up to date").font(.caption2).foregroundColor(.green)
+                        }
+                    }
                 }
             }
         }
