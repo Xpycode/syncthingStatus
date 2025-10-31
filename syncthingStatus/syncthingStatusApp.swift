@@ -113,6 +113,13 @@ struct TransferRates {
     var uploadRate: Double = 0    // bytes per second
 }
 
+// MARK: - Connection History Tracking
+struct ConnectionHistory {
+    var connectedSince: Date?      // When device connected
+    var lastSeen: Date?            // Last time device was connected
+    var isCurrentlyConnected: Bool = false
+}
+
 // MARK: - Syncthing API Client
 class SyncthingClient: ObservableObject {
     private let session: URLSession
@@ -126,6 +133,9 @@ class SyncthingClient: ObservableObject {
     private var previousConnections: [String: SyncthingConnection] = [:]
     private var lastUpdateTime: Date?
 
+    // Connection history tracking
+    private var connectionHistory: [String: ConnectionHistory] = [:]
+
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
@@ -134,6 +144,7 @@ class SyncthingClient: ObservableObject {
     @Published var systemStatus: SyncthingSystemStatus?
     @Published var deviceCompletions: [String: SyncthingDeviceCompletion] = [:]
     @Published var transferRates: [String: TransferRates] = [:]
+    @Published var deviceHistory: [String: ConnectionHistory] = [:]
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -276,6 +287,7 @@ class SyncthingClient: ObservableObject {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
             await MainActor.run {
                 self.calculateTransferRates(newConnections: connectionsResponse.connections)
+                self.updateConnectionHistory(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
             }
         } catch {
@@ -314,7 +326,36 @@ class SyncthingClient: ObservableObject {
             )
         }
     }
-    
+
+    private func updateConnectionHistory(newConnections: [String: SyncthingConnection]) {
+        let currentTime = Date()
+
+        for (deviceID, newConnection) in newConnections {
+            var history = connectionHistory[deviceID] ?? ConnectionHistory()
+
+            if newConnection.connected {
+                // Device is connected
+                if !history.isCurrentlyConnected {
+                    // Device just connected
+                    history.connectedSince = currentTime
+                }
+                history.lastSeen = currentTime
+                history.isCurrentlyConnected = true
+            } else {
+                // Device is disconnected
+                if history.isCurrentlyConnected {
+                    // Device just disconnected
+                    history.lastSeen = currentTime
+                }
+                history.connectedSince = nil
+                history.isCurrentlyConnected = false
+            }
+
+            connectionHistory[deviceID] = history
+            deviceHistory[deviceID] = history
+        }
+    }
+
     func fetchFolderStatus() async {
         let foldersToFetch = await MainActor.run { self.folders }
         for folder in foldersToFetch {
@@ -638,6 +679,34 @@ private func formatTransferRate(_ bytesPerSecond: Double) -> String {
     return bcf.string(fromByteCount: Int64(bytesPerSecond)) + "/s"
 }
 
+private func formatRelativeTime(since date: Date) -> String {
+    let now = Date()
+    let interval = now.timeIntervalSince(date)
+
+    if interval < 60 {
+        return "Just now"
+    } else if interval < 3600 {
+        let minutes = Int(interval / 60)
+        return "\(minutes)m ago"
+    } else if interval < 86400 {
+        let hours = Int(interval / 3600)
+        return "\(hours)h ago"
+    } else {
+        let days = Int(interval / 86400)
+        return "\(days)d ago"
+    }
+}
+
+private func formatConnectionDuration(since date: Date?) -> String {
+    guard let date = date else { return "Not connected" }
+    let interval = Date().timeIntervalSince(date)
+    let formatter = DateComponentsFormatter()
+    formatter.unitsStyle = .abbreviated
+    formatter.allowedUnits = [.day, .hour, .minute]
+    formatter.maximumUnitCount = 2
+    return formatter.string(from: interval) ?? "0m"
+}
+
 // MARK: - ContentView
 struct ContentView: View {
     weak var appDelegate: AppDelegate?
@@ -831,6 +900,7 @@ struct RemoteDevicesView: View {
                             connection: syncthingClient.connections[device.deviceID],
                             completion: syncthingClient.deviceCompletions[device.deviceID],
                             transferRates: syncthingClient.transferRates[device.deviceID],
+                            connectionHistory: syncthingClient.deviceHistory[device.deviceID],
                             isDetailed: !isPopover
                         )
                     }
@@ -865,6 +935,7 @@ struct DeviceStatusRow: View {
     let connection: SyncthingConnection?
     let completion: SyncthingDeviceCompletion?
     let transferRates: TransferRates?
+    let connectionHistory: ConnectionHistory?
     var isDetailed: Bool = false
 
     var body: some View {
@@ -947,9 +1018,21 @@ struct DeviceStatusRow: View {
                             InfoRow(label: "Remaining", value: formatBytes(completion.needBytes))
                         }
                     }
+
+                    if let history = connectionHistory {
+                        Divider()
+                        if let connectedSince = history.connectedSince {
+                            InfoRow(label: "Connected For", value: formatConnectionDuration(since: connectedSince))
+                        }
+                    }
                 } else {
                     if !device.addresses.isEmpty {
                         InfoRow(label: "Addresses", value: device.addresses.joined(separator: ", "))
+                    }
+
+                    if let history = connectionHistory, let lastSeen = history.lastSeen {
+                        Divider()
+                        InfoRow(label: "Last Seen", value: formatRelativeTime(since: lastSeen))
                     }
                 }
             }
