@@ -120,6 +120,22 @@ struct ConnectionHistory {
     var isCurrentlyConnected: Bool = false
 }
 
+// MARK: - Sync Event Tracking
+enum SyncEventType {
+    case syncStarted
+    case syncCompleted
+    case idle
+}
+
+struct SyncEvent: Identifiable {
+    let id = UUID()
+    let folderID: String
+    let folderName: String
+    let eventType: SyncEventType
+    let timestamp: Date
+    let details: String?
+}
+
 // MARK: - Syncthing API Client
 class SyncthingClient: ObservableObject {
     private let session: URLSession
@@ -136,6 +152,11 @@ class SyncthingClient: ObservableObject {
     // Connection history tracking
     private var connectionHistory: [String: ConnectionHistory] = [:]
 
+    // Sync event tracking
+    private var previousFolderStates: [String: String] = [:] // folderID -> state
+    private var syncEvents: [SyncEvent] = []
+    private let maxEvents = 50 // Keep last 50 events
+
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
@@ -145,6 +166,7 @@ class SyncthingClient: ObservableObject {
     @Published var deviceCompletions: [String: SyncthingDeviceCompletion] = [:]
     @Published var transferRates: [String: TransferRates] = [:]
     @Published var deviceHistory: [String: ConnectionHistory] = [:]
+    @Published var recentSyncEvents: [SyncEvent] = []
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -361,10 +383,68 @@ class SyncthingClient: ObservableObject {
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
-                await MainActor.run { self.folderStatuses[folder.id] = status }
+                await MainActor.run {
+                    self.trackSyncEvent(folder: folder, status: status)
+                    self.folderStatuses[folder.id] = status
+                }
             } catch {
                 print("Failed to fetch db/status for folder \(folder.id): \(error)")
             }
+        }
+    }
+
+    private func trackSyncEvent(folder: SyncthingFolder, status: SyncthingFolderStatus) {
+        let currentState = status.state
+        let previousState = previousFolderStates[folder.id]
+
+        // Track state changes
+        if previousState != currentState {
+            let folderName = folder.label.isEmpty ? folder.id : folder.label
+            let event: SyncEvent?
+
+            switch (previousState, currentState) {
+            case (_, "syncing") where previousState != "syncing":
+                // Sync started
+                let details = status.needFiles > 0 ? "\(status.needFiles) files to sync" : nil
+                event = SyncEvent(
+                    folderID: folder.id,
+                    folderName: folderName,
+                    eventType: .syncStarted,
+                    timestamp: Date(),
+                    details: details
+                )
+            case ("syncing", "idle") where status.needFiles == 0:
+                // Sync completed successfully
+                event = SyncEvent(
+                    folderID: folder.id,
+                    folderName: folderName,
+                    eventType: .syncCompleted,
+                    timestamp: Date(),
+                    details: "All files synchronized"
+                )
+            case (_, "idle") where previousState == "syncing":
+                // Back to idle (may have paused or error)
+                event = SyncEvent(
+                    folderID: folder.id,
+                    folderName: folderName,
+                    eventType: .idle,
+                    timestamp: Date(),
+                    details: status.needFiles > 0 ? "\(status.needFiles) files pending" : nil
+                )
+            default:
+                event = nil
+            }
+
+            if let event = event {
+                syncEvents.append(event)
+                // Keep only the most recent events
+                if syncEvents.count > maxEvents {
+                    syncEvents.removeFirst(syncEvents.count - maxEvents)
+                }
+                recentSyncEvents = syncEvents.reversed()
+            }
+
+            previousFolderStates[folder.id] = currentState
         }
     }
     
@@ -735,6 +815,10 @@ struct ContentView: View {
                     VStack(spacing: 16) {
                         RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
+
+                        if !isPopover && !syncthingClient.recentSyncEvents.isEmpty {
+                            SyncHistoryView(events: syncthingClient.recentSyncEvents)
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -925,6 +1009,92 @@ struct FolderSyncStatusView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+struct SyncHistoryView: View {
+    let events: [SyncEvent]
+    @State private var showAll = false
+
+    var body: some View {
+        GroupBox("Recent Sync Activity") {
+            if events.isEmpty {
+                Text("No sync activity yet").foregroundColor(.secondary).padding(.vertical, 4)
+            } else {
+                VStack(spacing: 8) {
+                    let displayEvents = showAll ? events : Array(events.prefix(5))
+                    ForEach(displayEvents) { event in
+                        SyncEventRow(event: event)
+                    }
+
+                    if events.count > 5 {
+                        Button(showAll ? "Show Less" : "Show All (\(events.count))") {
+                            showAll.toggle()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .padding(.top, 4)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SyncEventRow: View {
+    let event: SyncEvent
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            eventIcon
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(event.folderName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(formatRelativeTime(since: event.timestamp))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(eventDescription)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var eventIcon: some View {
+        Group {
+            switch event.eventType {
+            case .syncStarted:
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundColor(.blue)
+            case .syncCompleted:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            case .idle:
+                Image(systemName: "pause.circle")
+                    .foregroundColor(.orange)
+            }
+        }
+        .font(.caption)
+    }
+
+    private var eventDescription: String {
+        switch event.eventType {
+        case .syncStarted:
+            return event.details ?? "Started syncing"
+        case .syncCompleted:
+            return event.details ?? "Sync completed"
+        case .idle:
+            return event.details ?? "Paused"
         }
     }
 }
