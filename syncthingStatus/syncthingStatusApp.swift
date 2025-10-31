@@ -604,11 +604,11 @@ struct ContentView: View {
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
-                        SystemStatusView(status: status)
+                        SystemStatusView(status: status, isPopover: isPopover)
                     }
-                    
+
                     VStack(spacing: 16) {
-                        RemoteDevicesView(syncthingClient: syncthingClient)
+                        RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
                         FolderSyncStatusView(syncthingClient: syncthingClient)
                     }
                 }
@@ -725,21 +725,34 @@ struct FooterView: View {
 }
 
 struct SystemStatusView: View {
-    let status: SyncthingSystemStatus // Updated type
-    
+    let status: SyncthingSystemStatus
+    var isPopover: Bool = true
+
     var body: some View {
         GroupBox("System Status") {
             VStack(spacing: 8) {
                 HStack {
                     Text("Device ID:").fontWeight(.medium)
                     Spacer()
-                    Text(String(status.myID.prefix(12)) + "...").font(.system(.caption, design: .monospaced))
+                    if isPopover {
+                        Text(String(status.myID.prefix(12)) + "...").font(.system(.caption, design: .monospaced))
+                    } else {
+                        Text(status.myID).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    }
                 }
                 Divider()
                 HStack {
                     Text("Uptime:").fontWeight(.medium)
                     Spacer()
                     Text(formatUptime(status.uptime))
+                }
+                if !isPopover, let version = status.version {
+                    Divider()
+                    HStack {
+                        Text("Version:").fontWeight(.medium)
+                        Spacer()
+                        Text(version)
+                    }
                 }
             }
         }
@@ -748,7 +761,8 @@ struct SystemStatusView: View {
 
 struct RemoteDevicesView: View {
     @ObservedObject var syncthingClient: SyncthingClient
-    
+    var isPopover: Bool = true
+
     var body: some View {
         GroupBox("Remote Devices") {
             if syncthingClient.devices.isEmpty {
@@ -759,7 +773,8 @@ struct RemoteDevicesView: View {
                         DeviceStatusRow(
                             device: device,
                             connection: syncthingClient.connections[device.deviceID],
-                            completion: syncthingClient.deviceCompletions[device.deviceID]
+                            completion: syncthingClient.deviceCompletions[device.deviceID],
+                            isDetailed: !isPopover
                         )
                     }
                 }
@@ -791,8 +806,17 @@ struct DeviceStatusRow: View {
     let device: SyncthingDevice
     let connection: SyncthingConnection?
     let completion: SyncthingDeviceCompletion?
-    
+    var isDetailed: Bool = false
+
     var body: some View {
+        if isDetailed {
+            detailedView
+        } else {
+            compactView
+        }
+    }
+
+    private var compactView: some View {
         HStack {
             Circle().fill(connection?.connected == true ? .green : .red).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
@@ -817,6 +841,87 @@ struct DeviceStatusRow: View {
             } else {
                 Text("Disconnected").font(.caption).foregroundColor(.red)
             }
+        }
+    }
+
+    private var detailedView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Circle().fill(connection?.connected == true ? .green : .red).frame(width: 10, height: 10)
+                Text(device.name).font(.headline)
+                Spacer()
+                if let connection, connection.connected {
+                    if let completion, completion.completion < 100 {
+                        Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
+                    } else {
+                        Text("Up to date").font(.subheadline).foregroundColor(.green)
+                    }
+                } else {
+                    Text("Disconnected").font(.subheadline).foregroundColor(.red)
+                }
+            }
+
+            Divider()
+
+            VStack(spacing: 6) {
+                InfoRow(label: "Device ID", value: device.deviceID, isMonospaced: true)
+
+                if let connection, connection.connected {
+                    if let address = connection.address {
+                        InfoRow(label: "Address", value: address, isMonospaced: true)
+                    }
+                    if let type = connection.type {
+                        InfoRow(label: "Connection Type", value: type)
+                    }
+                    if let version = connection.clientVersion {
+                        InfoRow(label: "Client Version", value: version)
+                    }
+
+                    Divider()
+
+                    InfoRow(label: "Data Received", value: formatBytes(connection.inBytesTotal))
+                    InfoRow(label: "Data Sent", value: formatBytes(connection.outBytesTotal))
+
+                    if let completion {
+                        Divider()
+                        InfoRow(label: "Completion", value: String(format: "%.2f%%", completion.completion))
+                        if completion.needBytes > 0 {
+                            InfoRow(label: "Remaining", value: formatBytes(completion.needBytes))
+                        }
+                    }
+                } else {
+                    if !device.addresses.isEmpty {
+                        InfoRow(label: "Addresses", value: device.addresses.joined(separator: ", "))
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Helper View for Info Rows
+struct InfoRow: View {
+    let label: String
+    let value: String
+    var isMonospaced: Bool = false
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label + ":")
+                .fontWeight(.medium)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 120, alignment: .leading)
+            if isMonospaced {
+                Text(value)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            } else {
+                Text(value)
+                    .font(.caption)
+            }
+            Spacer()
         }
     }
 }
