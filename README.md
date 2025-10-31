@@ -5,6 +5,8 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
 ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Download](https://img.shields.io/github/v/release/Xpycode/syncthingStatus?label=Download&style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
 
 ## Features
 
@@ -37,7 +39,12 @@ The app provides two viewing modes:
 ## Installation
 
 ### Download Pre-built App
-Download the latest release from the [Releases](https://github.com/Xpycode/syncthingStatus/releases) page (coming soon after notarization).
+1. Download the latest **[syncthingStatus-v1.0.dmg](https://github.com/Xpycode/syncthingStatus/releases/latest)** from the Releases page
+2. Open the DMG file
+3. Drag **syncthingStatus.app** to your Applications folder
+4. Launch the app - it will appear in your menu bar
+
+> **Note**: The app is notarized by Apple and will run without security warnings.
 
 ### Build from Source
 1. Clone this repository:
