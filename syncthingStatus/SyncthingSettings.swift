@@ -27,6 +27,10 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistDefaultsIfNeeded() }
     }
 
+    @Published var refreshInterval: Double {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
@@ -37,6 +41,7 @@ final class SyncthingSettings: ObservableObject {
         static let syncCompletionThreshold = "SyncthingSettings.syncCompletionThreshold"
         static let syncRemainingBytesThreshold = "SyncthingSettings.syncRemainingBytesThreshold"
         static let showSyncNotifications = "SyncthingSettings.showSyncNotifications"
+        static let refreshInterval = "SyncthingSettings.refreshInterval"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -49,6 +54,7 @@ final class SyncthingSettings: ObservableObject {
         syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? 95.0
         syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
         showSyncNotifications = defaults.object(forKey: Keys.showSyncNotifications) as? Bool ?? true
+        refreshInterval = defaults.object(forKey: Keys.refreshInterval) as? Double ?? 10.0
         isLoading = false
     }
 
@@ -68,6 +74,7 @@ final class SyncthingSettings: ObservableObject {
         syncCompletionThreshold = 95.0
         syncRemainingBytesThreshold = 1_048_576 // 1 MB
         showSyncNotifications = true
+        refreshInterval = 10.0
     }
 
     private func persistDefaultsIfNeeded() {
@@ -77,6 +84,7 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(syncCompletionThreshold, forKey: Keys.syncCompletionThreshold)
         defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
         defaults.set(showSyncNotifications, forKey: Keys.showSyncNotifications)
+        defaults.set(refreshInterval, forKey: Keys.refreshInterval)
     }
 
     private func persistKeychainIfNeeded() {

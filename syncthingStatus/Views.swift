@@ -885,6 +885,16 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section("Monitoring") {
+                Picker("Refresh Interval", selection: $settings.refreshInterval) {
+                    Text("5 seconds").tag(5.0)
+                    Text("10 seconds").tag(10.0)
+                    Text("30 seconds").tag(30.0)
+                    Text("1 minute").tag(60.0)
+                    Text("5 minutes").tag(300.0)
+                }
+            }
+
             Section("Notifications") {
                 Toggle("Show sync completion notifications", isOn: $settings.showSyncNotifications)
                 Text("Get notified when a folder finishes syncing.")

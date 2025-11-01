@@ -112,7 +112,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             await MainActor.run { self.updateStatusIcon() }
         }
         
-        timer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: settings.refreshInterval, repeats: true) { _ in
             Task {
                 await self.syncthingClient.refresh()
                 await MainActor.run { self.updateStatusIcon() }
@@ -244,6 +245,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         syncthingClient.$folderStatuses
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        settings.$refreshInterval
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.startMonitoring() }
             .store(in: &cancellables)
     }
     
