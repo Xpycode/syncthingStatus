@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Helper Functions
-private func formatUptime(_ seconds: Int) -> String {
+func formatUptime(_ seconds: Int) -> String {
     let duration = TimeInterval(seconds)
     let formatter = DateComponentsFormatter()
     formatter.unitsStyle = .abbreviated
@@ -11,14 +11,14 @@ private func formatUptime(_ seconds: Int) -> String {
 }
 
 // Corrected to handle Int64
-private func formatBytes(_ bytes: Int64) -> String {
+func formatBytes(_ bytes: Int64) -> String {
     let bcf = ByteCountFormatter()
     bcf.allowedUnits = [.useAll]
     bcf.countStyle = .file
     return bcf.string(fromByteCount: bytes)
 }
 
-private func formatTransferRate(_ bytesPerSecond: Double) -> String {
+func formatTransferRate(_ bytesPerSecond: Double) -> String {
     if bytesPerSecond < 1 {
         return "0 B/s"
     }
@@ -28,7 +28,7 @@ private func formatTransferRate(_ bytesPerSecond: Double) -> String {
     return bcf.string(fromByteCount: Int64(bytesPerSecond)) + "/s"
 }
 
-private func formatRelativeTime(since date: Date) -> String {
+func formatRelativeTime(since date: Date) -> String {
     let now = Date()
     let interval = now.timeIntervalSince(date)
 
@@ -46,7 +46,7 @@ private func formatRelativeTime(since date: Date) -> String {
     }
 }
 
-private func formatConnectionDuration(since date: Date?) -> String {
+func formatConnectionDuration(since date: Date?) -> String {
     guard let date = date else { return "Not connected" }
     let interval = Date().timeIntervalSince(date)
     let formatter = DateComponentsFormatter()
@@ -56,7 +56,7 @@ private func formatConnectionDuration(since date: Date?) -> String {
     return formatter.string(from: interval) ?? "0m"
 }
 
-private func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
+func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
     // Only show chart if there's been meaningful transfer activity
     // Minimum threshold: 1 KB/s peak speed
     let minThreshold: Double = 1024 // 1 KB/s in bytes/sec
@@ -65,7 +65,7 @@ private func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
     return max(maxDown, maxUp) >= minThreshold
 }
 
-private func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: SyncthingSettings) -> Bool {
+func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: SyncthingSettings) -> Bool {
     // Consider a device "synced" if:
     // 1. It's at 100%, OR
     // 2. It's >= threshold% complete AND has less than threshold bytes remaining
