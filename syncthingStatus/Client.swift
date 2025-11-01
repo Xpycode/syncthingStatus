@@ -51,6 +51,7 @@ class SyncthingClient: ObservableObject {
     // Transfer history for charts
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
     private var totalTransferHistory = DeviceTransferHistory() // Aggregate for all devices
+    private var isRefreshing = false
 
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
@@ -65,6 +66,7 @@ class SyncthingClient: ObservableObject {
     @Published var deviceTransferHistory: [String: DeviceTransferHistory] = [:]
     @Published var totalTransferHistory_published = DeviceTransferHistory()
     @Published var localDeviceName: String = ""
+    @Published var lastErrorMessage: String?
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -147,7 +149,7 @@ class SyncthingClient: ObservableObject {
     private func prepareCredentials() -> Bool {
         let trimmedBase = settings.trimmedBaseURL
         guard let resolvedBaseURL = URL(string: trimmedBase), !trimmedBase.isEmpty else {
-            print("Syncthing base URL is invalid or empty.")
+            Task { await MainActor.run { self.lastErrorMessage = "Syncthing base URL is invalid or empty." } }
             return false
         }
         baseURL = resolvedBaseURL
@@ -155,17 +157,15 @@ class SyncthingClient: ObservableObject {
         if settings.useAutomaticDiscovery {
             if cachedAutomaticAPIKey == nil {
                 cachedAutomaticAPIKey = loadAutomaticAPIKey()
-                if cachedAutomaticAPIKey != nil {
-                    print("Successfully loaded API key from config.")
-                } else {
-                    print("API key could not be loaded. Check Syncthing config.")
+                if cachedAutomaticAPIKey == nil {
+                    Task { await MainActor.run { self.lastErrorMessage = "API key could not be loaded from config.xml." } }
                 }
             }
             guard let key = cachedAutomaticAPIKey else { return false }
             apiKey = key
         } else {
             guard let manualKey = settings.resolvedManualAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines), !manualKey.isEmpty else {
-                print("Manual API key is empty.")
+                Task { await MainActor.run { self.lastErrorMessage = "Manual API key is empty." } }
                 return false
             }
             apiKey = manualKey
@@ -224,12 +224,13 @@ class SyncthingClient: ObservableObject {
             await MainActor.run {
                 self.systemStatus = status
                 self.isConnected = true
+                self.lastErrorMessage = nil
             }
         } catch {
-            print("Failed to fetch system/status: \(error)")
             await MainActor.run {
                 self.isConnected = false
                 self.systemStatus = nil
+                self.lastErrorMessage = "Failed to connect to Syncthing: \(error.localizedDescription)"
             }
         }
     }
@@ -444,7 +445,7 @@ class SyncthingClient: ObservableObject {
             }
         }
     }
-
+    
     private func sendConnectionNotification(deviceName: String, connected: Bool) {
         let content = UNMutableNotificationContent()
         content.title = connected ? "Device Connected" : "Device Disconnected"
@@ -488,6 +489,13 @@ class SyncthingClient: ObservableObject {
     }
     
     func refresh() async {
+        guard !isRefreshing else {
+            print("Refresh already in progress.")
+            return
+        }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
         guard prepareCredentials() else {
             await MainActor.run { self.handleDisconnectedState() }
             return

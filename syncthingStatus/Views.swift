@@ -37,6 +37,7 @@ struct ContentView: View {
 
                     if !isPopover {
                         SystemStatisticsView(syncthingClient: syncthingClient)
+                        TotalTransferSpeedChartView(history: syncthingClient.totalTransferHistory_published)
                     }
 
                     VStack(spacing: 16) {
@@ -64,7 +65,7 @@ struct ContentView: View {
             Spacer(minLength: 0)
             
             if let appDelegate = appDelegate {
-                FooterView(appDelegate: appDelegate, settings: settings, isConnected: syncthingClient.isConnected, isPopover: isPopover)
+                FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
                     .padding()
             }
         }
@@ -129,37 +130,53 @@ struct DisconnectedView: View {
 struct FooterView: View {
     let appDelegate: AppDelegate
     let settings: SyncthingSettings
+    @ObservedObject var syncthingClient: SyncthingClient
     let isConnected: Bool
     let isPopover: Bool
 
     var body: some View {
-        HStack {
-            Button("Open Web UI") {
-                if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
-            }.disabled(!isConnected)
-            
-            if #available(macOS 13.0, *) {
-                SettingsLink {
-                    Text("Settings")
+        VStack(alignment: .leading, spacing: 8) {
+            if let errorMessage = syncthingClient.lastErrorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(errorMessage)
                 }
-                .buttonStyle(.bordered)
-            } else {
-                Button("Settings") {
-                    appDelegate.openSettings()
-                }
-                .buttonStyle(.bordered)
             }
             
-            Spacer()
-            
-            if isPopover {
-                Button("Open in Window") {
-                    appDelegate.openMainWindow()
+            HStack {
+                Button("Open Web UI") {
+                    if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
+                }.disabled(!isConnected)
+                
+                if #available(macOS 13.0, *) {
+                    SettingsLink {
+                        Text("Settings")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button("Settings") {
+                        appDelegate.openSettings()
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                if isPopover {
+                    Button("Open in Window") {
+                        appDelegate.openMainWindow()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                
+                Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
             }
-            
-            Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
         }
     }
 }
@@ -441,7 +458,7 @@ struct SyncEventRow: View {
     }
 }
 
-struct TransferSpeedChartView: View {
+struct DeviceTransferSpeedChartView: View {
     let deviceName: String
     let history: DeviceTransferHistory
 
@@ -461,6 +478,88 @@ struct TransferSpeedChartView: View {
         GroupBox("\(displayName) - Transfer Speed") {
             if history.dataPoints.isEmpty {
                 Text("No data yet").foregroundColor(.secondary).padding(.vertical, 20)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Chart {
+                        // Download series (received data)
+                        ForEach(history.dataPoints) { point in
+                            LineMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Speed", point.downloadRate / 1024),
+                                series: .value("Type", "Download")
+                            )
+                            .foregroundStyle(.blue)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .symbol(.circle)
+                            .symbolSize(20)
+                        }
+
+                        // Upload series (sent data)
+                        ForEach(history.dataPoints) { point in
+                            LineMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Speed", point.uploadRate / 1024),
+                                series: .value("Type", "Upload")
+                            )
+                            .foregroundStyle(.green)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5, dash: [5, 3]))
+                            .symbol(.square)
+                            .symbolSize(20)
+                        }
+                    }
+                    .chartYScale(domain: 0...maxSpeed)
+                    .chartYAxis {
+                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                            AxisValueLabel()
+                            AxisGridLine()
+                        }
+                    }
+                    .chartYAxisLabel("KB/s", position: .leading)
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                            if let date = value.as(Date.self) {
+                                AxisValueLabel {
+                                    Text(date, format: .dateTime.hour().minute())
+                                        .font(.caption2)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 150)
+
+                    HStack(spacing: 16) {
+                        Label("Download (received)", systemImage: "arrow.down.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Label("Upload (sent)", systemImage: "arrow.up.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+    }
+}
+
+struct TotalTransferSpeedChartView: View {
+    let history: DeviceTransferHistory
+
+    private var maxSpeed: Double {
+        let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
+        let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
+        let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
+        // Add 20% padding to max value for better visualization, minimum 1
+        return max(maxValue * 1.2, 1)
+    }
+
+    var body: some View {
+        GroupBox("Total Transfer Speed") {
+            if history.dataPoints.isEmpty {
+                Text("No transfer data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
@@ -638,6 +737,11 @@ struct DeviceStatusRow: View {
                         if let connectedSince = history.connectedSince {
                             InfoRow(label: "Connected For", value: formatConnectionDuration(since: connectedSince))
                         }
+                    }
+                    
+                    if let history = syncthingClient.deviceTransferHistory[device.deviceID], hasSignificantActivity(history: history) {
+                        Divider()
+                        DeviceTransferSpeedChartView(deviceName: device.name, history: history)
                     }
                 } else {
                     if !device.addresses.isEmpty {
