@@ -2,6 +2,7 @@ import Cocoa
 import SwiftUI
 import Foundation
 import Combine
+import Charts
 
 // MARK: - Syncthing Data Models (Corrected)
 struct SyncthingSystemStatus: Codable {
@@ -136,6 +137,33 @@ struct SyncEvent: Identifiable {
     let details: String?
 }
 
+// MARK: - Time-Series Data for Charts
+struct TransferDataPoint: Identifiable {
+    let id = UUID()
+    let timestamp: Date
+    let downloadRate: Double  // bytes per second
+    let uploadRate: Double    // bytes per second
+}
+
+struct DeviceTransferHistory {
+    var dataPoints: [TransferDataPoint] = []
+    let maxDataPoints = 60 // Keep 10 minutes of data (60 points at 10s intervals)
+
+    mutating func addDataPoint(downloadRate: Double, uploadRate: Double) {
+        let point = TransferDataPoint(
+            timestamp: Date(),
+            downloadRate: downloadRate,
+            uploadRate: uploadRate
+        )
+        dataPoints.append(point)
+
+        // Remove old data points
+        if dataPoints.count > maxDataPoints {
+            dataPoints.removeFirst(dataPoints.count - maxDataPoints)
+        }
+    }
+}
+
 // MARK: - Syncthing API Client
 class SyncthingClient: ObservableObject {
     private let session: URLSession
@@ -157,6 +185,9 @@ class SyncthingClient: ObservableObject {
     private var syncEvents: [SyncEvent] = []
     private let maxEvents = 50 // Keep last 50 events
 
+    // Transfer history for charts
+    private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
+
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
@@ -167,6 +198,7 @@ class SyncthingClient: ObservableObject {
     @Published var transferRates: [String: TransferRates] = [:]
     @Published var deviceHistory: [String: ConnectionHistory] = [:]
     @Published var recentSyncEvents: [SyncEvent] = []
+    @Published var deviceTransferHistory: [String: DeviceTransferHistory] = [:]
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -342,10 +374,17 @@ class SyncthingClient: ObservableObject {
             let downloadRate = Double(bytesReceived) / timeDelta
             let uploadRate = Double(bytesSent) / timeDelta
 
-            transferRates[deviceID] = TransferRates(
+            let rates = TransferRates(
                 downloadRate: max(0, downloadRate),
                 uploadRate: max(0, uploadRate)
             )
+            transferRates[deviceID] = rates
+
+            // Store historical data for charts
+            var history = transferHistory[deviceID] ?? DeviceTransferHistory()
+            history.addDataPoint(downloadRate: rates.downloadRate, uploadRate: rates.uploadRate)
+            transferHistory[deviceID] = history
+            deviceTransferHistory[deviceID] = history
         }
     }
 
@@ -816,8 +855,19 @@ struct ContentView: View {
                         RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
 
-                        if !isPopover && !syncthingClient.recentSyncEvents.isEmpty {
-                            SyncHistoryView(events: syncthingClient.recentSyncEvents)
+                        if !isPopover {
+                            // Show transfer speed charts for connected devices with data
+                            ForEach(syncthingClient.devices) { device in
+                                if let history = syncthingClient.deviceTransferHistory[device.deviceID],
+                                   !history.dataPoints.isEmpty,
+                                   syncthingClient.connections[device.deviceID]?.connected == true {
+                                    TransferSpeedChartView(deviceName: device.name, history: history)
+                                }
+                            }
+
+                            if !syncthingClient.recentSyncEvents.isEmpty {
+                                SyncHistoryView(events: syncthingClient.recentSyncEvents)
+                            }
                         }
                     }
                 }
@@ -1095,6 +1145,66 @@ struct SyncEventRow: View {
             return event.details ?? "Sync completed"
         case .idle:
             return event.details ?? "Paused"
+        }
+    }
+}
+
+struct TransferSpeedChartView: View {
+    let deviceName: String
+    let history: DeviceTransferHistory
+
+    var body: some View {
+        GroupBox("\(deviceName) - Transfer Speed") {
+            if history.dataPoints.isEmpty {
+                Text("No data yet").foregroundColor(.secondary).padding(.vertical, 20)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Chart {
+                        ForEach(history.dataPoints) { point in
+                            if point.downloadRate > 0 {
+                                LineMark(
+                                    x: .value("Time", point.timestamp),
+                                    y: .value("Speed", point.downloadRate / 1024) // Convert to KB/s
+                                )
+                                .foregroundStyle(.blue)
+                                .interpolationMethod(.catmullRom)
+                            }
+
+                            if point.uploadRate > 0 {
+                                LineMark(
+                                    x: .value("Time", point.timestamp),
+                                    y: .value("Speed", point.uploadRate / 1024) // Convert to KB/s
+                                )
+                                .foregroundStyle(.green)
+                                .interpolationMethod(.catmullRom)
+                            }
+                        }
+                    }
+                    .chartYAxisLabel("KB/s")
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                            if let date = value.as(Date.self) {
+                                AxisValueLabel {
+                                    Text(date, format: .dateTime.hour().minute())
+                                        .font(.caption2)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 120)
+
+                    HStack(spacing: 16) {
+                        Label("Download", systemImage: "arrow.down.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Label("Upload", systemImage: "arrow.up.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(.vertical, 8)
+            }
         }
     }
 }
