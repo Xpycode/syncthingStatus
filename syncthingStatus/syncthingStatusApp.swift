@@ -205,7 +205,36 @@ class SyncthingClient: ObservableObject {
         self.session = session
         observeSettings()
     }
-    
+
+    // MARK: - Computed Statistics
+    var totalSyncedData: Int64 {
+        folderStatuses.values.reduce(0) { $0 + $1.localBytes }
+    }
+
+    var totalGlobalData: Int64 {
+        folderStatuses.values.reduce(0) { $0 + $1.globalBytes }
+    }
+
+    var totalDevicesConnected: Int {
+        connections.values.filter { $0.connected }.count
+    }
+
+    var totalDataReceived: Int64 {
+        connections.values.reduce(0) { $0 + $1.inBytesTotal }
+    }
+
+    var totalDataSent: Int64 {
+        connections.values.reduce(0) { $0 + $1.outBytesTotal }
+    }
+
+    var currentDownloadSpeed: Double {
+        transferRates.values.reduce(0) { $0 + $1.downloadRate }
+    }
+
+    var currentUploadSpeed: Double {
+        transferRates.values.reduce(0) { $0 + $1.uploadRate }
+    }
+
     private func observeSettings() {
         Publishers.CombineLatest3(
             settings.$useAutomaticDiscovery,
@@ -851,6 +880,10 @@ struct ContentView: View {
                         SystemStatusView(status: status, isPopover: isPopover)
                     }
 
+                    if !isPopover {
+                        SystemStatisticsView(syncthingClient: syncthingClient)
+                    }
+
                     VStack(spacing: 16) {
                         RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
@@ -1011,6 +1044,105 @@ struct SystemStatusView: View {
                         Text("Version:").fontWeight(.medium)
                         Spacer()
                         Text(version)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SystemStatisticsView: View {
+    @ObservedObject var syncthingClient: SyncthingClient
+
+    var body: some View {
+        GroupBox("System Statistics") {
+            VStack(spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Total Folders")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("\(syncthingClient.folders.count)")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Connected Devices")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("\(syncthingClient.totalDevicesConnected) / \(syncthingClient.devices.count)")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Local Data")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(syncthingClient.totalSyncedData))
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Global Data")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(syncthingClient.totalGlobalData))
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Total Received")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(syncthingClient.totalDataReceived))
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Total Sent")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(syncthingClient.totalDataSent))
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+                    }
+                }
+
+                if syncthingClient.currentDownloadSpeed > 0 || syncthingClient.currentUploadSpeed > 0 {
+                    Divider()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Current Download")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatTransferRate(syncthingClient.currentDownloadSpeed))
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .fontWeight(.medium)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Current Upload")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatTransferRate(syncthingClient.currentUploadSpeed))
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                                .fontWeight(.medium)
+                        }
                     }
                 }
             }
