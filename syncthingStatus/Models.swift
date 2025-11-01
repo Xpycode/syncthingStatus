@@ -17,6 +17,7 @@ struct SyncthingDevice: Codable, Identifiable {
     let deviceID: String
     let name: String
     let addresses: [String]
+    let paused: Bool
     
     var id: String { deviceID }
 }

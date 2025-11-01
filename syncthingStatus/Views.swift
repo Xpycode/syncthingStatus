@@ -320,6 +320,7 @@ struct RemoteDevicesView: View {
                 VStack(spacing: 12) {
                     ForEach(syncthingClient.devices) { device in
                         DeviceStatusRow(
+                            syncthingClient: syncthingClient,
                             device: device,
                             connection: syncthingClient.connections[device.deviceID],
                             completion: syncthingClient.deviceCompletions[device.deviceID],
@@ -346,7 +347,7 @@ struct FolderSyncStatusView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(syncthingClient.folders) { folder in
-                        FolderStatusRow(folder: folder, status: syncthingClient.folderStatuses[folder.id], isDetailed: !isPopover)
+                        FolderStatusRow(syncthingClient: syncthingClient, folder: folder, status: syncthingClient.folderStatuses[folder.id], isDetailed: !isPopover)
                     }
                 }
             }
@@ -529,6 +530,7 @@ struct TransferSpeedChartView: View {
 
 // MARK: - Row Views
 struct DeviceStatusRow: View {
+    @ObservedObject var syncthingClient: SyncthingClient
     let device: SyncthingDevice
     let connection: SyncthingConnection?
     let completion: SyncthingDeviceCompletion?
@@ -547,13 +549,15 @@ struct DeviceStatusRow: View {
 
     private var compactView: some View {
         HStack {
-            Circle().fill(connection?.connected == true ? .green : .red).frame(width: 8, height: 8)
+            Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name).fontWeight(.medium)
                 Text(String(device.deviceID.prefix(12)) + "...").font(.system(.caption, design: .monospaced)).foregroundColor(.secondary)
             }
             Spacer()
-            if let connection, connection.connected {
+            if device.paused {
+                Text("Paused").font(.caption).foregroundColor(.secondary)
+            } else if let connection, connection.connected {
                 if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
@@ -573,6 +577,17 @@ struct DeviceStatusRow: View {
                 }
             } else {
                 Text("Disconnected").font(.caption).foregroundColor(.red)
+            }
+        }
+        .contextMenu {
+            if device.paused {
+                Button("Resume") {
+                    Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
+                }
+            } else {
+                Button("Pause") {
+                    Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
+                }
             }
         }
     }
@@ -638,10 +653,12 @@ struct DeviceStatusRow: View {
             .padding(.vertical, 4)
         } label: {
             HStack {
-                Circle().fill(connection?.connected == true ? .green : .red).frame(width: 10, height: 10)
+                Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 10, height: 10)
                 Text(device.name).font(.headline)
                 Spacer()
-                if let connection, connection.connected {
+                if device.paused {
+                    Text("Paused").font(.subheadline).foregroundColor(.secondary)
+                } else if let connection, connection.connected {
                     if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
                     } else {
@@ -649,6 +666,17 @@ struct DeviceStatusRow: View {
                     }
                 } else {
                     Text("Disconnected").font(.subheadline).foregroundColor(.red)
+                }
+            }
+        }
+        .contextMenu {
+            if device.paused {
+                Button("Resume") {
+                    Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
+                }
+            } else {
+                Button("Pause") {
+                    Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
                 }
             }
         }
@@ -686,6 +714,7 @@ struct InfoRow: View {
 }
 
 struct FolderStatusRow: View {
+    @ObservedObject var syncthingClient: SyncthingClient
     let folder: SyncthingFolder
     let status: SyncthingFolderStatus?
     var isDetailed: Bool = false
@@ -724,6 +753,11 @@ struct FolderStatusRow: View {
                 if total > 0 {
                     ProgressView(value: current / total).progressViewStyle(.linear)
                 }
+            }
+        }
+        .contextMenu {
+            Button("Rescan") {
+                Task { await syncthingClient.rescanFolder(folderID: folder.id) }
             }
         }
     }

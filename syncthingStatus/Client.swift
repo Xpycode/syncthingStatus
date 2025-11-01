@@ -202,6 +202,22 @@ class SyncthingClient: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
     
+    private func postRequest(endpoint: String) async throws {
+        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        
+        let (_, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            print("Syncthing POST request to \(endpoint) failed.")
+            throw URLError(.badServerResponse)
+        }
+    }
+    
     func fetchStatus() async {
         do {
             let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
@@ -461,6 +477,34 @@ class SyncthingClient: ObservableObject {
             async let deviceCompletionTask: () = fetchDeviceCompletions()
             
             _ = await [connectionsTask, folderStatusTask, deviceCompletionTask]
+        }
+    }
+
+    // MARK: - Control Functions
+    func pauseDevice(deviceID: String) async {
+        do {
+            try await postRequest(endpoint: "system/pause?device=\(deviceID)")
+            await refresh()
+        } catch {
+            print("Failed to pause device \(deviceID): \(error)")
+        }
+    }
+
+    func resumeDevice(deviceID: String) async {
+        do {
+            try await postRequest(endpoint: "system/resume?device=\(deviceID)")
+            await refresh()
+        } catch {
+            print("Failed to resume device \(deviceID): \(error)")
+        }
+    }
+
+    func rescanFolder(folderID: String) async {
+        do {
+            try await postRequest(endpoint: "db/scan?folder=\(folderID)")
+            // No immediate refresh needed as scanning is a background task
+        } catch {
+            print("Failed to rescan folder \(folderID): \(error)")
         }
     }
 }
