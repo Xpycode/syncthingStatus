@@ -31,6 +31,18 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistDefaultsIfNeeded() }
     }
 
+    @Published var showDeviceConnectNotifications: Bool {
+        didSet { persistDefaultsIfNeeded() }
+    }
+    
+    @Published var showDeviceDisconnectNotifications: Bool {
+        didSet { persistDefaultsIfNeeded() }
+    }
+    
+    @Published var notificationEnabledFolderIDs: [String] {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
@@ -42,6 +54,9 @@ final class SyncthingSettings: ObservableObject {
         static let syncRemainingBytesThreshold = "SyncthingSettings.syncRemainingBytesThreshold"
         static let showSyncNotifications = "SyncthingSettings.showSyncNotifications"
         static let refreshInterval = "SyncthingSettings.refreshInterval"
+        static let showDeviceConnectNotifications = "SyncthingSettings.showDeviceConnectNotifications"
+        static let showDeviceDisconnectNotifications = "SyncthingSettings.showDeviceDisconnectNotifications"
+        static let notificationEnabledFolderIDs = "SyncthingSettings.notificationEnabledFolderIDs"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -55,6 +70,9 @@ final class SyncthingSettings: ObservableObject {
         syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
         showSyncNotifications = defaults.object(forKey: Keys.showSyncNotifications) as? Bool ?? true
         refreshInterval = defaults.object(forKey: Keys.refreshInterval) as? Double ?? 10.0
+        showDeviceConnectNotifications = defaults.object(forKey: Keys.showDeviceConnectNotifications) as? Bool ?? false
+        showDeviceDisconnectNotifications = defaults.object(forKey: Keys.showDeviceDisconnectNotifications) as? Bool ?? false
+        notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
         isLoading = false
     }
 
@@ -75,6 +93,9 @@ final class SyncthingSettings: ObservableObject {
         syncRemainingBytesThreshold = 1_048_576 // 1 MB
         showSyncNotifications = true
         refreshInterval = 10.0
+        showDeviceConnectNotifications = false
+        showDeviceDisconnectNotifications = false
+        notificationEnabledFolderIDs = []
     }
 
     private func persistDefaultsIfNeeded() {
@@ -85,6 +106,9 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
         defaults.set(showSyncNotifications, forKey: Keys.showSyncNotifications)
         defaults.set(refreshInterval, forKey: Keys.refreshInterval)
+        defaults.set(showDeviceConnectNotifications, forKey: Keys.showDeviceConnectNotifications)
+        defaults.set(showDeviceDisconnectNotifications, forKey: Keys.showDeviceDisconnectNotifications)
+        defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
     }
 
     private func persistKeychainIfNeeded() {

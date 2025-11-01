@@ -855,6 +855,7 @@ struct FolderStatusRow: View {
 
 struct SettingsView: View {
     @ObservedObject var settings: SyncthingSettings
+    @ObservedObject var syncthingClient: SyncthingClient
     @State private var showResetConfirmation = false
     @State private var remainingMB: Double
 
@@ -862,8 +863,9 @@ struct SettingsView: View {
         !settings.useAutomaticDiscovery
     }
 
-    init(settings: SyncthingSettings) {
+    init(settings: SyncthingSettings, syncthingClient: SyncthingClient) {
         self.settings = settings
+        self.syncthingClient = syncthingClient
         _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
     }
 
@@ -930,10 +932,28 @@ struct SettingsView: View {
             }
 
             Section("Notifications") {
-                Toggle("Show sync completion notifications", isOn: $settings.showSyncNotifications)
-                Text("Get notified when a folder finishes syncing.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Toggle("Show device connect notifications", isOn: $settings.showDeviceConnectNotifications)
+                Toggle("Show device disconnect notifications", isOn: $settings.showDeviceDisconnectNotifications)
+                
+                DisclosureGroup("Per-folder sync completion notifications") {
+                    if syncthingClient.folders.isEmpty {
+                        Text("No folders configured.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(syncthingClient.folders) { folder in
+                            Toggle(folder.label, isOn: Binding(
+                                get: { settings.notificationEnabledFolderIDs.contains(folder.id) },
+                                set: { isOn in
+                                    if isOn {
+                                        settings.notificationEnabledFolderIDs.append(folder.id)
+                                    } else {
+                                        settings.notificationEnabledFolderIDs.removeAll { $0 == folder.id }
+                                    }
+                                }
+                            ))
+                        }
+                    }
+                }
             }
 
             Section {
@@ -973,9 +993,9 @@ struct ContentView_Previews: PreviewProvider {
         // Updated preview data
         client.systemStatus = .init(myID: "PREVIEW-ID", tilde: "~", uptime: 12345, version: "v1.23.4")
         client.devices = [
-            .init(deviceID: "DEVICE1-ID", name: "PLEXmini", addresses: []),
-            .init(deviceID: "DEVICE2-ID", name: "M1max", addresses: []),
-            .init(deviceID: "DEVICE3-ID", name: "Another Device", addresses: [])
+            .init(deviceID: "DEVICE1-ID", name: "PLEXmini", addresses: [], paused: false),
+            .init(deviceID: "DEVICE2-ID", name: "M1max", addresses: [], paused: true),
+            .init(deviceID: "DEVICE3-ID", name: "Another Device", addresses: [], paused: false)
         ]
         client.folders = [
             .init(id: "folder1", label: "Xcode Projects", path: "/Users/sim/XcodeProjects", devices: []),

@@ -260,7 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         
-        let hostingController = NSHostingController(rootView: SettingsView(settings: settings))
+        let hostingController = NSHostingController(rootView: SettingsView(settings: settings, syncthingClient: syncthingClient))
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
             styleMask: [.titled, .closable, .resizable],
@@ -286,7 +286,7 @@ struct SyncthingStatusApp: App {
     
     var body: some Scene {
         Settings {
-            SettingsView(settings: appDelegate.settings)
+            SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient)
         }
     }
 }

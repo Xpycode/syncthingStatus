@@ -320,12 +320,16 @@ class SyncthingClient: ObservableObject {
 
         for (deviceID, newConnection) in newConnections {
             var history = connectionHistory[deviceID] ?? ConnectionHistory()
+            let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
 
             if newConnection.connected {
                 // Device is connected
                 if !history.isCurrentlyConnected {
                     // Device just connected
                     history.connectedSince = currentTime
+                    if settings.showDeviceConnectNotifications {
+                        sendConnectionNotification(deviceName: deviceName, connected: true)
+                    }
                 }
                 history.lastSeen = currentTime
                 history.isCurrentlyConnected = true
@@ -334,6 +338,9 @@ class SyncthingClient: ObservableObject {
                 if history.isCurrentlyConnected {
                     // Device just disconnected
                     history.lastSeen = currentTime
+                    if settings.showDeviceDisconnectNotifications {
+                        sendConnectionNotification(deviceName: deviceName, connected: false)
+                    }
                 }
                 history.connectedSince = nil
                 history.isCurrentlyConnected = false
@@ -410,7 +417,7 @@ class SyncthingClient: ObservableObject {
                 recentSyncEvents = syncEvents.reversed()
 
                 // Send notification for sync completion
-                if event.eventType == .syncCompleted && settings.showSyncNotifications {
+                if event.eventType == .syncCompleted && settings.notificationEnabledFolderIDs.contains(folder.id) {
                     sendSyncCompletionNotification(folderName: folderName)
                 }
             }
@@ -434,6 +441,25 @@ class SyncthingClient: ObservableObject {
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("Failed to send notification: \(error)")
+            }
+        }
+    }
+
+    private func sendConnectionNotification(deviceName: String, connected: Bool) {
+        let content = UNMutableNotificationContent()
+        content.title = connected ? "Device Connected" : "Device Disconnected"
+        content.body = "Device '\(deviceName)' is now \(connected ? "online" : "offline")."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send connection notification: \(error)")
             }
         }
     }
