@@ -947,23 +947,6 @@ struct ContentView: View {
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
 
                         if !isPopover {
-                            // Show aggregate total transfer chart
-                            if !syncthingClient.totalTransferHistory_published.dataPoints.isEmpty,
-                               hasSignificantActivity(history: syncthingClient.totalTransferHistory_published) {
-                                let localName = syncthingClient.localDeviceName.isEmpty ? "Local Device" : syncthingClient.localDeviceName
-                                TransferSpeedChartView(deviceName: "\(localName) - Total", history: syncthingClient.totalTransferHistory_published)
-                            }
-
-                            // Show transfer speed charts for connected devices with significant data
-                            ForEach(syncthingClient.devices) { device in
-                                if let history = syncthingClient.deviceTransferHistory[device.deviceID],
-                                   !history.dataPoints.isEmpty,
-                                   syncthingClient.connections[device.deviceID]?.connected == true,
-                                   hasSignificantActivity(history: history) {
-                                    TransferSpeedChartView(deviceName: device.name, history: history)
-                                }
-                            }
-
                             if !syncthingClient.recentSyncEvents.isEmpty {
                                 SyncHistoryView(events: syncthingClient.recentSyncEvents)
                             }
@@ -1383,42 +1366,30 @@ struct TransferSpeedChartView: View {
                     Chart {
                         // Download series (received data)
                         ForEach(history.dataPoints) { point in
-                            AreaMark(
-                                x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / 1024)
-                            )
-                            .foregroundStyle(.blue.opacity(0.3))
-                            .interpolationMethod(.catmullRom)
-                        }
-
-                        ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / 1024)
+                                y: .value("Speed", point.downloadRate / 1024),
+                                series: .value("Type", "Download")
                             )
                             .foregroundStyle(.blue)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .symbol(.circle)
+                            .symbolSize(20)
                         }
 
                         // Upload series (sent data)
                         ForEach(history.dataPoints) { point in
-                            AreaMark(
-                                x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / 1024)
-                            )
-                            .foregroundStyle(.green.opacity(0.3))
-                            .interpolationMethod(.catmullRom)
-                        }
-
-                        ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / 1024)
+                                y: .value("Speed", point.uploadRate / 1024),
+                                series: .value("Type", "Upload")
                             )
                             .foregroundStyle(.green)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            .lineStyle(StrokeStyle(lineWidth: 2.5, dash: [5, 3]))
+                            .symbol(.square)
+                            .symbolSize(20)
                         }
                     }
                     .chartYScale(domain: 0...maxSpeed)
