@@ -200,19 +200,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover?.performClose(nil)
     }
     
-    @objc func openSettings() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        let selectors = ["showSettingsWindow:", "showPreferencesWindow:", "orderFrontSettingsWindow:"]
-        for name in selectors {
-            let selector = Selector(name)
-            if NSApp.sendAction(selector, to: nil, from: nil) {
-                return
-            }
-        }
-        presentFallbackSettingsWindow()
-    }
-    
     func quit() {
         timer?.invalidate()
         NSApplication.shared.terminate(nil)
@@ -251,31 +238,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.startMonitoring() }
             .store(in: &cancellables)
-    }
-    
-    private func presentFallbackSettingsWindow() {
-        if let controller = settingsWindowController {
-            controller.showWindow(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        
-        let hostingController = NSHostingController(rootView: SettingsView(settings: settings, syncthingClient: syncthingClient))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Settings"
-        window.contentViewController = hostingController
-        window.center()
-        
-        let controller = NSWindowController(window: window)
-        controller.window?.delegate = self
-        settingsWindowController = controller
-        controller.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

@@ -9,5 +9,10 @@
 	</dict>
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
+	<key>SMLoginItem</key>
+	<dict>
+		<key>Enabled</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

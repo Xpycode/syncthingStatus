@@ -43,6 +43,12 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistDefaultsIfNeeded() }
     }
 
+    @Published var launchAtLogin: Bool = LaunchAtLoginHelper.isEnabled {
+        didSet {
+            LaunchAtLoginHelper.isEnabled = launchAtLogin
+        }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false

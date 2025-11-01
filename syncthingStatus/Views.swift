@@ -26,9 +26,7 @@ struct ContentView: View {
             Divider().padding(.vertical, 8)
 
             if !syncthingClient.isConnected {
-                DisconnectedView(settings: settings) {
-                    appDelegate?.openSettings()
-                }
+                DisconnectedView(settings: settings)
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
@@ -100,8 +98,8 @@ struct HeaderView: View {
 }
 
 struct DisconnectedView: View {
+    @Environment(\.openSettings) private var openSettings
     let settings: SyncthingSettings
-    let openSettings: () -> Void
     
     var body: some View {
         VStack(spacing: 12) {
@@ -113,22 +111,18 @@ struct DisconnectedView: View {
             Button("Open Syncthing Web UI") {
                 if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
-            if #available(macOS 13.0, *) {
-                SettingsLink {
-                    Text("Open Settings")
-                }
-                .buttonStyle(.bordered)
-            } else {
-                Button("Open Settings", action: openSettings)
-                    .buttonStyle(.bordered)
+            Button("Open Settings") {
+                openSettings()
             }
+            .buttonStyle(.bordered)
             Spacer()
         }
     }
 }
 
 struct FooterView: View {
-    let appDelegate: AppDelegate
+    @Environment(\.openSettings) private var openSettings
+    weak var appDelegate: AppDelegate?
     let settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
     let isConnected: Bool
@@ -154,28 +148,23 @@ struct FooterView: View {
                     if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
                 }.disabled(!isConnected)
                 
-                if #available(macOS 13.0, *) {
-                    SettingsLink {
-                        Text("Settings")
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button("Settings") {
-                        appDelegate.openSettings()
-                    }
-                    .buttonStyle(.bordered)
+                Button("Settings") {
+                    openSettings()
                 }
+                .buttonStyle(.bordered)
                 
                 Spacer()
                 
                 if isPopover {
                     Button("Open in Window") {
-                        appDelegate.openMainWindow()
+                        appDelegate?.openMainWindow()
                     }
                     .buttonStyle(.bordered)
                 }
                 
-                Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
+                if let appDelegate = appDelegate {
+                    Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
+                }
             }
         }
     }
@@ -975,6 +964,10 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("General") {
+                Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+            }
+
             Section("Connection Mode") {
                 Toggle("Discover API key from Syncthing config.xml", isOn: $settings.useAutomaticDiscovery)
                 Text("Turn this off to point the app at a different Syncthing instance.")
