@@ -13,22 +13,45 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
 - **Menu Bar Integration**: Unobtrusive status indicator that lives in your macOS menu bar
 - **Real-Time Monitoring**: Automatic updates every 10 seconds
 - **Visual Status Indicators**:
-  - ✅ Synced: Green checkmark when all folders are up to date
+  - ✅ Synced: Green checkmark when synced to at least one device
   - 🔄 Syncing: Blue circular arrows during active synchronization
   - ⚠️ Disconnected: Warning icon when Syncthing is unreachable
   - ⏸️ Paused/Out of Sync: Orange indicator for folders needing attention
-- **Device Monitoring**: Track connection status and sync progress for all remote devices
+- **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
-- **System Information**: Display device ID, uptime, and version information
+- **System Information**: Display device name, device ID, uptime, and version information
+- **Sync History**: Track recent sync events and folder activity
+- **System Statistics**: View total folders, connected devices, data sizes, and current transfer speeds
+- **Sync Completion Notifications**: Get macOS notifications when folders finish syncing
+- **Configurable Thresholds**: Customize when devices are considered "synced" (percentage and remaining data)
 - **Automatic Configuration**: Discovers API key from local Syncthing config.xml
 - **Manual Mode**: Connect to remote Syncthing instances with custom URL and API key
 - **Secure Credential Storage**: API keys stored in macOS Keychain
 
 ## Screenshots
 
-The app provides two viewing modes:
-- **Popover View**: Quick status check from the menu bar
-- **Window View**: Detailed overview in a separate window
+### Popover View
+Quick status check from the menu bar - shows device name, sync status, and connected devices.
+
+![Popover - Synced](screenshots/Popover-synched.png)
+
+![Popover - Syncing](screenshots/Popover-synching.png)
+
+### Main Window
+Detailed overview with system statistics, device information, folder status, and sync history.
+
+![Main Window - Synced](screenshots/MainWindow-synched.png)
+
+![Main Window - Syncing](screenshots/MainWindow-synching.png)
+
+![Main Window - Device Details](screenshots/MainWindow-synching-DETAIL.png)
+
+### Settings
+Configure connection, sync thresholds, and notifications.
+
+![Settings - Connection & Thresholds](screenshots/SettingsWindow-1.png)
+
+![Settings - Notifications](screenshots/SettingsWindow-2.png)
 
 ## Requirements
 
