@@ -1299,12 +1299,16 @@ struct TransferSpeedChartView: View {
         let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
         let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
         let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
-        // Add 20% padding to max value for better visualization
-        return maxValue * 1.2
+        // Add 20% padding to max value for better visualization, minimum 1
+        return max(maxValue * 1.2, 1)
+    }
+
+    private var displayName: String {
+        deviceName.isEmpty ? "Unknown Device" : deviceName
     }
 
     var body: some View {
-        GroupBox("\(deviceName) - Transfer Speed") {
+        GroupBox("\(displayName) - Transfer Speed") {
             if history.dataPoints.isEmpty {
                 Text("No data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
@@ -1350,9 +1354,12 @@ struct TransferSpeedChartView: View {
                             .lineStyle(StrokeStyle(lineWidth: 2.5))
                         }
                     }
-                    .chartYScale(domain: 0...max(maxSpeed, 1))
+                    .chartYScale(domain: 0...maxSpeed)
                     .chartYAxis {
-                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4))
+                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                            AxisValueLabel()
+                            AxisGridLine()
+                        }
                     }
                     .chartYAxisLabel("KB/s", position: .leading)
                     .chartXAxis {
