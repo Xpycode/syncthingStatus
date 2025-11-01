@@ -201,6 +201,7 @@ class SyncthingClient: ObservableObject {
     @Published var recentSyncEvents: [SyncEvent] = []
     @Published var deviceTransferHistory: [String: DeviceTransferHistory] = [:]
     @Published var totalTransferHistory_published = DeviceTransferHistory()
+    @Published var localDeviceName: String = ""
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -359,6 +360,11 @@ class SyncthingClient: ObservableObject {
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
             await MainActor.run {
+                // Find and store local device name
+                if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
+                    self.localDeviceName = localDevice.name
+                }
+                // Store only remote devices
                 self.devices = config.devices.filter { $0.deviceID != localDeviceID }
                 self.folders = config.folders
             }
@@ -914,8 +920,8 @@ struct ContentView: View {
                             // Show aggregate total transfer chart
                             if !syncthingClient.totalTransferHistory_published.dataPoints.isEmpty,
                                hasSignificantActivity(history: syncthingClient.totalTransferHistory_published) {
-                                let localDeviceName = syncthingClient.systemStatus?.myID.prefix(7) ?? "Local"
-                                TransferSpeedChartView(deviceName: "\(String(localDeviceName)) - Total", history: syncthingClient.totalTransferHistory_published)
+                                let localName = syncthingClient.localDeviceName.isEmpty ? "Local Device" : syncthingClient.localDeviceName
+                                TransferSpeedChartView(deviceName: "\(localName) - Total", history: syncthingClient.totalTransferHistory_published)
                             }
 
                             // Show transfer speed charts for connected devices with significant data
