@@ -1285,6 +1285,14 @@ struct TransferSpeedChartView: View {
     let deviceName: String
     let history: DeviceTransferHistory
 
+    private var maxSpeed: Double {
+        let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
+        let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
+        let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
+        // Add 20% padding to max value for better visualization
+        return maxValue * 1.2
+    }
+
     var body: some View {
         GroupBox("\(deviceName) - Transfer Speed") {
             if history.dataPoints.isEmpty {
@@ -1293,26 +1301,42 @@ struct TransferSpeedChartView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
                         ForEach(history.dataPoints) { point in
-                            if point.downloadRate > 0 {
-                                LineMark(
-                                    x: .value("Time", point.timestamp),
-                                    y: .value("Speed", point.downloadRate / 1024) // Convert to KB/s
-                                )
-                                .foregroundStyle(.blue)
-                                .interpolationMethod(.catmullRom)
-                            }
+                            LineMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Download", point.downloadRate / 1024)
+                            )
+                            .foregroundStyle(.blue)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
 
-                            if point.uploadRate > 0 {
-                                LineMark(
-                                    x: .value("Time", point.timestamp),
-                                    y: .value("Speed", point.uploadRate / 1024) // Convert to KB/s
-                                )
-                                .foregroundStyle(.green)
-                                .interpolationMethod(.catmullRom)
-                            }
+                            AreaMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Download", point.downloadRate / 1024)
+                            )
+                            .foregroundStyle(.blue.opacity(0.1))
+                            .interpolationMethod(.catmullRom)
+
+                            LineMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Upload", point.uploadRate / 1024)
+                            )
+                            .foregroundStyle(.green)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+
+                            AreaMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Upload", point.uploadRate / 1024)
+                            )
+                            .foregroundStyle(.green.opacity(0.1))
+                            .interpolationMethod(.catmullRom)
                         }
                     }
-                    .chartYAxisLabel("KB/s")
+                    .chartYScale(domain: 0...max(maxSpeed, 1))
+                    .chartYAxis {
+                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4))
+                    }
+                    .chartYAxisLabel("KB/s", position: .leading)
                     .chartXAxis {
                         AxisMarks(values: .automatic(desiredCount: 5)) { value in
                             if let date = value.as(Date.self) {
@@ -1323,7 +1347,7 @@ struct TransferSpeedChartView: View {
                             }
                         }
                     }
-                    .frame(height: 120)
+                    .frame(height: 150)
 
                     HStack(spacing: 16) {
                         Label("Download", systemImage: "arrow.down.circle.fill")
