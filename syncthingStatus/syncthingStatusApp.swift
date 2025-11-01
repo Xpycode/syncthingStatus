@@ -821,8 +821,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let hostingController = NSHostingController(rootView: SettingsView(settings: settings))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -1381,13 +1381,13 @@ struct TransferSpeedChartView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
-                        // Download series
+                        // Download series (received data)
                         ForEach(history.dataPoints) { point in
                             AreaMark(
                                 x: .value("Time", point.timestamp),
                                 y: .value("Speed", point.downloadRate / 1024)
                             )
-                            .foregroundStyle(.blue.opacity(0.2))
+                            .foregroundStyle(.blue.opacity(0.3))
                             .interpolationMethod(.catmullRom)
                         }
 
@@ -1398,16 +1398,16 @@ struct TransferSpeedChartView: View {
                             )
                             .foregroundStyle(.blue)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .lineStyle(StrokeStyle(lineWidth: 2))
                         }
 
-                        // Upload series
+                        // Upload series (sent data)
                         ForEach(history.dataPoints) { point in
                             AreaMark(
                                 x: .value("Time", point.timestamp),
                                 y: .value("Speed", point.uploadRate / 1024)
                             )
-                            .foregroundStyle(.green.opacity(0.2))
+                            .foregroundStyle(.green.opacity(0.3))
                             .interpolationMethod(.catmullRom)
                         }
 
@@ -1418,7 +1418,7 @@ struct TransferSpeedChartView: View {
                             )
                             .foregroundStyle(.green)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .lineStyle(StrokeStyle(lineWidth: 2))
                         }
                     }
                     .chartYScale(domain: 0...maxSpeed)
@@ -1442,10 +1442,10 @@ struct TransferSpeedChartView: View {
                     .frame(height: 150)
 
                     HStack(spacing: 16) {
-                        Label("Download", systemImage: "arrow.down.circle.fill")
+                        Label("Download (received)", systemImage: "arrow.down.circle.fill")
                             .foregroundColor(.blue)
                             .font(.caption)
-                        Label("Upload", systemImage: "arrow.up.circle.fill")
+                        Label("Upload (sent)", systemImage: "arrow.up.circle.fill")
                             .foregroundColor(.green)
                             .font(.caption)
                     }
