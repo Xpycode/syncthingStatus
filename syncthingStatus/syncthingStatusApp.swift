@@ -187,6 +187,7 @@ class SyncthingClient: ObservableObject {
 
     // Transfer history for charts
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
+    private var totalTransferHistory = DeviceTransferHistory() // Aggregate for all devices
 
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
@@ -199,6 +200,7 @@ class SyncthingClient: ObservableObject {
     @Published var deviceHistory: [String: ConnectionHistory] = [:]
     @Published var recentSyncEvents: [SyncEvent] = []
     @Published var deviceTransferHistory: [String: DeviceTransferHistory] = [:]
+    @Published var totalTransferHistory_published = DeviceTransferHistory()
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -390,6 +392,9 @@ class SyncthingClient: ObservableObject {
         let timeDelta = currentTime.timeIntervalSince(lastTime)
         guard timeDelta > 0 else { return }
 
+        var totalDownload: Double = 0
+        var totalUpload: Double = 0
+
         for (deviceID, newConnection) in newConnections {
             guard let oldConnection = previousConnections[deviceID],
                   newConnection.connected else {
@@ -409,12 +414,20 @@ class SyncthingClient: ObservableObject {
             )
             transferRates[deviceID] = rates
 
+            // Accumulate totals
+            totalDownload += rates.downloadRate
+            totalUpload += rates.uploadRate
+
             // Store historical data for charts
             var history = transferHistory[deviceID] ?? DeviceTransferHistory()
             history.addDataPoint(downloadRate: rates.downloadRate, uploadRate: rates.uploadRate)
             transferHistory[deviceID] = history
             deviceTransferHistory[deviceID] = history
         }
+
+        // Store aggregate total history
+        totalTransferHistory.addDataPoint(downloadRate: totalDownload, uploadRate: totalUpload)
+        totalTransferHistory_published = totalTransferHistory
     }
 
     private func updateConnectionHistory(newConnections: [String: SyncthingConnection]) {
@@ -898,6 +911,13 @@ struct ContentView: View {
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
 
                         if !isPopover {
+                            // Show aggregate total transfer chart
+                            if !syncthingClient.totalTransferHistory_published.dataPoints.isEmpty,
+                               hasSignificantActivity(history: syncthingClient.totalTransferHistory_published) {
+                                let localDeviceName = syncthingClient.systemStatus?.myID.prefix(7) ?? "Local"
+                                TransferSpeedChartView(deviceName: "\(String(localDeviceName)) - Total", history: syncthingClient.totalTransferHistory_published)
+                            }
+
                             // Show transfer speed charts for connected devices with significant data
                             ForEach(syncthingClient.devices) { device in
                                 if let history = syncthingClient.deviceTransferHistory[device.deviceID],
