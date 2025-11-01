@@ -1310,36 +1310,44 @@ struct TransferSpeedChartView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
+                        // Download series
+                        ForEach(history.dataPoints) { point in
+                            AreaMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value("Speed", point.downloadRate / 1024)
+                            )
+                            .foregroundStyle(.blue.opacity(0.2))
+                            .interpolationMethod(.catmullRom)
+                        }
+
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Download", point.downloadRate / 1024)
+                                y: .value("Speed", point.downloadRate / 1024)
                             )
                             .foregroundStyle(.blue)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        }
 
+                        // Upload series
+                        ForEach(history.dataPoints) { point in
                             AreaMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Download", point.downloadRate / 1024)
+                                y: .value("Speed", point.uploadRate / 1024)
                             )
-                            .foregroundStyle(.blue.opacity(0.1))
+                            .foregroundStyle(.green.opacity(0.2))
                             .interpolationMethod(.catmullRom)
+                        }
 
+                        ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Upload", point.uploadRate / 1024)
+                                y: .value("Speed", point.uploadRate / 1024)
                             )
                             .foregroundStyle(.green)
                             .interpolationMethod(.catmullRom)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
-
-                            AreaMark(
-                                x: .value("Time", point.timestamp),
-                                y: .value("Upload", point.uploadRate / 1024)
-                            )
-                            .foregroundStyle(.green.opacity(0.1))
-                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
                         }
                     }
                     .chartYScale(domain: 0...max(maxSpeed, 1))
