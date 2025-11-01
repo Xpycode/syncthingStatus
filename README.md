@@ -13,10 +13,10 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
 - **Menu Bar Integration**: Unobtrusive status indicator that lives in your macOS menu bar
 - **Real-Time Monitoring**: Automatic updates every 10 seconds
 - **Visual Status Indicators**:
-  - ✅ Synced: Green checkmark when synced to at least one device
-  - 🔄 Syncing: Blue circular arrows during active synchronization
-  - ⚠️ Disconnected: Warning icon when Syncthing is unreachable
-  - ⏸️ Paused/Out of Sync: Orange indicator for folders needing attention
+  - ![Synced](screenshots/icon-synched.png) **Synced**: When synced to at least one device
+  - ![Syncing](screenshots/icon-syncing.png) **Syncing**: During active synchronization
+  - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable
+  - ![Paused](screenshots/icon-paused.png) **Paused/Out of Sync**: For folders needing attention
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
 - **System Information**: Display device name, device ID, uptime, and version information
