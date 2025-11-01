@@ -15,6 +15,14 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistKeychainIfNeeded() }
     }
 
+    @Published var syncCompletionThreshold: Double {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
+    @Published var syncRemainingBytesThreshold: Int64 {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
@@ -22,6 +30,8 @@ final class SyncthingSettings: ObservableObject {
     private enum Keys {
         static let useAutomaticDiscovery = "SyncthingSettings.useAutomaticDiscovery"
         static let baseURL = "SyncthingSettings.baseURL"
+        static let syncCompletionThreshold = "SyncthingSettings.syncCompletionThreshold"
+        static let syncRemainingBytesThreshold = "SyncthingSettings.syncRemainingBytesThreshold"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -31,6 +41,8 @@ final class SyncthingSettings: ObservableObject {
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
         baseURLString = defaults.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8384"
         manualAPIKey = keychain.read() ?? ""
+        syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? 95.0
+        syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
         isLoading = false
     }
 
@@ -47,12 +59,16 @@ final class SyncthingSettings: ObservableObject {
         useAutomaticDiscovery = true
         baseURLString = "http://127.0.0.1:8384"
         manualAPIKey = ""
+        syncCompletionThreshold = 95.0
+        syncRemainingBytesThreshold = 1_048_576 // 1 MB
     }
 
     private func persistDefaultsIfNeeded() {
         guard !isLoading else { return }
         defaults.set(useAutomaticDiscovery, forKey: Keys.useAutomaticDiscovery)
         defaults.set(baseURLString, forKey: Keys.baseURL)
+        defaults.set(syncCompletionThreshold, forKey: Keys.syncCompletionThreshold)
+        defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
     }
 
     private func persistKeychainIfNeeded() {

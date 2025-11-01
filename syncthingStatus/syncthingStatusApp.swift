@@ -580,8 +580,8 @@ class SyncthingClient: ObservableObject {
 
 // MARK: - Window Controller
 class MainWindowController: NSWindowController {
-    convenience init(syncthingClient: SyncthingClient, appDelegate: AppDelegate) {
-        let contentView = ContentView(appDelegate: appDelegate, syncthingClient: syncthingClient, isPopover: false)
+    convenience init(syncthingClient: SyncthingClient, settings: SyncthingSettings, appDelegate: AppDelegate) {
+        let contentView = ContentView(appDelegate: appDelegate, syncthingClient: syncthingClient, settings: settings, isPopover: false)
             .frame(minWidth: 600, idealWidth: 700, minHeight: 500, idealHeight: 600)
 
         let hostingView = NSHostingView(rootView: contentView)
@@ -645,7 +645,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover = NSPopover()
         popover?.behavior = .transient
         popover?.contentViewController = NSHostingController(
-            rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, isPopover: true)
+            rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
     }
 
@@ -701,7 +701,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       connection.connected else {
                     return false // Skip offline devices
                 }
-                return !isEffectivelySynced(completion: completion)
+                return !isEffectivelySynced(completion: completion, settings: settings)
             }
 
             // Check folder states
@@ -713,7 +713,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       connection.connected else {
                     return false
                 }
-                return isEffectivelySynced(completion: completion)
+                return isEffectivelySynced(completion: completion, settings: settings)
             }
 
             let allFoldersIdle = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
@@ -745,9 +745,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func openMainWindow() {
         closePopover()
-        
+
         if windowController == nil {
-            windowController = MainWindowController(syncthingClient: syncthingClient, appDelegate: self)
+            windowController = MainWindowController(syncthingClient: syncthingClient, settings: settings, appDelegate: self)
             windowController?.window?.delegate = self
         }
         
@@ -902,33 +902,32 @@ private func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
     return max(maxDown, maxUp) >= minThreshold
 }
 
-private func isEffectivelySynced(completion: SyncthingDeviceCompletion) -> Bool {
+private func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: SyncthingSettings) -> Bool {
     // Consider a device "synced" if:
     // 1. It's at 100%, OR
-    // 2. It's >= 95% complete AND has less than 1 MB remaining
+    // 2. It's >= threshold% complete AND has less than threshold bytes remaining
     // This handles the case where Syncthing shows 95%+ but with 0 bytes remaining
-    let completionThreshold = 95.0
-    let remainingBytesThreshold: Int64 = 1_048_576 // 1 MB
-
     return completion.completion >= 100.0 ||
-           (completion.completion >= completionThreshold && completion.needBytes < remainingBytesThreshold)
+           (completion.completion >= settings.syncCompletionThreshold &&
+            completion.needBytes < settings.syncRemainingBytesThreshold)
 }
 
 // MARK: - ContentView
 struct ContentView: View {
     weak var appDelegate: AppDelegate?
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var settings: SyncthingSettings
     var isPopover: Bool
-    
+
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(isConnected: syncthingClient.isConnected) {
                 Task { await syncthingClient.refresh() }
             }
             .padding([.top, .horizontal])
-            
+
             Divider().padding(.vertical, 8)
-            
+
             if !syncthingClient.isConnected {
                 DisconnectedView {
                     appDelegate?.openSettings()
@@ -944,7 +943,7 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 16) {
-                        RemoteDevicesView(syncthingClient: syncthingClient, isPopover: isPopover)
+                        RemoteDevicesView(syncthingClient: syncthingClient, settings: settings, isPopover: isPopover)
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
 
                         if !isPopover {
@@ -1228,6 +1227,7 @@ struct SystemStatisticsView: View {
 
 struct RemoteDevicesView: View {
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var settings: SyncthingSettings
     var isPopover: Bool = true
 
     var body: some View {
@@ -1243,6 +1243,7 @@ struct RemoteDevicesView: View {
                             completion: syncthingClient.deviceCompletions[device.deviceID],
                             transferRates: syncthingClient.transferRates[device.deviceID],
                             connectionHistory: syncthingClient.deviceHistory[device.deviceID],
+                            settings: settings,
                             isDetailed: !isPopover
                         )
                     }
@@ -1463,6 +1464,7 @@ struct DeviceStatusRow: View {
     let completion: SyncthingDeviceCompletion?
     let transferRates: TransferRates?
     let connectionHistory: ConnectionHistory?
+    @ObservedObject var settings: SyncthingSettings
     var isDetailed: Bool = false
 
     var body: some View {
@@ -1482,7 +1484,7 @@ struct DeviceStatusRow: View {
             }
             Spacer()
             if let connection, connection.connected {
-                if let completion, !isEffectivelySynced(completion: completion) {
+                if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
                         if let rates = transferRates, rates.downloadRate > 0 {
@@ -1570,7 +1572,7 @@ struct DeviceStatusRow: View {
                 Text(device.name).font(.headline)
                 Spacer()
                 if let connection, connection.connected {
-                    if let completion, !isEffectivelySynced(completion: completion) {
+                    if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
                     } else {
                         Text("Up to date").font(.subheadline).foregroundColor(.green)
@@ -1750,11 +1752,17 @@ struct FolderStatusRow: View {
 struct SettingsView: View {
     @ObservedObject var settings: SyncthingSettings
     @State private var showResetConfirmation = false
-    
+    @State private var remainingMB: Double
+
     private var isManualMode: Bool {
         !settings.useAutomaticDiscovery
     }
-    
+
+    init(settings: SyncthingSettings) {
+        self.settings = settings
+        _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
+    }
+
     var body: some View {
         Form {
             Section("Connection Mode") {
@@ -1763,7 +1771,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Section("Manual Configuration") {
                 TextField("Base URL", text: $settings.baseURLString, prompt: Text("http://127.0.0.1:8384"))
                     .textFieldStyle(.roundedBorder)
@@ -1774,7 +1782,39 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
             .disabled(!isManualMode)
-            
+
+            Section("Sync Completion Threshold") {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Completion Percentage:")
+                            Spacer()
+                            Text("\(Int(settings.syncCompletionThreshold))%")
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $settings.syncCompletionThreshold, in: 90...100, step: 1)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Remaining Data:")
+                            Spacer()
+                            Text(String(format: "%.1f MB", remainingMB))
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $remainingMB, in: 0...10, step: 0.5)
+                            .onChange(of: remainingMB) { oldValue, newValue in
+                                settings.syncRemainingBytesThreshold = Int64(newValue * 1_048_576.0)
+                            }
+                    }
+                }
+
+                Text("Devices are considered 'synced' when they reach the completion percentage with less than the specified remaining data. This handles cases where Syncthing shows high completion (95%+) with minimal remaining bytes.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section {
                 Button("Reset to Defaults", role: .destructive) {
                     showResetConfirmation = true
@@ -1782,10 +1822,13 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420)
+        .frame(width: 480)
         .padding(20)
         .alert("Reset Settings", isPresented: $showResetConfirmation) {
-            Button("Reset", role: .destructive) { settings.resetToDefaults() }
+            Button("Reset", role: .destructive) {
+                settings.resetToDefaults()
+                remainingMB = Double(settings.syncRemainingBytesThreshold) / 1_048_576.0
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will restore the built-in localhost configuration and clear any manual API key.")
@@ -1831,7 +1874,7 @@ struct ContentView_Previews: PreviewProvider {
             "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", lastScan: "2023-01-01T12:00:00Z")
         ]
         
-        return ContentView(appDelegate: appDelegate, syncthingClient: client, isPopover: true)
+        return ContentView(appDelegate: appDelegate, syncthingClient: client, settings: settings, isPopover: true)
     }
 }
 
