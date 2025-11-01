@@ -687,22 +687,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func updateStatusIcon() {
         guard let statusButton = statusItem?.button else { return }
-        
+
         let iconName: String
         let accessibilityDescription: String
-        
+
         if !syncthingClient.isConnected {
             iconName = "exclamationmark.triangle.fill"
             accessibilityDescription = "Disconnected"
         } else {
-            let isSyncing = syncthingClient.deviceCompletions.values.contains { $0.completion < 100 } ||
-                            syncthingClient.folderStatuses.values.contains { $0.state == "syncing" }
+            // Check if any connected device is actively syncing (not effectively synced)
+            let hasActiveSyncing = syncthingClient.deviceCompletions.contains { deviceID, completion in
+                guard let connection = syncthingClient.connections[deviceID],
+                      connection.connected else {
+                    return false // Skip offline devices
+                }
+                return !isEffectivelySynced(completion: completion)
+            }
+
+            // Check folder states
+            let hasActiveFolderSync = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" }
+
+            // Check if at least one device is connected and synced, or all folders are idle with no pending files
+            let hasConnectedSyncedDevice = syncthingClient.deviceCompletions.contains { deviceID, completion in
+                guard let connection = syncthingClient.connections[deviceID],
+                      connection.connected else {
+                    return false
+                }
+                return isEffectivelySynced(completion: completion)
+            }
+
             let allFoldersIdle = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
 
-            if isSyncing {
+            if hasActiveSyncing || hasActiveFolderSync {
                 iconName = "arrow.triangle.2.circlepath"
                 accessibilityDescription = "Syncing"
-            } else if allFoldersIdle {
+            } else if hasConnectedSyncedDevice || allFoldersIdle {
                 iconName = "checkmark.circle.fill"
                 accessibilityDescription = "Synced"
             } else {
@@ -881,6 +900,18 @@ private func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
     let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
     let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
     return max(maxDown, maxUp) >= minThreshold
+}
+
+private func isEffectivelySynced(completion: SyncthingDeviceCompletion) -> Bool {
+    // Consider a device "synced" if:
+    // 1. It's at 100%, OR
+    // 2. It's >= 95% complete AND has less than 1 MB remaining
+    // This handles the case where Syncthing shows 95%+ but with 0 bytes remaining
+    let completionThreshold = 95.0
+    let remainingBytesThreshold: Int64 = 1_048_576 // 1 MB
+
+    return completion.completion >= 100.0 ||
+           (completion.completion >= completionThreshold && completion.needBytes < remainingBytesThreshold)
 }
 
 // MARK: - ContentView
@@ -1451,7 +1482,7 @@ struct DeviceStatusRow: View {
             }
             Spacer()
             if let connection, connection.connected {
-                if let completion, completion.completion < 100 {
+                if let completion, !isEffectivelySynced(completion: completion) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
                         if let rates = transferRates, rates.downloadRate > 0 {
@@ -1539,7 +1570,7 @@ struct DeviceStatusRow: View {
                 Text(device.name).font(.headline)
                 Spacer()
                 if let connection, connection.connected {
-                    if let completion, completion.completion < 100 {
+                    if let completion, !isEffectivelySynced(completion: completion) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
                     } else {
                         Text("Up to date").font(.subheadline).foregroundColor(.green)
