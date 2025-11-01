@@ -855,6 +855,15 @@ private func formatConnectionDuration(since date: Date?) -> String {
     return formatter.string(from: interval) ?? "0m"
 }
 
+private func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
+    // Only show chart if there's been meaningful transfer activity
+    // Minimum threshold: 1 KB/s peak speed
+    let minThreshold: Double = 1024 // 1 KB/s in bytes/sec
+    let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
+    let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
+    return max(maxDown, maxUp) >= minThreshold
+}
+
 // MARK: - ContentView
 struct ContentView: View {
     weak var appDelegate: AppDelegate?
@@ -889,11 +898,12 @@ struct ContentView: View {
                         FolderSyncStatusView(syncthingClient: syncthingClient, isPopover: isPopover)
 
                         if !isPopover {
-                            // Show transfer speed charts for connected devices with data
+                            // Show transfer speed charts for connected devices with significant data
                             ForEach(syncthingClient.devices) { device in
                                 if let history = syncthingClient.deviceTransferHistory[device.deviceID],
                                    !history.dataPoints.isEmpty,
-                                   syncthingClient.connections[device.deviceID]?.connected == true {
+                                   syncthingClient.connections[device.deviceID]?.connected == true,
+                                   hasSignificantActivity(history: history) {
                                     TransferSpeedChartView(deviceName: device.name, history: history)
                                 }
                             }
