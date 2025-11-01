@@ -963,7 +963,7 @@ struct ContentView: View {
             Divider().padding(.vertical, 8)
 
             if !syncthingClient.isConnected {
-                DisconnectedView {
+                DisconnectedView(settings: settings) {
                     appDelegate?.openSettings()
                 }
             } else {
@@ -1036,6 +1036,7 @@ struct HeaderView: View {
 }
 
 struct DisconnectedView: View {
+    let settings: SyncthingSettings
     let openSettings: () -> Void
     
     var body: some View {
@@ -1046,7 +1047,7 @@ struct DisconnectedView: View {
             Text("Make sure Syncthing is running and the API key is set.")
                 .font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
             Button("Open Syncthing Web UI") {
-                if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
+                if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
             if #available(macOS 13.0, *) {
                 SettingsLink {
@@ -1070,7 +1071,7 @@ struct FooterView: View {
     var body: some View {
         HStack {
             Button("Open Web UI") {
-                if let url = URL(string: "http://127.0.0.1:8384") { NSWorkspace.shared.open(url) }
+                if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.disabled(!isConnected)
             
             if #available(macOS 13.0, *) {
