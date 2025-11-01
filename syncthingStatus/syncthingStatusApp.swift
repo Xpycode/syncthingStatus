@@ -905,7 +905,7 @@ struct ContentView: View {
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
-                        SystemStatusView(status: status, isPopover: isPopover)
+                        SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, isPopover: isPopover)
                     }
 
                     if !isPopover {
@@ -1054,11 +1054,20 @@ struct FooterView: View {
 
 struct SystemStatusView: View {
     let status: SyncthingSystemStatus
+    let deviceName: String
     var isPopover: Bool = true
 
     var body: some View {
         GroupBox("System Status") {
             VStack(spacing: 8) {
+                if !deviceName.isEmpty {
+                    HStack {
+                        Text("Device Name:").fontWeight(.medium)
+                        Spacer()
+                        Text(deviceName)
+                    }
+                    Divider()
+                }
                 HStack {
                     Text("Device ID:").fontWeight(.medium)
                     Spacer()
