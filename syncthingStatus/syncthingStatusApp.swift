@@ -3,6 +3,7 @@ import SwiftUI
 import Foundation
 import Combine
 import Charts
+import UserNotifications
 
 // MARK: - Syncthing Data Models (Corrected)
 struct SyncthingSystemStatus: Codable {
@@ -529,9 +530,33 @@ class SyncthingClient: ObservableObject {
                     syncEvents.removeFirst(syncEvents.count - maxEvents)
                 }
                 recentSyncEvents = syncEvents.reversed()
+
+                // Send notification for sync completion
+                if event.eventType == .syncCompleted && settings.showSyncNotifications {
+                    sendSyncCompletionNotification(folderName: folderName)
+                }
             }
 
             previousFolderStates[folder.id] = currentState
+        }
+    }
+
+    private func sendSyncCompletionNotification(folderName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Sync Complete"
+        content.body = "Folder '\(folderName)' is now up to date"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil // Deliver immediately
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send notification: \(error)")
+            }
         }
     }
     
@@ -628,17 +653,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        
+
         if let statusButton = statusItem?.button {
             statusButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Loading")?.withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
             statusButton.image?.isTemplate = true
             statusButton.action = #selector(statusItemClicked)
             statusButton.target = self
         }
-        
+
         setupPopover()
-        NSApp.setActivationPolicy(.accessory) 
+        requestNotificationPermissions()
+        NSApp.setActivationPolicy(.accessory)
         startMonitoring()
+    }
+
+    private func requestNotificationPermissions() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error = error {
+                print("Notification permission error: \(error)")
+            }
+        }
     }
     
     func setupPopover() {
@@ -1784,6 +1818,13 @@ struct SettingsView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Notifications") {
+                Toggle("Show sync completion notifications", isOn: $settings.showSyncNotifications)
+                Text("Get notified when a folder finishes syncing.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             Section {

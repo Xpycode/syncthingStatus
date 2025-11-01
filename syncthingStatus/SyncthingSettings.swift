@@ -23,6 +23,10 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistDefaultsIfNeeded() }
     }
 
+    @Published var showSyncNotifications: Bool {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
@@ -32,6 +36,7 @@ final class SyncthingSettings: ObservableObject {
         static let baseURL = "SyncthingSettings.baseURL"
         static let syncCompletionThreshold = "SyncthingSettings.syncCompletionThreshold"
         static let syncRemainingBytesThreshold = "SyncthingSettings.syncRemainingBytesThreshold"
+        static let showSyncNotifications = "SyncthingSettings.showSyncNotifications"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -43,6 +48,7 @@ final class SyncthingSettings: ObservableObject {
         manualAPIKey = keychain.read() ?? ""
         syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? 95.0
         syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
+        showSyncNotifications = defaults.object(forKey: Keys.showSyncNotifications) as? Bool ?? true
         isLoading = false
     }
 
@@ -61,6 +67,7 @@ final class SyncthingSettings: ObservableObject {
         manualAPIKey = ""
         syncCompletionThreshold = 95.0
         syncRemainingBytesThreshold = 1_048_576 // 1 MB
+        showSyncNotifications = true
     }
 
     private func persistDefaultsIfNeeded() {
@@ -69,6 +76,7 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(baseURLString, forKey: Keys.baseURL)
         defaults.set(syncCompletionThreshold, forKey: Keys.syncCompletionThreshold)
         defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
+        defaults.set(showSyncNotifications, forKey: Keys.showSyncNotifications)
     }
 
     private func persistKeychainIfNeeded() {
