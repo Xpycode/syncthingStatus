@@ -89,11 +89,20 @@ struct HeaderView: View {
     
     var body: some View {
         HStack {
-            Image(systemName: isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundColor(isConnected ? .green : .red)
-            Text("Syncthing Monitor").font(.headline)
+            VStack(alignment: .leading) {
+                Text("Syncthing Status").font(.headline)
+                Text(isConnected ? "Connected" : "Disconnected")
+                    .font(.caption)
+                    .foregroundColor(isConnected ? .green : .red)
+            }
+
             Spacer()
             
+            if syncthingClient.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
             if isConnected {
                 Button(action: {
                     if syncthingClient.allDevicesPaused {
@@ -108,7 +117,10 @@ struct HeaderView: View {
                 .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
             }
             
-            Button("Refresh", action: onRefresh).buttonStyle(.bordered).controlSize(.small)
+            Button("Refresh", action: onRefresh)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(syncthingClient.isRefreshing)
         }
     }
 }
@@ -663,16 +675,25 @@ struct DeviceStatusRow: View {
                 Image(systemName: device.paused ? "play.circle.fill" : "pause.circle.fill")
             }
             .buttonStyle(.plain)
-            
-            Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 8, height: 8)
+
+            Image(systemName: "laptopcomputer")
+                .foregroundColor(.secondary)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name).fontWeight(.medium)
-                Text(String(device.deviceID.prefix(12)) + "...").font(.system(.caption, design: .monospaced)).foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 8, height: 8)
+                    if device.paused {
+                        Text("Paused").font(.caption).foregroundColor(.secondary)
+                    } else if let connection, connection.connected {
+                        Text(connection.address ?? "Connected").font(.caption).foregroundColor(.secondary)
+                    } else {
+                        Text("Disconnected").font(.caption).foregroundColor(.secondary)
+                    }
+                }
             }
             Spacer()
-            if device.paused {
-                Text("Paused").font(.caption).foregroundColor(.secondary)
-            } else if let connection, connection.connected {
+            if let connection, connection.connected, !device.paused {
                 if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
@@ -690,8 +711,6 @@ struct DeviceStatusRow: View {
                         }
                     }
                 }
-            } else {
-                Text("Disconnected").font(.caption).foregroundColor(.red)
             }
         }
     }
@@ -773,7 +792,8 @@ struct DeviceStatusRow: View {
                 }
                 .buttonStyle(.plain)
 
-                Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 10, height: 10)
+                Image(systemName: "laptopcomputer")
+                    .foregroundColor(.secondary)
                 Text(device.name).font(.headline)
                 Spacer()
                 if device.paused {
@@ -839,7 +859,20 @@ struct FolderStatusRow: View {
     private var compactView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                statusIcon
+                Button(action: {
+                    if folder.paused {
+                        Task { await syncthingClient.resumeFolder(folderID: folder.id) }
+                    } else {
+                        Task { await syncthingClient.pauseFolder(folderID: folder.id) }
+                    }
+                }) {
+                    Image(systemName: folder.paused ? "play.circle.fill" : "pause.circle.fill")
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: "folder.fill")
+                    .foregroundColor(.secondary)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(folder.label.isEmpty ? folder.id : folder.label).fontWeight(.medium)
                     Text(folder.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
@@ -847,7 +880,10 @@ struct FolderStatusRow: View {
                 Spacer()
                 if let status {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(status.state.capitalized).font(.caption).foregroundColor(statusColor)
+                        HStack {
+                            statusIcon
+                            Text(status.state.capitalized).font(.caption).foregroundColor(statusColor)
+                        }
                         if status.needFiles > 0 {
                             Text("\(status.needFiles) items, \(formatBytes(status.needBytes))").font(.caption2).foregroundColor(.orange)
                         } else {
@@ -907,7 +943,20 @@ struct FolderStatusRow: View {
             .padding(.vertical, 4)
         } label: {
             HStack {
-                statusIcon
+                Button(action: {
+                    if folder.paused {
+                        Task { await syncthingClient.resumeFolder(folderID: folder.id) }
+                    } else {
+                        Task { await syncthingClient.pauseFolder(folderID: folder.id) }
+                    }
+                }) {
+                    Image(systemName: folder.paused ? "play.circle.fill" : "pause.circle.fill")
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: "folder.fill")
+                    .foregroundColor(.secondary)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(folder.label.isEmpty ? folder.id : folder.label).font(.headline)
                     if let status {

@@ -51,7 +51,7 @@ class SyncthingClient: ObservableObject {
     // Transfer history for charts
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
     private var totalTransferHistory = DeviceTransferHistory() // Aggregate for all devices
-    private var isRefreshing = false
+    @Published var isRefreshing = false
 
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
