@@ -27,6 +27,7 @@ struct SyncthingFolder: Codable, Identifiable {
     let label: String
     let path: String
     let devices: [SyncthingFolderDevice]
+    let paused: Bool
 }
 
 struct SyncthingFolderDevice: Codable {

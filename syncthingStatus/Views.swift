@@ -1111,9 +1111,9 @@ struct ContentView_Previews: PreviewProvider {
             .init(deviceID: "DEVICE3-ID", name: "Another Device", addresses: [], paused: false)
         ]
         client.folders = [
-            .init(id: "folder1", label: "Xcode Projects", path: "/Users/sim/XcodeProjects", devices: []),
-            .init(id: "folder2", label: "SYNCSim", path: "/Users/sim/SYNCSim", devices: []),
-            .init(id: "folder3", label: "Documents", path: "/Users/sim/Documents", devices: [])
+            .init(id: "folder1", label: "Xcode Projects", path: "/Users/sim/XcodeProjects", devices: [], paused: false),
+            .init(id: "folder2", label: "SYNCSim", path: "/Users/sim/SYNCSim", devices: [], paused: true),
+            .init(id: "folder3", label: "Documents", path: "/Users/sim/Documents", devices: [], paused: false)
         ]
         client.connections = [
             "DEVICE1-ID": .init(connected: true, address: "1.2.3.4", clientVersion: "v1.30.0", type: "TCP", inBytesTotal: 0, outBytesTotal: 0),

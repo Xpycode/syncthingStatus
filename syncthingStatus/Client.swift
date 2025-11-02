@@ -213,6 +213,7 @@ class SyncthingClient: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("0", forHTTPHeaderField: "Content-Length")
         
         let (_, response) = try await session.data(for: request)
         
@@ -561,6 +562,24 @@ class SyncthingClient: ObservableObject {
             await refresh()
         } catch {
             print("Failed to resume all devices: \(error)")
+        }
+    }
+
+    func pauseFolder(folderID: String) async {
+        do {
+            try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=true")
+            await refresh()
+        } catch {
+            print("Failed to pause folder \(folderID): \(error)")
+        }
+    }
+
+    func resumeFolder(folderID: String) async {
+        do {
+            try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=false")
+            await refresh()
+        } catch {
+            print("Failed to resume folder \(folderID): \(error)")
         }
     }
 }
