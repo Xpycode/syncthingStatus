@@ -343,8 +343,8 @@ class SyncthingClient: ObservableObject {
                 continue
             }
 
-            let bytesReceived = newConnection.inBytesTotal - oldConnection.inBytesTotal
-            let bytesSent = newConnection.outBytesTotal - oldConnection.outBytesTotal
+            let bytesReceived = max(0, newConnection.inBytesTotal - oldConnection.inBytesTotal)
+            let bytesSent = max(0, newConnection.outBytesTotal - oldConnection.outBytesTotal)
 
             let downloadRate = Double(bytesReceived) / timeDelta
             let uploadRate = Double(bytesSent) / timeDelta
