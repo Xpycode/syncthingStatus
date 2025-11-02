@@ -8,6 +8,10 @@ struct SyncthingSystemStatus: Codable {
     let version: String?
 }
 
+struct SyncthingVersion: Codable {
+    let version: String
+}
+
 struct SyncthingConfig: Codable {
     let devices: [SyncthingDevice]
     var folders: [SyncthingFolder]

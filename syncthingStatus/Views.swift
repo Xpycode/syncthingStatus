@@ -30,7 +30,7 @@ struct ContentView: View {
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
-                        SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, isPopover: isPopover)
+                        SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, version: syncthingClient.syncthingVersion, isPopover: isPopover)
                     }
 
                     if !isPopover {
@@ -203,6 +203,7 @@ struct FooterView: View {
 struct SystemStatusView: View {
     let status: SyncthingSystemStatus
     let deviceName: String
+    let version: String?
     var isPopover: Bool = true
 
     var body: some View {
@@ -211,7 +212,7 @@ struct SystemStatusView: View {
                 Text(deviceName)
                     .fontWeight(.medium)
                 Spacer()
-                if let version = status.version {
+                if let version = version {
                     Text(version)
                         .font(.caption)
                         .foregroundColor(.secondary)

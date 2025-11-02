@@ -67,6 +67,7 @@ class SyncthingClient: ObservableObject {
     @Published var totalTransferHistory_published = DeviceTransferHistory()
     @Published var localDeviceName: String = ""
     @Published var lastErrorMessage: String?
+    @Published var syncthingVersion: String?
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -275,6 +276,20 @@ class SyncthingClient: ObservableObject {
         }
     }
     
+    func fetchVersion() async {
+        do {
+            let versionInfo = try await makeRequest(endpoint: "system/version", responseType: SyncthingVersion.self)
+            await MainActor.run {
+                self.syncthingVersion = versionInfo.version
+            }
+        } catch {
+            print("Failed to fetch system/version: \(error)")
+            await MainActor.run {
+                self.syncthingVersion = nil
+            }
+        }
+    }
+    
     func fetchConfig() async {
         guard let localDeviceID = await MainActor.run(body: { self.systemStatus?.myID }) else { return }
         do {
@@ -374,8 +389,7 @@ class SyncthingClient: ObservableObject {
                 }
                 history.lastSeen = currentTime
                 history.isCurrentlyConnected = true
-            }
-            else {
+            } else {
                 // Device is disconnected
                 if history.isCurrentlyConnected {
                     // Device just disconnected
@@ -545,13 +559,13 @@ class SyncthingClient: ObservableObject {
         await fetchStatus()
         
         if await MainActor.run(body: { self.isConnected }) {
-            await fetchConfig()
-            
+            async let configTask: () = fetchConfig()
+            async let versionTask: () = fetchVersion()
             async let connectionsTask: () = fetchConnections()
             async let folderStatusTask: () = fetchFolderStatus()
             async let deviceCompletionTask: () = fetchDeviceCompletions()
             
-            _ = await [connectionsTask, folderStatusTask, deviceCompletionTask]
+            _ = await [configTask, versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
         }
     }
 
