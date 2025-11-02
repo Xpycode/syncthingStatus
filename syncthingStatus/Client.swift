@@ -222,21 +222,38 @@ class SyncthingClient: ObservableObject {
             throw URLError(.badServerResponse)
         }
     }
-    
-    private func postRequest<T: Codable>(endpoint: String, body: T) async throws {
+
+    private func makeRawRequest(endpoint: String) async throws -> Data {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw URLError(.userAuthenticationRequired) }
-        
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        return data
+    }
+
+    private func postRawRequest(endpoint: String, body: Data) async throws {
+        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        
+        request.httpBody = body
+
         let (_, response) = try await session.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("Syncthing POST request to \(endpoint) failed.")
+            print("Syncthing raw POST request to \(endpoint) failed.")
             throw URLError(.badServerResponse)
         }
     }
@@ -357,7 +374,8 @@ class SyncthingClient: ObservableObject {
                 }
                 history.lastSeen = currentTime
                 history.isCurrentlyConnected = true
-            } else {
+            }
+            else {
                 // Device is disconnected
                 if history.isCurrentlyConnected {
                     // Device just disconnected
@@ -585,30 +603,41 @@ class SyncthingClient: ObservableObject {
 
     private func setFolderPausedState(folderID: String, paused: Bool) async {
         do {
-            // 1. Get the current config
-            var currentConfig = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
-            
-            // 2. Find and modify the folder
-            guard let folderIndex = currentConfig.folders.firstIndex(where: { $0.id == folderID }) else {
-                print("Folder with ID \(folderID) not found in config.")
+            // 1. Get the current config as raw JSON data
+            let configData = try await makeRawRequest(endpoint: "system/config")
+
+            // 2. Deserialize to a dictionary
+            guard var configJSON = try JSONSerialization.jsonObject(with: configData, options: []) as? [String: Any] else {
+                print("Failed to deserialize config JSON.")
                 return
             }
-            currentConfig.folders[folderIndex].paused = paused
-            
-            // 3. Post the modified config back
-            try await postRequest(endpoint: "system/config", body: currentConfig)
-            
-            // 4. Update local state immediately 
+
+            // 3. Find and modify the folder
+            guard var folders = configJSON["folders"] as? [[String: Any]],
+                  let folderIndex = folders.firstIndex(where: { ($0["id"] as? String) == folderID }) else {
+                print("Folder with ID \(folderID) not found in config JSON.")
+                return
+            }
+            folders[folderIndex]["paused"] = paused
+            configJSON["folders"] = folders
+
+            // 4. Serialize the modified dictionary back to data
+            let modifiedConfigData = try JSONSerialization.data(withJSONObject: configJSON, options: [])
+
+            // 5. Post the modified config back
+            try await postRawRequest(endpoint: "system/config", body: modifiedConfigData)
+
+            // 6. Update local state immediately
             await MainActor.run {
                 if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
                     self.folders[localIndex].paused = paused
                 }
             }
-            
-            // 5. Wait for Syncthing to restart and then refresh
+
+            // 7. Wait for Syncthing to restart and then refresh
             try await Task.sleep(nanoseconds: 2_000_000_000)
             await refresh()
-            
+
         } catch {
             print("Failed to set folder paused state for \(folderID): \(error)")
         }
