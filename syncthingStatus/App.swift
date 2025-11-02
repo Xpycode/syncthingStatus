@@ -128,41 +128,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let accessibilityDescription: String
 
         if !syncthingClient.isConnected {
-            iconName = "exclamationmark.triangle.fill"
+            iconName = "wifi.exclamationmark"
             accessibilityDescription = "Disconnected"
         } else {
-            // Check if any connected device is actively syncing (not effectively synced)
-            let hasActiveSyncing = syncthingClient.deviceCompletions.contains { deviceID, completion in
-                guard let connection = syncthingClient.connections[deviceID],
-                      connection.connected else {
-                    return false // Skip offline devices
-                }
-                return !isEffectivelySynced(completion: completion, settings: settings)
-            }
+            // Check for active syncing first (highest priority)
+            let isActivelySyncing = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" } ||
+                                    syncthingClient.deviceCompletions.contains { deviceID, completion in
+                                        guard let connection = syncthingClient.connections[deviceID], connection.connected else { return false }
+                                        return !isEffectivelySynced(completion: completion, settings: settings)
+                                    }
 
-            // Check folder states
-            let hasActiveFolderSync = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" }
-
-            // Check if at least one device is connected and synced, or all folders are idle with no pending files
-            let hasConnectedSyncedDevice = syncthingClient.deviceCompletions.contains { deviceID, completion in
-                guard let connection = syncthingClient.connections[deviceID],
-                      connection.connected else {
-                    return false
-                }
-                return isEffectivelySynced(completion: completion, settings: settings)
-            }
-
-            let allFoldersIdle = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
-
-            if hasActiveSyncing || hasActiveFolderSync {
+            if isActivelySyncing {
                 iconName = "arrow.triangle.2.circlepath"
                 accessibilityDescription = "Syncing"
-            } else if hasConnectedSyncedDevice || allFoldersIdle {
-                iconName = "checkmark.circle.fill"
-                accessibilityDescription = "Synced"
             } else {
-                iconName = "pause.circle.fill"
-                accessibilityDescription = "Paused or Out of Sync"
+                // Check for paused state
+                let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
+                let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
+
+                if allConnectedDevicesArePaused {
+                    iconName = "pause.circle.fill"
+                    accessibilityDescription = "Paused"
+                } else {
+                    // Check for fully synced state (all folders idle and up to date)
+                    let isFullySynced = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
+
+                    if isFullySynced {
+                        iconName = "checkmark.circle.fill"
+                        accessibilityDescription = "Synced"
+                    } else {
+                        // If not syncing, not paused, and not fully synced, then it's out of sync
+                        iconName = "exclamationmark.arrow.circlepath"
+                        accessibilityDescription = "Out of Sync"
+                    }
+                }
             }
         }
         statusButton.image = NSImage(systemSymbolName: iconName, accessibilityDescription: accessibilityDescription)
