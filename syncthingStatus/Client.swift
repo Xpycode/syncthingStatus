@@ -598,12 +598,15 @@ class SyncthingClient: ObservableObject {
             // 3. Post the modified config back
             try await postRequest(endpoint: "system/config", body: currentConfig)
             
-            // 4. Update local state immediately and then refresh
+            // 4. Update local state immediately 
             await MainActor.run {
                 if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
                     self.folders[localIndex].paused = paused
                 }
             }
+            
+            // 5. Wait for Syncthing to restart and then refresh
+            try await Task.sleep(nanoseconds: 2_000_000_000)
             await refresh()
             
         } catch {
