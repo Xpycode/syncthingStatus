@@ -382,6 +382,7 @@ class SyncthingClient: ObservableObject {
                 // Device is connected
                 if !history.isCurrentlyConnected {
                     // Device just connected
+                    previousConnections.removeValue(forKey: deviceID)
                     history.connectedSince = currentTime
                     if settings.showDeviceConnectNotifications {
                         sendConnectionNotification(deviceName: deviceName, connected: true)
