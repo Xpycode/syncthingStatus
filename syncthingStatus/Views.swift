@@ -864,7 +864,7 @@ struct FolderStatusRow: View {
                 Spacer()
 
                 if let status {
-                    VStack(alignment: .center, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text("\(status.localFiles) files")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -872,6 +872,7 @@ struct FolderStatusRow: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
                 }
 
                 Spacer()
@@ -888,6 +889,7 @@ struct FolderStatusRow: View {
                             Text("Up to date").font(.caption2).foregroundColor(.green)
                         }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
                 }
             }
             if let status, status.state == "syncing", status.needBytes > 0 {
