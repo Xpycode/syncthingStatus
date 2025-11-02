@@ -859,6 +859,15 @@ struct FolderStatusRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(folder.label.isEmpty ? folder.id : folder.label).fontWeight(.medium)
                     Text(folder.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                    if let status {
+                        HStack(spacing: 4) {
+                            Text("\(status.localFiles) files")
+                            Text("•")
+                            Text(formatBytes(status.localBytes))
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
                 }
                 Spacer()
                 if let status {
