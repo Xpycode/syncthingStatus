@@ -498,8 +498,8 @@ class SyncthingClient: ObservableObject {
             print("Refresh already in progress.")
             return
         }
-        isRefreshing = true
-        defer { isRefreshing = false }
+        await MainActor.run { isRefreshing = true }
+        defer { Task { await MainActor.run { isRefreshing = false } } }
 
         guard prepareCredentials() else {
             await MainActor.run { self.handleDisconnectedState() }
