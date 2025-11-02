@@ -103,6 +103,10 @@ class SyncthingClient: ObservableObject {
         transferRates.values.reduce(0) { $0 + $1.uploadRate }
     }
 
+    var allDevicesPaused: Bool {
+        !devices.isEmpty && devices.allSatisfy { $0.paused }
+    }
+
     private func observeSettings() {
         Publishers.CombineLatest3(
             settings.$useAutomaticDiscovery,
@@ -539,6 +543,24 @@ class SyncthingClient: ObservableObject {
             // No immediate refresh needed as scanning is a background task
         } catch {
             print("Failed to rescan folder \(folderID): \(error)")
+        }
+    }
+
+    func pauseAllDevices() async {
+        do {
+            try await postRequest(endpoint: "system/pause")
+            await refresh()
+        } catch {
+            print("Failed to pause all devices: \(error)")
+        }
+    }
+
+    func resumeAllDevices() async {
+        do {
+            try await postRequest(endpoint: "system/resume")
+            await refresh()
+        } catch {
+            print("Failed to resume all devices: \(error)")
         }
     }
 }

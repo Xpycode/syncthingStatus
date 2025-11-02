@@ -18,7 +18,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(isConnected: syncthingClient.isConnected) {
+            HeaderView(syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected) {
                 Task { await syncthingClient.refresh() }
             }
             .padding([.top, .horizontal])
@@ -83,6 +83,7 @@ struct ContentView: View {
 
 // MARK: - Component Views
 struct HeaderView: View {
+    @ObservedObject var syncthingClient: SyncthingClient
     let isConnected: Bool
     let onRefresh: () -> Void
     
@@ -92,6 +93,21 @@ struct HeaderView: View {
                 .foregroundColor(isConnected ? .green : .red)
             Text("Syncthing Monitor").font(.headline)
             Spacer()
+            
+            if isConnected {
+                Button(action: {
+                    if syncthingClient.allDevicesPaused {
+                        Task { await syncthingClient.resumeAllDevices() }
+                    } else {
+                        Task { await syncthingClient.pauseAllDevices() }
+                    }
+                }) {
+                    Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+            }
+            
             Button("Refresh", action: onRefresh).buttonStyle(.bordered).controlSize(.small)
         }
     }
@@ -637,6 +653,17 @@ struct DeviceStatusRow: View {
 
     private var compactView: some View {
         HStack {
+            Button(action: {
+                if device.paused {
+                    Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
+                } else {
+                    Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
+                }
+            }) {
+                Image(systemName: device.paused ? "play.circle.fill" : "pause.circle.fill")
+            }
+            .buttonStyle(.plain)
+            
             Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name).fontWeight(.medium)
@@ -665,17 +692,6 @@ struct DeviceStatusRow: View {
                 }
             } else {
                 Text("Disconnected").font(.caption).foregroundColor(.red)
-            }
-        }
-        .contextMenu {
-            if device.paused {
-                Button("Resume") {
-                    Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
-                }
-            } else {
-                Button("Pause") {
-                    Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
-                }
             }
         }
     }
@@ -746,6 +762,17 @@ struct DeviceStatusRow: View {
             .padding(.vertical, 4)
         } label: {
             HStack {
+                Button(action: {
+                    if device.paused {
+                        Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
+                    } else {
+                        Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
+                    }
+                }) {
+                    Image(systemName: device.paused ? "play.circle.fill" : "pause.circle.fill")
+                }
+                .buttonStyle(.plain)
+
                 Circle().fill(device.paused ? .gray : (connection?.connected == true ? .green : .red)).frame(width: 10, height: 10)
                 Text(device.name).font(.headline)
                 Spacer()
@@ -759,17 +786,6 @@ struct DeviceStatusRow: View {
                     }
                 } else {
                     Text("Disconnected").font(.subheadline).foregroundColor(.red)
-                }
-            }
-        }
-        .contextMenu {
-            if device.paused {
-                Button("Resume") {
-                    Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
-                }
-            } else {
-                Button("Pause") {
-                    Task { await syncthingClient.pauseDevice(deviceID: device.deviceID) }
                 }
             }
         }
