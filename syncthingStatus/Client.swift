@@ -568,6 +568,11 @@ class SyncthingClient: ObservableObject {
     func pauseFolder(folderID: String) async {
         do {
             try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=true")
+            await MainActor.run {
+                if let index = self.folders.firstIndex(where: { $0.id == folderID }) {
+                    self.folders[index].paused = true
+                }
+            }
             await refresh()
         } catch {
             print("Failed to pause folder \(folderID): \(error)")
@@ -577,6 +582,11 @@ class SyncthingClient: ObservableObject {
     func resumeFolder(folderID: String) async {
         do {
             try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=false")
+            await MainActor.run {
+                if let index = self.folders.firstIndex(where: { $0.id == folderID }) {
+                    self.folders[index].paused = false
+                }
+            }
             await refresh()
         } catch {
             print("Failed to resume folder \(folderID): \(error)")

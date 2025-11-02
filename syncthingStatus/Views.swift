@@ -90,7 +90,7 @@ struct HeaderView: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text("Syncthing Status").font(.headline)
+                Text("syncthingStatus").font(.headline)
                 Text(isConnected ? "Connected" : "Disconnected")
                     .font(.caption)
                     .foregroundColor(isConnected ? .green : .red)
@@ -117,10 +117,12 @@ struct HeaderView: View {
                 .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
             }
             
-            Button("Refresh", action: onRefresh)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(syncthingClient.isRefreshing)
+            Button(action: onRefresh) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(syncthingClient.isRefreshing)
         }
     }
 }
@@ -213,15 +215,6 @@ struct SystemStatusView: View {
                         Text(deviceName)
                     }
                     Divider()
-                }
-                HStack {
-                    Text("Device ID:").fontWeight(.medium)
-                    Spacer()
-                    if isPopover {
-                        Text(String(status.myID.prefix(12)) + "...").font(.system(.caption, design: .monospaced))
-                    } else {
-                        Text(status.myID).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    }
                 }
                 Divider()
                 HStack {
@@ -718,8 +711,6 @@ struct DeviceStatusRow: View {
     private var detailedView: some View {
         DisclosureGroup {
             VStack(spacing: 6) {
-                InfoRow(label: "Device ID", value: device.deviceID, isMonospaced: true)
-
                 if let connection, connection.connected {
                     if let address = connection.address {
                         InfoRow(label: "Address", value: address, isMonospaced: true)
