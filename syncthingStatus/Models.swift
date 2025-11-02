@@ -10,7 +10,7 @@ struct SyncthingSystemStatus: Codable {
 
 struct SyncthingConfig: Codable {
     let devices: [SyncthingDevice]
-    let folders: [SyncthingFolder]
+    var folders: [SyncthingFolder]
 }
 
 struct SyncthingDevice: Codable, Identifiable {

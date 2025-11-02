@@ -223,6 +223,24 @@ class SyncthingClient: ObservableObject {
         }
     }
     
+    private func postRequest<T: Codable>(endpoint: String, body: T) async throws {
+        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        
+        let (_, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            print("Syncthing POST request to \(endpoint) failed.")
+            throw URLError(.badServerResponse)
+        }
+    }
+    
     func fetchStatus() async {
         do {
             let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
@@ -565,31 +583,39 @@ class SyncthingClient: ObservableObject {
         }
     }
 
-    func pauseFolder(folderID: String) async {
+    private func setFolderPausedState(folderID: String, paused: Bool) async {
         do {
-            try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=true")
+            // 1. Get the current config
+            var currentConfig = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
+            
+            // 2. Find and modify the folder
+            guard let folderIndex = currentConfig.folders.firstIndex(where: { $0.id == folderID }) else {
+                print("Folder with ID \(folderID) not found in config.")
+                return
+            }
+            currentConfig.folders[folderIndex].paused = paused
+            
+            // 3. Post the modified config back
+            try await postRequest(endpoint: "system/config", body: currentConfig)
+            
+            // 4. Update local state immediately and then refresh
             await MainActor.run {
-                if let index = self.folders.firstIndex(where: { $0.id == folderID }) {
-                    self.folders[index].paused = true
+                if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
+                    self.folders[localIndex].paused = paused
                 }
             }
             await refresh()
+            
         } catch {
-            print("Failed to pause folder \(folderID): \(error)")
+            print("Failed to set folder paused state for \(folderID): \(error)")
         }
     }
 
+    func pauseFolder(folderID: String) async {
+        await setFolderPausedState(folderID: folderID, paused: true)
+    }
+
     func resumeFolder(folderID: String) async {
-        do {
-            try await postRequest(endpoint: "db/override?folder=\(folderID)&paused=false")
-            await MainActor.run {
-                if let index = self.folders.firstIndex(where: { $0.id == folderID }) {
-                    self.folders[index].paused = false
-                }
-            }
-            await refresh()
-        } catch {
-            print("Failed to resume folder \(folderID): \(error)")
-        }
+        await setFolderPausedState(folderID: folderID, paused: false)
     }
 }

@@ -89,7 +89,7 @@ struct HeaderView: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("syncthingStatus").font(.headline)
                 Text(isConnected ? "Connected" : "Disconnected")
                     .font(.caption)
@@ -214,9 +214,7 @@ struct SystemStatusView: View {
                         Spacer()
                         Text(deviceName)
                     }
-                    Divider()
                 }
-                Divider()
                 HStack {
                     Text("Uptime:").fontWeight(.medium)
                     Spacer()
