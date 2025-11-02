@@ -206,29 +206,22 @@ struct SystemStatusView: View {
     var isPopover: Bool = true
 
     var body: some View {
-        GroupBox("System Status") {
-            VStack(spacing: 8) {
-                if !deviceName.isEmpty {
-                    HStack {
-                        Text("Device Name:").fontWeight(.medium)
-                        Spacer()
-                        Text(deviceName)
-                    }
+        GroupBox("Local Device") {
+            HStack {
+                Text(deviceName)
+                    .fontWeight(.medium)
+                Spacer()
+                if let version = status.version {
+                    Text(version)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                HStack {
-                    Text("Uptime:").fontWeight(.medium)
-                    Spacer()
-                    Text(formatUptime(status.uptime))
-                }
-                if !isPopover, let version = status.version {
-                    Divider()
-                    HStack {
-                        Text("Version:").fontWeight(.medium)
-                        Spacer()
-                        Text(version)
-                    }
-                }
+                Spacer()
+                Text(formatUptime(status.uptime))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
+            .padding(.vertical, 4)
         }
     }
 }
