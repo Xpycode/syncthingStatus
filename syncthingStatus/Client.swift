@@ -312,8 +312,8 @@ class SyncthingClient: ObservableObject {
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
             await MainActor.run {
-                self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.updateConnectionHistory(newConnections: connectionsResponse.connections)
+                self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
             }
         } catch {

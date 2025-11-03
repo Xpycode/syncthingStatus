@@ -35,3 +35,31 @@ The primary goal of this session was to recover from a previous problematic stat
 ### Conclusion:
 
 The application is now in a stable state. The UI has been refined according to user specifications, and the critical folder pause/resume functionality now works correctly and safely without corrupting the Syncthing configuration or causing disconnects.
+
+---
+**Log Entry: 2025-11-02 14:05:00 UTC**
+
+### Session Summary:
+
+This session focused on further UI refinements and fixing a bug in the transfer speed calculation.
+
+### What Was Accomplished:
+
+1.  **UI Refinements (Window):**
+    *   The "System Status" `GroupBox` was renamed to "Local Device".
+    *   The layout was updated to a cleaner, label-less `HStack` showing the device name, version, and uptime.
+    *   A bug was fixed where the local device's version number was not appearing. This was resolved by fetching the version from the dedicated `/rest/system/version` endpoint and storing it in a new `@Published` property.
+    *   File count and size were added to the `FolderStatusRow`'s compact view.
+    *   The alignment of the file count and size was adjusted to ensure vertical alignment regardless of folder name length.
+
+2.  **Bug Fix (Negative Transfer Speeds):**
+    *   The user reported that the transfer speed graph could show negative values.
+    *   The root cause was identified: `inBytesTotal` and `outBytesTotal` can reset when a device reconnects, leading to a negative result when calculating the difference.
+    *   The fix was implemented in the `updateConnectionHistory` function. When a device reconnects (i.e., its state changes from disconnected to connected), its entry in the `previousConnections` cache is now removed. This ensures that the next transfer rate calculation for that device starts fresh, preventing negative values.
+
+3.  **Branching:**
+    *   The work was performed on a new branch, "ui-cleanup-window", created from the "main" branch after merging the "further-UI-fixes" branch.
+
+### Conclusion:
+
+The UI has been further polished, and a critical bug in the transfer speed calculation has been resolved. The application is stable and ready for the next set of tasks.
