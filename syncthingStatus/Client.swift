@@ -28,6 +28,7 @@ class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
 }
 
 // MARK: - Syncthing API Client
+@MainActor
 class SyncthingClient: ObservableObject {
     private let session: URLSession
     private let settings: SyncthingSettings
@@ -154,7 +155,7 @@ class SyncthingClient: ObservableObject {
     private func prepareCredentials() -> Bool {
         let trimmedBase = settings.trimmedBaseURL
         guard let resolvedBaseURL = URL(string: trimmedBase), !trimmedBase.isEmpty else {
-            Task { await MainActor.run { self.lastErrorMessage = "Syncthing base URL is invalid or empty." } }
+            self.lastErrorMessage = "Syncthing base URL is invalid or empty."
             return false
         }
         baseURL = resolvedBaseURL
@@ -163,14 +164,14 @@ class SyncthingClient: ObservableObject {
             if cachedAutomaticAPIKey == nil {
                 cachedAutomaticAPIKey = loadAutomaticAPIKey()
                 if cachedAutomaticAPIKey == nil {
-                    Task { await MainActor.run { self.lastErrorMessage = "API key could not be loaded from config.xml." } }
+                    self.lastErrorMessage = "API key could not be loaded from config.xml."
                 }
             }
             guard let key = cachedAutomaticAPIKey else { return false }
             apiKey = key
         } else {
             guard let manualKey = settings.resolvedManualAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines), !manualKey.isEmpty else {
-                Task { await MainActor.run { self.lastErrorMessage = "Manual API key is empty." } }
+                self.lastErrorMessage = "Manual API key is empty."
                 return false
             }
             apiKey = manualKey
@@ -262,47 +263,37 @@ class SyncthingClient: ObservableObject {
     func fetchStatus() async {
         do {
             let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
-            await MainActor.run {
-                self.systemStatus = status
+            self.systemStatus = status
                 self.isConnected = true
                 self.lastErrorMessage = nil
-            }
         } catch {
-            await MainActor.run {
-                self.isConnected = false
+            self.isConnected = false
                 self.systemStatus = nil
                 self.lastErrorMessage = "Failed to connect to Syncthing: \(error.localizedDescription)"
-            }
         }
     }
     
     func fetchVersion() async {
         do {
             let versionInfo = try await makeRequest(endpoint: "system/version", responseType: SyncthingVersion.self)
-            await MainActor.run {
-                self.syncthingVersion = versionInfo.version
-            }
+            self.syncthingVersion = versionInfo.version
         } catch {
             print("Failed to fetch system/version: \(error)")
-            await MainActor.run {
-                self.syncthingVersion = nil
-            }
+            self.syncthingVersion = nil
         }
     }
     
     func fetchConfig() async {
-        guard let localDeviceID = await MainActor.run(body: { self.systemStatus?.myID }) else { return }
+        guard let localDeviceID = self.systemStatus?.myID else { return }
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
-            await MainActor.run {
-                // Find and store local device name
+            // Find and store local device name
                 if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
                     self.localDeviceName = localDevice.name
                 }
                 // Store only remote devices
                 self.devices = config.devices.filter { $0.deviceID != localDeviceID }
                 self.folders = config.folders
-            }
         } catch {
             print("Failed to fetch system/config: \(error)")
         }
@@ -311,11 +302,9 @@ class SyncthingClient: ObservableObject {
     func fetchConnections() async {
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
-            await MainActor.run {
-                self.updateConnectionHistory(newConnections: connectionsResponse.connections)
+            self.updateConnectionHistory(newConnections: connectionsResponse.connections)
                 self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
-            }
         } catch {
             print("Failed to fetch system/connections: \(error)")
         }
@@ -409,14 +398,12 @@ class SyncthingClient: ObservableObject {
     }
 
     func fetchFolderStatus() async {
-        let foldersToFetch = await MainActor.run { self.folders }
+        let foldersToFetch = self.folders
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
-                await MainActor.run {
-                    self.trackSyncEvent(folder: folder, status: status)
+                self.trackSyncEvent(folder: folder, status: status)
                     self.folderStatuses[folder.id] = status
-                }
             } catch {
                 print("Failed to fetch db/status for folder \(folder.id): \(error)")
             }
@@ -522,11 +509,11 @@ class SyncthingClient: ObservableObject {
     }
     
     func fetchDeviceCompletions() async {
-        let devicesToFetch = await MainActor.run { self.devices }
+        let devicesToFetch = self.devices
         for device in devicesToFetch {
             do {
                 let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
-                await MainActor.run { self.deviceCompletions[device.deviceID] = completion }
+                self.deviceCompletions[device.deviceID] = completion
             } catch {
                 print("Failed to fetch db/completion for device \(device.deviceID): \(error)")
             }
@@ -549,17 +536,17 @@ class SyncthingClient: ObservableObject {
             print("Refresh already in progress.")
             return
         }
-        await MainActor.run { isRefreshing = true }
-        defer { Task { await MainActor.run { isRefreshing = false } } }
+        isRefreshing = true
+        defer { isRefreshing = false }
 
         guard prepareCredentials() else {
-            await MainActor.run { self.handleDisconnectedState() }
+            self.handleDisconnectedState()
             return
         }
         
         await fetchStatus()
         
-        if await MainActor.run(body: { self.isConnected }) {
+        if self.isConnected {
             async let configTask: () = fetchConfig()
             async let versionTask: () = fetchVersion()
             async let connectionsTask: () = fetchConnections()
@@ -643,11 +630,9 @@ class SyncthingClient: ObservableObject {
             try await postRawRequest(endpoint: "system/config", body: modifiedConfigData)
 
             // 6. Update local state immediately
-            await MainActor.run {
-                if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
+            if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
                     self.folders[localIndex].paused = paused
                 }
-            }
 
             // 7. Wait for Syncthing to restart and then refresh
             try await Task.sleep(nanoseconds: 2_000_000_000)
