@@ -21,6 +21,7 @@ class MainWindowController: NSWindowController {
         )
         window.contentView = hostingView
         window.title = "Syncthing Status"
+        window.titleVisibility = .hidden
         window.center()
 
         self.init(window: window)
@@ -68,7 +69,7 @@ private final class OpaqueHostingView<Content: View>: NSHostingView<Content> {
 // MARK: - AppDelegate
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
-    var statusItem: NSStatusItem?
+    private var statusIcon: SyncthingStatusIcon?
     var popover: NSPopover?
     var windowController: MainWindowController?
     weak var settingsWindow: NSWindow?
@@ -94,14 +95,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        if let statusButton = statusItem?.button {
-            statusButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Loading")?.withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
-            statusButton.image?.isTemplate = true
-            statusButton.action = #selector(statusItemClicked)
+        statusIcon = SyncthingStatusIcon()
+        if let statusButton = statusIcon?.statusItem.button {
             statusButton.target = self
+            statusButton.action = #selector(statusItemClicked)
         }
+        updateStatusIcon()
 
         setupPopover()
         UNUserNotificationCenter.current().delegate = self
@@ -221,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let screenPadding: CGFloat = 100.0
         let maxHeight: CGFloat
         
-        if let screen = statusItem?.button?.window?.screen {
+        if let screen = statusIcon?.statusItem.button?.window?.screen {
             maxHeight = screen.visibleFrame.height - screenPadding
         } else if let mainScreen = NSScreen.main {
             maxHeight = mainScreen.visibleFrame.height - screenPadding
@@ -254,59 +253,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     func updateStatusIcon() {
-        guard let statusButton = statusItem?.button else { return }
+        guard let icon = statusIcon else { return }
 
-        let iconName: String
-        let accessibilityDescription: String
-
-        if !syncthingClient.isConnected {
-            iconName = "wifi.exclamationmark"
-            accessibilityDescription = "Disconnected"
-        } else {
-            let isActivelySyncing = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" } ||
-                                    syncthingClient.deviceCompletions.contains { deviceID, completion in
-                                        guard let connection = syncthingClient.connections[deviceID], connection.connected else { return false }
-                                        return !isEffectivelySynced(completion: completion, settings: settings)
-                                    }
-
-            if isActivelySyncing {
-                iconName = "arrow.triangle.2.circlepath"
-                accessibilityDescription = "Syncing"
-                pendingGlobalSyncNotification = true
-            } else {
-                let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
-                let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
-
-                if allConnectedDevicesArePaused {
-                    iconName = "pause.circle.fill"
-                    accessibilityDescription = "Paused"
-                } else {
-                    let isFullySynced = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
-
-                    if isFullySynced {
-                        iconName = "checkmark.circle.fill"
-                        accessibilityDescription = "Synced"
-                        if pendingGlobalSyncNotification {
-                            syncthingClient.handleGlobalSyncComplete()
-                            pendingGlobalSyncNotification = false
-                        }
-                    } else {
-                        iconName = "exclamationmark.arrow.circlepath"
-                        accessibilityDescription = "Out of Sync"
-                    }
-                }
-            }
-        }
-        statusButton.image = NSImage(systemSymbolName: iconName, accessibilityDescription: accessibilityDescription)
-        statusButton.image?.isTemplate = true
+        let button = icon.statusItem.button
+        let activityThreshold: Double = 1024 // 1 KB/s
 
         if !syncthingClient.isConnected {
+            icon.set(state: .error)
+            button?.toolTip = "Disconnected"
+            button?.setAccessibilityTitle("Disconnected")
             pendingGlobalSyncNotification = false
+            return
+        }
+
+        let totalDownload = syncthingClient.currentDownloadSpeed
+        let totalUpload = syncthingClient.currentUploadSpeed
+
+        let isDownloading = totalDownload > activityThreshold
+        let isUploading = totalUpload > activityThreshold
+
+        let isActivelySyncing = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" } ||
+            syncthingClient.deviceCompletions.contains { deviceID, completion in
+                guard let connection = syncthingClient.connections[deviceID], connection.connected else { return false }
+                return !isEffectivelySynced(completion: completion, settings: settings)
+            }
+
+        let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
+        let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
+        let isFullySynced = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
+
+        if isUploading && isDownloading {
+            icon.set(state: .upAndDown)
+            pendingGlobalSyncNotification = true
+        } else if isUploading {
+            icon.set(state: .uploading)
+            pendingGlobalSyncNotification = true
+        } else if isDownloading {
+            icon.set(state: .downloading)
+            pendingGlobalSyncNotification = true
+        } else if isActivelySyncing {
+            icon.set(state: .upAndDown)
+            pendingGlobalSyncNotification = true
+        } else if allConnectedDevicesArePaused {
+            icon.set(state: .normal)
+            button?.toolTip = "Paused"
+            button?.setAccessibilityTitle("Paused")
+        } else if isFullySynced {
+            icon.set(state: .normal)
+            button?.toolTip = "In sync"
+            button?.setAccessibilityTitle("In sync")
+            if pendingGlobalSyncNotification {
+                syncthingClient.handleGlobalSyncComplete()
+                pendingGlobalSyncNotification = false
+            }
+        } else {
+            icon.set(state: .error)
+            button?.toolTip = "Out of sync"
+            button?.setAccessibilityTitle("Out of sync")
         }
     }
     
     @objc func statusItemClicked() {
-        guard let statusButton = statusItem?.button else { return }
+        guard let statusButton = statusIcon?.statusItem.button else { return }
         
         if let popover, popover.isShown {
             closePopover()
@@ -421,6 +429,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .store(in: &cancellables)
         
         syncthingClient.$deviceCompletions
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        syncthingClient.$transferRates
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        syncthingClient.$connections
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+        
+        syncthingClient.$devices
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
