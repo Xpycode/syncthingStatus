@@ -3,6 +3,7 @@ import SwiftUI
 import Foundation
 import Combine
 import UserNotifications
+import QuartzCore
 
 // MARK: - Window Controller
 class MainWindowController: NSWindowController {
@@ -23,6 +24,44 @@ class MainWindowController: NSWindowController {
         window.center()
 
         self.init(window: window)
+    }
+}
+
+// MARK: - Hosting Controller Helpers
+final class OpaqueHostingController<Content: View>: NSHostingController<Content> {
+    override func loadView() {
+        view = OpaqueHostingView(rootView: rootView)
+    }
+}
+
+private final class OpaqueHostingView<Content: View>: NSHostingView<Content> {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        configureOpaqueBackground()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        configureOpaqueBackground()
+    }
+
+    private func configureOpaqueBackground() {
+        wantsLayer = true
+        if layer == nil {
+            layer = CALayer()
+        }
+        guard let layer else { return }
+
+        let appearance = window?.effectiveAppearance ?? effectiveAppearance
+        var resolvedColor = NSColor.windowBackgroundColor
+        appearance.performAsCurrentDrawingAppearance {
+            resolvedColor = NSColor.windowBackgroundColor
+        }
+
+        layer.isOpaque = true
+        layer.backgroundColor = resolvedColor.cgColor
+        layer.cornerRadius = 12
+        layer.masksToBounds = true
     }
 }
 
@@ -80,9 +119,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func setupPopover() {
         popover = NSPopover()
         popover?.behavior = .transient
-        popover?.contentViewController = NSHostingController(
+        popover?.animates = true
+
+        let controller = OpaqueHostingController(
             rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
+        popover?.contentViewController = controller
     }
 
     func updatePopoverSize(height: CGFloat) {
