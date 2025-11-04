@@ -26,7 +26,7 @@ struct ContentView: View {
             Divider().padding(.vertical, 8)
 
             if !syncthingClient.isConnected {
-                DisconnectedView(settings: settings)
+                DisconnectedView(appDelegate: appDelegate, settings: settings)
             } else {
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
@@ -129,6 +129,7 @@ struct HeaderView: View {
 
 struct DisconnectedView: View {
     @Environment(\.openSettings) private var openSettings
+    weak var appDelegate: AppDelegate?
     let settings: SyncthingSettings
     
     var body: some View {
@@ -142,7 +143,11 @@ struct DisconnectedView: View {
                 if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
             Button("Open Settings") {
-                openSettings()
+                if let appDelegate {
+                    appDelegate.presentSettings(using: openSettings.callAsFunction)
+                } else {
+                    openSettings()
+                }
             }
             .buttonStyle(.bordered)
             Spacer()
@@ -179,7 +184,11 @@ struct FooterView: View {
                 }.disabled(!isConnected)
                 
                 Button("Settings") {
-                    openSettings()
+                    if let appDelegate {
+                        appDelegate.presentSettings(using: openSettings.callAsFunction)
+                    } else {
+                        openSettings()
+                    }
                 }
                 .buttonStyle(.bordered)
                 

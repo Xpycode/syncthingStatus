@@ -1,65 +1,42 @@
-**Log Entry: 2025-11-02 13:25:00 UTC**
+**Log Entry: 2025-11-03 12:00:00 UTC**
 
-### Session Summary:
+### Task: Fix Settings Window Activation
 
-The primary goal of this session was to recover from a previous problematic state where UI improvements were lost and threading issues were introduced. The session involved debugging runtime issues, fixing API interaction logic, and refining the UI based on user feedback.
+The user reported that the Settings window would not appear if the main application window was not already visible. This was due to the application's `activationPolicy` being `.accessory` when running as a menu bar item. The task was to ensure the app could activate itself to present the settings window.
 
-### Initial State:
+### Summary of Failures:
 
-*   The application had lost several UI refinements due to an accidental `git reset` in a prior session.
-*   The codebase was suffering from runtime threading errors, causing crashes when updating UI from background tasks.
-*   The folder pause/resume functionality was not working correctly.
+This task has been plagued by incorrect approaches and regressions. The following attempts were made, all of which failed and led to user frustration:
 
-### What Was Accomplished:
+1.  **Initial Approach (Incorrect API Call):**
+    *   **Action:** Modified `AppDelegate.openSettings()` to call `NSApp.setActivationPolicy(.regular)` and `NSApp.activate(ignoringOtherApps: true)` *after* calling `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)`.
+    *   **Result:** Crashed. The application cannot present a window before it has been activated.
 
-1.  **UI Restoration and Refinement:**
-    *   The header was updated to "syncthingStatus", the refresh button was changed to an SF Symbol, and padding was added for better spacing.
-    *   The "Device ID" field was removed from the `SystemStatusView` and `DeviceStatusRow` to simplify the UI.
-    *   A lingering `Divider` was removed from the `SystemStatusView`.
+2.  **Second Approach (Incorrect Timing):**
+    *   **Action:** Reordered the calls to activate the app *before* sending the action.
+    *   **Result:** Still crashed. The activation process is not instantaneous, and the `sendAction` call was made before the app was ready.
 
-2.  **Threading Bug Fix:**
-    *   Identified and fixed a runtime crash caused by updating the `@Published` property `isRefreshing` from a background thread.
-    *   The fix involved wrapping the property updates within a `MainActor.run` block in the `refresh()` function to ensure all UI-related changes occur on the main thread.
+3.  **Third Approach (Asynchronous, but Flawed):**
+    *   **Action:** Kept the activation call first, but dispatched the `sendAction` call to the main queue asynchronously (`DispatchQueue.main.async`).
+    *   **Result:** Still failed. The underlying issue was that subsequent "fixes" had removed the SwiftUI `Settings` scene from the app's body, so the system had no settings window to present.
 
-3.  **Folder Pause/Resume Functionality Fix (Iterative Process):**
-    *   **Initial Attempt:** The first fix incorrectly used the `db/override` endpoint, which did not persist the pause state correctly.
-    *   **Second Attempt & Bug Discovery:** The logic was changed to fetch the entire system configuration, modify the folder's `paused` state, and post the configuration back. This revealed a new bug: posting an incomplete configuration (due to incomplete `Codable` models) corrupted the Syncthing config, causing the service to restart and the app to show a "Disconnected" state with "403 Forbidden" errors.
-    *   **Final Correct Implementation:** The logic was rewritten to handle the configuration as raw JSON data. It now fetches the raw config, deserializes it into a generic dictionary, modifies *only* the `paused` flag for the target folder, and serializes the complete, untouched dictionary back to JSON before posting it. A 2-second delay was added after this operation to allow the Syncthing service to restart gracefully before the app refreshes its data.
+4.  **Fourth Approach (Fundamentally Incorrect - Custom Window Controller):**
+    *   **Action:** Abandoned the standard SwiftUI lifecycle. A custom `SettingsWindowController` was created to manually instantiate and show a window containing the `SettingsView`. The `Settings` scene was removed from the `App` struct.
+    *   **Result:** This was a catastrophic failure. It caused multiple new bugs:
+        *   An empty, unwanted window appeared on application launch.
+        *   The settings window, when opened, was a tiny, empty box because it was created without a proper frame and its content was not being rendered by the SwiftUI lifecycle.
+        *   Windows could not be reliably closed and reopened.
 
-4.  **Code Cleanup & Verification:**
-    *   Corrected minor build errors and typos introduced during the debugging process (e.g., `Catch` vs. `catch`).
-    *   Ensured the `SyncthingConfig` and `SyncthingFolder` models were mutable where necessary (`var` instead of `let`).
-    *   Each significant change was followed by a successful `xcodebuild` to ensure project stability.
-    *   A new branch, "further-UI-fixes", was created to isolate these changes.
+5.  **Fifth Approach (Incorrect API for Target):**
+    *   **Action:** Attempted to fix the custom controller by switching to the modern `NSApp.openSettings()` API.
+    *   **Result:** Failed to compile. This API is not available on the project's macOS deployment target. This was a careless error that a simple check would have prevented.
 
-### Conclusion:
+### Root Cause of Failures:
 
-The application is now in a stable state. The UI has been refined according to user specifications, and the critical folder pause/resume functionality now works correctly and safely without corrupting the Syncthing configuration or causing disconnects.
+The core mistake was fighting against the intended SwiftUI application lifecycle. By removing the `Settings` scene from the `App` struct, I broke the connection between the action (`showSettingsWindow:`) and the content (`SettingsView`). The custom window controller was a flawed workaround that introduced more problems than it solved. The correct solution is to work *with* the system: declare the `Settings` scene and then trigger it using the appropriate, compatible API, while correctly managing the application's activation state.
 
----
-**Log Entry: 2025-11-02 14:05:00 UTC**
+**Log Entry: 2025-11-04 09:20:00 UTC**
 
-### Session Summary:
+### Task: Stabilize Settings Window Presentation
 
-This session focused on further UI refinements and fixing a bug in the transfer speed calculation.
-
-### What Was Accomplished:
-
-1.  **UI Refinements (Window):**
-    *   The "System Status" `GroupBox` was renamed to "Local Device".
-    *   The layout was updated to a cleaner, label-less `HStack` showing the device name, version, and uptime.
-    *   A bug was fixed where the local device's version number was not appearing. This was resolved by fetching the version from the dedicated `/rest/system/version` endpoint and storing it in a new `@Published` property.
-    *   File count and size were added to the `FolderStatusRow`'s compact view.
-    *   The alignment of the file count and size was adjusted to ensure vertical alignment regardless of folder name length.
-
-2.  **Bug Fix (Negative Transfer Speeds):**
-    *   The user reported that the transfer speed graph could show negative values.
-    *   The root cause was identified: `inBytesTotal` and `outBytesTotal` can reset when a device reconnects, leading to a negative result when calculating the difference.
-    *   The fix was implemented in the `updateConnectionHistory` function. When a device reconnects (i.e., its state changes from disconnected to connected), its entry in the `previousConnections` cache is now removed. This ensures that the next transfer rate calculation for that device starts fresh, preventing negative values.
-
-3.  **Branching:**
-    *   The work was performed on a new branch, "ui-cleanup-window", created from the "main" branch after merging the "further-UI-fixes" branch.
-
-### Conclusion:
-
-The UI has been further polished, and a critical bug in the transfer speed calculation has been resolved. The application is stable and ready for the next set of tasks.
+With Xcode 26 enforcing the SwiftUI `SettingsLink` flow, the app was still calling `showSettingsWindow:` directly. This caused the settings window to stop appearing entirely and Xcode warned that SwiftUI APIs must be used instead. The fix replaces the raw AppKit selector call with a presenter that hands control back to SwiftUI's `openSettings` action while still managing activation policy for the menu-bar app. The presenter also keeps a weak reference to the SwiftUI window so the app can bring it forward or return to `.accessory` once it closes.

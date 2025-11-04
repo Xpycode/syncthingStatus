@@ -27,11 +27,12 @@ class MainWindowController: NSWindowController {
 }
 
 // MARK: - AppDelegate
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var windowController: MainWindowController?
-    var settingsWindowController: NSWindowController?
+    weak var settingsWindow: NSWindow?
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
     private var timer: Timer?
@@ -67,7 +68,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
         startMonitoring()
     }
-
+    
     private func requestNotificationPermissions() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
@@ -109,11 +110,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func startMonitoring() {
         Task {
             await syncthingClient.refresh()
-            await MainActor.run { self.updateStatusIcon() }
+            self.updateStatusIcon()
         }
         
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: settings.refreshInterval, repeats: true) { _ in
+        timer = Timer.scheduledTimer(withTimeInterval: settings.refreshInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             Task {
                 await self.syncthingClient.refresh()
                 await MainActor.run { self.updateStatusIcon() }
@@ -131,7 +133,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             iconName = "wifi.exclamationmark"
             accessibilityDescription = "Disconnected"
         } else {
-            // Check for active syncing first (highest priority)
             let isActivelySyncing = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" } ||
                                     syncthingClient.deviceCompletions.contains { deviceID, completion in
                                         guard let connection = syncthingClient.connections[deviceID], connection.connected else { return false }
@@ -142,7 +143,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 iconName = "arrow.triangle.2.circlepath"
                 accessibilityDescription = "Syncing"
             } else {
-                // Check for paused state
                 let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
                 let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
 
@@ -150,14 +150,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     iconName = "pause.circle.fill"
                     accessibilityDescription = "Paused"
                 } else {
-                    // Check for fully synced state (all folders idle and up to date)
                     let isFullySynced = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
 
                     if isFullySynced {
                         iconName = "checkmark.circle.fill"
                         accessibilityDescription = "Synced"
                     } else {
-                        // If not syncing, not paused, and not fully synced, then it's out of sync
                         iconName = "exclamationmark.arrow.circlepath"
                         accessibilityDescription = "Out of Sync"
                     }
@@ -180,15 +178,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func openMainWindow() {
         closePopover()
-
         if windowController == nil {
             windowController = MainWindowController(syncthingClient: syncthingClient, settings: settings, appDelegate: self)
             windowController?.window?.delegate = self
         }
-        
         NSApp.setActivationPolicy(.regular)
         windowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func presentSettings(using openSettingsAction: @escaping () -> Void) {
+        closePopover()
+        NSApp.setActivationPolicy(.regular)
+
+        if bringExistingSettingsWindowToFront() {
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            openSettingsAction()
+            DispatchQueue.main.async { [weak self] in
+                self?.configureSettingsWindowIfNeeded()
+            }
+        }
+    }
+
+    private func configureSettingsWindowIfNeeded() {
+        guard let window = locateSettingsWindow() else {
+            revertToAccessoryIfAppropriate()
+            return
+        }
+        settingsWindow = window
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func bringExistingSettingsWindowToFront() -> Bool {
+        guard let window = locateSettingsWindow() else { return false }
+        settingsWindow = window
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    private func locateSettingsWindow() -> NSWindow? {
+        if let window = settingsWindow, window.isVisible {
+            return window
+        }
+        let titles = settingsWindowTitles
+        return NSApp.windows.first { window in
+            titles.contains(window.title)
+        }
+    }
+
+    private var settingsWindowTitles: [String] {
+        let bundle = Bundle.main
+        let displayName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        let bundleName = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+        let appName = displayName ?? bundleName ?? ProcessInfo.processInfo.processName
+        return ["\(appName) Settings", "\(appName) Preferences", "Settings", "Preferences"]
+    }
+
+    private func revertToAccessoryIfAppropriate(excluding closingWindow: NSWindow? = nil) {
+        DispatchQueue.main.async {
+            let visibleWindows = NSApp.windows.filter { $0 !== closingWindow && $0.isVisible }
+            if visibleWindows.isEmpty {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
     }
     
     func showPopover(_ sender: NSButton) {
@@ -207,13 +267,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         if window === windowController?.window {
-            NSApp.setActivationPolicy(.accessory)
             windowController = nil
-        } else if window === settingsWindowController?.window {
-            settingsWindowController = nil
-            if windowController == nil {
-                NSApp.setActivationPolicy(.accessory)
-            }
+            revertToAccessoryIfAppropriate(excluding: window)
+        } else if window === settingsWindow {
+            settingsWindow = nil
+            revertToAccessoryIfAppropriate(excluding: window)
         }
     }
     
@@ -246,8 +304,26 @@ struct SyncthingStatusApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
+        // The Settings scene is the source of truth for the settings window.
         Settings {
             SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient)
         }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                SettingsCommandBridge(appDelegate: appDelegate)
+            }
+        }
+    }
+}
+
+private struct SettingsCommandBridge: View {
+    @Environment(\.openSettings) private var openSettings
+    let appDelegate: AppDelegate
+
+    var body: some View {
+        Button("Settings…") {
+            appDelegate.presentSettings(using: openSettings.callAsFunction)
+        }
+        .keyboardShortcut(",", modifiers: .command)
     }
 }
