@@ -90,13 +90,33 @@ struct HeaderView: View {
     let onRefresh: () -> Void
     
     var body: some View {
-        HStack {
+        HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("syncthingStatus").font(.headline)
-                Text(isConnected ? "Connected" : "Disconnected")
-                    .font(.caption)
-                    .foregroundColor(isConnected ? .green : .red)
+                if isConnected {
+                    HStack(spacing: 8) {
+                        Text("Connected")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                        Spacer(minLength: 0)
+                        HStack(spacing: 6) {
+                            Text("↓ \(formatTransferRate(syncthingClient.currentDownloadSpeed))")
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                            Text("↑ \(formatTransferRate(syncthingClient.currentUploadSpeed))")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("Disconnected")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
             
@@ -105,26 +125,28 @@ struct HeaderView: View {
                     .controlSize(.small)
             }
 
-            if isConnected {
-                Button(action: {
-                    if syncthingClient.allDevicesPaused {
-                        Task { await syncthingClient.resumeAllDevices() }
-                    } else {
-                        Task { await syncthingClient.pauseAllDevices() }
+            HStack(alignment: .bottom, spacing: 8) {
+                if isConnected {
+                    Button(action: {
+                        if syncthingClient.allDevicesPaused {
+                            Task { await syncthingClient.resumeAllDevices() }
+                        } else {
+                            Task { await syncthingClient.pauseAllDevices() }
+                        }
+                    }) {
+                        Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
                     }
-                }) {
-                    Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
+                    .buttonStyle(.plain)
+                    .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
                 }
-                .buttonStyle(.plain)
-                .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+                
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(syncthingClient.isRefreshing)
             }
-            
-            Button(action: onRefresh) {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(syncthingClient.isRefreshing)
         }
     }
 }
@@ -476,8 +498,8 @@ struct DeviceTransferSpeedChartView: View {
     let history: DeviceTransferHistory
 
     private var maxSpeed: Double {
-        let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
-        let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
+        let maxDown = history.dataPoints.map { $0.uploadRate }.max() ?? 0
+        let maxUp = history.dataPoints.map { $0.downloadRate }.max() ?? 0
         let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
         // Add 20% padding to max value for better visualization, minimum 1
         return max(maxValue * 1.2, 1)
@@ -494,11 +516,11 @@ struct DeviceTransferSpeedChartView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
-                        // Download series (received data)
+                        // Download series (remote device receiving data)
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / 1024),
+                                y: .value("Speed", point.uploadRate / 1024),
                                 series: .value("Type", "Download")
                             )
                             .foregroundStyle(.blue)
@@ -507,11 +529,11 @@ struct DeviceTransferSpeedChartView: View {
                             .symbolSize(20)
                         }
 
-                        // Upload series (sent data)
+                        // Upload series (remote device sending data)
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / 1024),
+                                y: .value("Speed", point.downloadRate / 1024),
                                 series: .value("Type", "Upload")
                             )
                             .foregroundStyle(.green)
@@ -690,13 +712,15 @@ struct DeviceStatusRow: View {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
                         if let rates = transferRates {
-                            if rates.downloadRate > 0 || rates.uploadRate > 0 {
+                            let remoteDownloadRate = rates.uploadRate
+                            let remoteUploadRate = rates.downloadRate
+                            if remoteDownloadRate > 0 || remoteUploadRate > 0 {
                                 HStack(spacing: 6) {
-                                    if rates.downloadRate > 0 {
-                                        Text("↓ \(formatTransferRate(rates.downloadRate))").font(.caption2).foregroundColor(.blue)
+                                    if remoteDownloadRate > 0 {
+                                        Text("↓ \(formatTransferRate(remoteDownloadRate))").font(.caption2).foregroundColor(.blue)
                                     }
-                                    if rates.uploadRate > 0 {
-                                        Text("↑ \(formatTransferRate(rates.uploadRate))").font(.caption2).foregroundColor(.blue)
+                                    if remoteUploadRate > 0 {
+                                        Text("↑ \(formatTransferRate(remoteUploadRate))").font(.caption2).foregroundColor(.blue)
                                     }
                                 }
                             } else {
@@ -738,13 +762,15 @@ struct DeviceStatusRow: View {
                     InfoRow(label: "Data Sent", value: formatBytes(connection.outBytesTotal))
 
                     if let rates = transferRates {
-                        if rates.downloadRate > 0 || rates.uploadRate > 0 {
+                        let remoteDownloadRate = rates.uploadRate
+                        let remoteUploadRate = rates.downloadRate
+                        if remoteDownloadRate > 0 || remoteUploadRate > 0 {
                             Divider()
-                            if rates.downloadRate > 0 {
-                                InfoRow(label: "Download Speed", value: formatTransferRate(rates.downloadRate), isHighlighted: true)
+                            if remoteDownloadRate > 0 {
+                                InfoRow(label: "Download Speed", value: formatTransferRate(remoteDownloadRate), isHighlighted: true)
                             }
-                            if rates.uploadRate > 0 {
-                                InfoRow(label: "Upload Speed", value: formatTransferRate(rates.uploadRate), isHighlighted: true)
+                            if remoteUploadRate > 0 {
+                                InfoRow(label: "Upload Speed", value: formatTransferRate(remoteUploadRate), isHighlighted: true)
                             }
                         }
                     }
