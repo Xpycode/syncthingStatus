@@ -38,6 +38,18 @@ final class SyncthingSettings: ObservableObject {
     @Published var showDeviceDisconnectNotifications: Bool {
         didSet { persistDefaultsIfNeeded() }
     }
+
+    @Published var showPauseResumeNotifications: Bool {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
+    @Published var showStalledSyncNotifications: Bool {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
+    @Published var stalledSyncTimeoutMinutes: Double {
+        didSet { persistDefaultsIfNeeded() }
+    }
     
     @Published var notificationEnabledFolderIDs: [String] {
         didSet { persistDefaultsIfNeeded() }
@@ -62,6 +74,9 @@ final class SyncthingSettings: ObservableObject {
         static let refreshInterval = "SyncthingSettings.refreshInterval"
         static let showDeviceConnectNotifications = "SyncthingSettings.showDeviceConnectNotifications"
         static let showDeviceDisconnectNotifications = "SyncthingSettings.showDeviceDisconnectNotifications"
+        static let showPauseResumeNotifications = "SyncthingSettings.showPauseResumeNotifications"
+        static let showStalledSyncNotifications = "SyncthingSettings.showStalledSyncNotifications"
+        static let stalledSyncTimeoutMinutes = "SyncthingSettings.stalledSyncTimeoutMinutes"
         static let notificationEnabledFolderIDs = "SyncthingSettings.notificationEnabledFolderIDs"
     }
 
@@ -78,6 +93,9 @@ final class SyncthingSettings: ObservableObject {
         refreshInterval = defaults.object(forKey: Keys.refreshInterval) as? Double ?? 10.0
         showDeviceConnectNotifications = defaults.object(forKey: Keys.showDeviceConnectNotifications) as? Bool ?? false
         showDeviceDisconnectNotifications = defaults.object(forKey: Keys.showDeviceDisconnectNotifications) as? Bool ?? false
+        showPauseResumeNotifications = defaults.object(forKey: Keys.showPauseResumeNotifications) as? Bool ?? true
+        showStalledSyncNotifications = defaults.object(forKey: Keys.showStalledSyncNotifications) as? Bool ?? false
+        stalledSyncTimeoutMinutes = defaults.object(forKey: Keys.stalledSyncTimeoutMinutes) as? Double ?? 5.0
         notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
         isLoading = false
     }
@@ -101,6 +119,9 @@ final class SyncthingSettings: ObservableObject {
         refreshInterval = 10.0
         showDeviceConnectNotifications = false
         showDeviceDisconnectNotifications = false
+        showPauseResumeNotifications = true
+        showStalledSyncNotifications = false
+        stalledSyncTimeoutMinutes = 5.0
         notificationEnabledFolderIDs = []
     }
 
@@ -114,6 +135,9 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(refreshInterval, forKey: Keys.refreshInterval)
         defaults.set(showDeviceConnectNotifications, forKey: Keys.showDeviceConnectNotifications)
         defaults.set(showDeviceDisconnectNotifications, forKey: Keys.showDeviceDisconnectNotifications)
+        defaults.set(showPauseResumeNotifications, forKey: Keys.showPauseResumeNotifications)
+        defaults.set(showStalledSyncNotifications, forKey: Keys.showStalledSyncNotifications)
+        defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
         defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
     }
 

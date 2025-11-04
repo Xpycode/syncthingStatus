@@ -2,6 +2,26 @@ import Foundation
 import Combine
 import UserNotifications
 
+enum NotificationCategory: String {
+    case folderPaused
+    case folderResumed
+    case devicePaused
+    case deviceResumed
+    case allDevicesPaused
+    case allDevicesResumed
+    case folderStalled
+}
+
+enum NotificationAction: String {
+    case resumeFolder
+    case pauseFolder
+    case resumeDevice
+    case pauseDevice
+    case resumeAllDevices
+    case pauseAllDevices
+    case openApp
+}
+
 // MARK: - API Key XML Parser
 class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
     private var isApiKeyTag = false
@@ -53,6 +73,15 @@ class SyncthingClient: ObservableObject {
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
     private var totalTransferHistory = DeviceTransferHistory() // Aggregate for all devices
     @Published var isRefreshing = false
+    
+    private struct StalledSyncTracker {
+        var syncStart: Date
+        var lastProgress: Date
+        var lastNeedBytes: Int64
+        var lastNeedFiles: Int
+        var lastNotificationDate: Date?
+    }
+    private var stalledSyncTrackers: [String: StalledSyncTracker] = [:]
 
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
@@ -69,6 +98,7 @@ class SyncthingClient: ObservableObject {
     @Published var localDeviceName: String = ""
     @Published var lastErrorMessage: String?
     @Published var syncthingVersion: String?
+    @Published var lastGlobalSyncNotificationSentAt: Date?
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -402,8 +432,8 @@ class SyncthingClient: ObservableObject {
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
+                self.folderStatuses[folder.id] = status
                 self.trackSyncEvent(folder: folder, status: status)
-                    self.folderStatuses[folder.id] = status
             } catch {
                 print("Failed to fetch db/status for folder \(folder.id): \(error)")
             }
@@ -411,15 +441,17 @@ class SyncthingClient: ObservableObject {
     }
 
     private func trackSyncEvent(folder: SyncthingFolder, status: SyncthingFolderStatus) {
-        let currentState = status.state
+        let effectivelyComplete = status.needBytes <= settings.syncRemainingBytesThreshold
+        let effectiveState = (status.state == "idle" || effectivelyComplete) ? "idle" : status.state
+
         let previousState = previousFolderStates[folder.id]
 
         // Track state changes
-        if previousState != currentState {
+        if previousState != effectiveState {
             let folderName = folder.label.isEmpty ? folder.id : folder.label
             let event: SyncEvent?
 
-            switch (previousState, currentState) {
+            switch (previousState, effectiveState) {
             case (_, "syncing") where previousState != "syncing":
                 // Sync started
                 let details = status.needFiles > 0 ? "\(status.needFiles) files to sync" : nil
@@ -430,23 +462,39 @@ class SyncthingClient: ObservableObject {
                     timestamp: Date(),
                     details: details
                 )
-            case ("syncing", "idle") where status.needFiles == 0:
+            case ("syncing", "idle") where effectivelyComplete:
                 // Sync completed successfully
+                let remainingDescription: String
+                if status.needBytes > 0 {
+                    remainingDescription = "Within threshold (\(formatBytes(status.needBytes)) remaining)"
+                } else {
+                    remainingDescription = "All files synchronized"
+                }
+
                 event = SyncEvent(
                     folderID: folder.id,
                     folderName: folderName,
                     eventType: .syncCompleted,
                     timestamp: Date(),
-                    details: "All files synchronized"
+                    details: remainingDescription
                 )
             case (_, "idle") where previousState == "syncing":
                 // Back to idle (may have paused or error)
+                let details: String?
+                if status.needBytes > 0 {
+                    details = "\(formatBytes(status.needBytes)) remaining"
+                } else if status.needFiles > 0 {
+                    details = "\(status.needFiles) files pending"
+                } else {
+                    details = nil
+                }
+
                 event = SyncEvent(
                     folderID: folder.id,
                     folderName: folderName,
                     eventType: .idle,
                     timestamp: Date(),
-                    details: status.needFiles > 0 ? "\(status.needFiles) files pending" : nil
+                    details: details
                 )
             default:
                 event = nil
@@ -461,12 +509,148 @@ class SyncthingClient: ObservableObject {
                 recentSyncEvents = syncEvents.reversed()
 
                 // Send notification for sync completion
-                if event.eventType == .syncCompleted && settings.notificationEnabledFolderIDs.contains(folder.id) {
+                let folderNotificationsEnabled = settings.notificationEnabledFolderIDs.isEmpty ||
+                    settings.notificationEnabledFolderIDs.contains(folder.id)
+                
+                if event.eventType == .syncCompleted && settings.showSyncNotifications && folderNotificationsEnabled {
                     sendSyncCompletionNotification(folderName: folderName)
                 }
             }
 
-            previousFolderStates[folder.id] = currentState
+            previousFolderStates[folder.id] = effectiveState
+        }
+        
+        monitorStalledSyncIfNeeded(for: folder, status: status)
+    }
+    
+    private func monitorStalledSyncIfNeeded(for folder: SyncthingFolder, status: SyncthingFolderStatus) {
+        guard settings.showStalledSyncNotifications else {
+            stalledSyncTrackers.removeValue(forKey: folder.id)
+            return
+        }
+
+        let now = Date()
+        let thresholdSeconds = max(60.0, settings.stalledSyncTimeoutMinutes * 60.0)
+
+        if status.state == "syncing" {
+            var tracker = stalledSyncTrackers[folder.id] ?? StalledSyncTracker(
+                syncStart: now,
+                lastProgress: now,
+                lastNeedBytes: status.needBytes,
+                lastNeedFiles: status.needFiles,
+                lastNotificationDate: nil
+            )
+
+            let needBytesChanged = status.needBytes != tracker.lastNeedBytes
+            let needFilesChanged = status.needFiles != tracker.lastNeedFiles
+
+            if needBytesChanged || needFilesChanged {
+                tracker.lastProgress = now
+                if status.needBytes < tracker.lastNeedBytes || status.needFiles < tracker.lastNeedFiles {
+                    tracker.lastNotificationDate = nil
+                }
+            }
+
+            tracker.lastNeedBytes = status.needBytes
+            tracker.lastNeedFiles = status.needFiles
+
+            if now.timeIntervalSince(tracker.lastProgress) >= thresholdSeconds {
+                if tracker.lastNotificationDate == nil {
+                    let folderName = folder.label.isEmpty ? folder.id : folder.label
+                    sendStalledSyncNotification(folderID: folder.id, folderName: folderName, lastProgress: tracker.lastProgress)
+                    tracker.lastNotificationDate = now
+                }
+            }
+
+            stalledSyncTrackers[folder.id] = tracker
+        } else {
+            stalledSyncTrackers.removeValue(forKey: folder.id)
+        }
+    }
+
+    private enum PauseResumeNotificationTarget {
+        case folder(id: String, name: String)
+        case device(id: String, name: String)
+        case allDevices
+    }
+
+    private func sendPauseResumeNotification(target: PauseResumeNotificationTarget, paused: Bool) {
+        guard settings.showPauseResumeNotifications else { return }
+
+        let content = UNMutableNotificationContent()
+        let title: String
+        let body: String
+        var categoryIdentifier: String = ""
+        var userInfo: [String: Any] = ["paused": paused]
+
+        switch target {
+        case .folder(let id, let name):
+            title = paused ? "Folder Paused" : "Folder Resumed"
+            body = paused
+                ? "Folder '\(name)' paused. Resume it from syncthingStatus when you're ready."
+                : "Folder '\(name)' resumed. Syncthing will pick up syncing shortly."
+            categoryIdentifier = paused ? NotificationCategory.folderPaused.rawValue : NotificationCategory.folderResumed.rawValue
+            userInfo["target"] = "folder"
+            userInfo["id"] = id
+        case .device(let id, let name):
+            title = paused ? "Device Paused" : "Device Resumed"
+            body = paused
+                ? "Device '\(name)' paused. Resume it from syncthingStatus to continue syncing."
+                : "Device '\(name)' resumed. Syncing will continue if it is online."
+            categoryIdentifier = paused ? NotificationCategory.devicePaused.rawValue : NotificationCategory.deviceResumed.rawValue
+            userInfo["target"] = "device"
+            userInfo["id"] = id
+        case .allDevices:
+            title = paused ? "All Devices Paused" : "All Devices Resumed"
+            body = paused
+                ? "All devices paused. Use syncthingStatus to resume when you're ready."
+                : "All devices resumed. Syncthing will continue syncing."
+            categoryIdentifier = paused ? NotificationCategory.allDevicesPaused.rawValue : NotificationCategory.allDevicesResumed.rawValue
+            userInfo["target"] = "allDevices"
+        }
+
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = categoryIdentifier
+        content.userInfo = userInfo
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send pause/resume notification: \(error)")
+            }
+        }
+    }
+
+    private func sendStalledSyncNotification(folderID: String, folderName: String, lastProgress: Date) {
+        let elapsedMinutes = max(1, Int(Date().timeIntervalSince(lastProgress) / 60))
+
+        let content = UNMutableNotificationContent()
+        content.title = "Sync Stalled"
+        content.body = "Folder '\(folderName)' has not made progress for \(elapsedMinutes) minute\(elapsedMinutes == 1 ? "" : "s")."
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.folderStalled.rawValue
+        content.userInfo = [
+            "target": "folder",
+            "id": folderID
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send stalled sync notification: \(error)")
+            }
         }
     }
 
@@ -485,6 +669,25 @@ class SyncthingClient: ObservableObject {
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("Failed to send notification: \(error)")
+            }
+        }
+    }
+
+    private func sendGlobalSyncNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "All Synced"
+        content.body = "All folders are up to date."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to send global sync notification: \(error)")
             }
         }
     }
@@ -547,13 +750,14 @@ class SyncthingClient: ObservableObject {
         await fetchStatus()
         
         if self.isConnected {
-            async let configTask: () = fetchConfig()
+            await fetchConfig()
+
             async let versionTask: () = fetchVersion()
             async let connectionsTask: () = fetchConnections()
             async let folderStatusTask: () = fetchFolderStatus()
             async let deviceCompletionTask: () = fetchDeviceCompletions()
             
-            _ = await [configTask, versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
+            _ = await [versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
         }
     }
 
@@ -561,6 +765,8 @@ class SyncthingClient: ObservableObject {
     func pauseDevice(deviceID: String) async {
         do {
             try await postRequest(endpoint: "system/pause?device=\(deviceID)")
+            let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
+            sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: true)
             await refresh()
         } catch {
             print("Failed to pause device \(deviceID): \(error)")
@@ -570,6 +776,8 @@ class SyncthingClient: ObservableObject {
     func resumeDevice(deviceID: String) async {
         do {
             try await postRequest(endpoint: "system/resume?device=\(deviceID)")
+            let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
+            sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: false)
             await refresh()
         } catch {
             print("Failed to resume device \(deviceID): \(error)")
@@ -588,6 +796,7 @@ class SyncthingClient: ObservableObject {
     func pauseAllDevices() async {
         do {
             try await postRequest(endpoint: "system/pause")
+            sendPauseResumeNotification(target: .allDevices, paused: true)
             await refresh()
         } catch {
             print("Failed to pause all devices: \(error)")
@@ -597,10 +806,26 @@ class SyncthingClient: ObservableObject {
     func resumeAllDevices() async {
         do {
             try await postRequest(endpoint: "system/resume")
+            sendPauseResumeNotification(target: .allDevices, paused: false)
             await refresh()
         } catch {
             print("Failed to resume all devices: \(error)")
         }
+    }
+
+    func handleGlobalSyncComplete() {
+        guard settings.showSyncNotifications else { return }
+
+        let now = Date()
+        let minimumInterval = max(settings.refreshInterval, 5.0)
+
+        if let lastNotification = lastGlobalSyncNotificationSentAt,
+           now.timeIntervalSince(lastNotification) < minimumInterval {
+            return
+        }
+
+        lastGlobalSyncNotificationSentAt = now
+        sendGlobalSyncNotification()
     }
 
     private func setFolderPausedState(folderID: String, paused: Bool) async {
@@ -628,6 +853,10 @@ class SyncthingClient: ObservableObject {
 
             // 5. Post the modified config back
             try await postRawRequest(endpoint: "system/config", body: modifiedConfigData)
+
+            // Capture name for notification
+            let folderName = self.folders.first { $0.id == folderID }?.label ?? folderID
+            sendPauseResumeNotification(target: .folder(id: folderID, name: folderName), paused: paused)
 
             // 6. Update local state immediately
             if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {

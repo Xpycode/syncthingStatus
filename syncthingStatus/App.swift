@@ -67,7 +67,7 @@ private final class OpaqueHostingView<Content: View>: NSHostingView<Content> {
 
 // MARK: - AppDelegate
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var windowController: MainWindowController?
@@ -76,6 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let syncthingClient: SyncthingClient
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
+    private var pendingGlobalSyncNotification = false
     
     override init() {
         let settings = SyncthingSettings()
@@ -103,6 +104,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         setupPopover()
+        UNUserNotificationCenter.current().delegate = self
+        configureNotificationCategories()
         requestNotificationPermissions()
         NSApp.setActivationPolicy(.accessory)
         startMonitoring()
@@ -114,6 +117,91 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 print("Notification permission error: \(error)")
             }
         }
+    }
+
+    private func configureNotificationCategories() {
+        let resumeFolder = UNNotificationAction(
+            identifier: NotificationAction.resumeFolder.rawValue,
+            title: "Resume Folder",
+            options: []
+        )
+        let pauseFolder = UNNotificationAction(
+            identifier: NotificationAction.pauseFolder.rawValue,
+            title: "Pause Folder",
+            options: []
+        )
+        let resumeDevice = UNNotificationAction(
+            identifier: NotificationAction.resumeDevice.rawValue,
+            title: "Resume Device",
+            options: []
+        )
+        let pauseDevice = UNNotificationAction(
+            identifier: NotificationAction.pauseDevice.rawValue,
+            title: "Pause Device",
+            options: []
+        )
+        let resumeAllDevices = UNNotificationAction(
+            identifier: NotificationAction.resumeAllDevices.rawValue,
+            title: "Resume All Devices",
+            options: []
+        )
+        let pauseAllDevices = UNNotificationAction(
+            identifier: NotificationAction.pauseAllDevices.rawValue,
+            title: "Pause All Devices",
+            options: []
+        )
+        let openApp = UNNotificationAction(
+            identifier: NotificationAction.openApp.rawValue,
+            title: "Open syncthingStatus",
+            options: [.foreground]
+        )
+
+        let categories: Set<UNNotificationCategory> = [
+            UNNotificationCategory(
+                identifier: NotificationCategory.folderPaused.rawValue,
+                actions: [resumeFolder],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.folderResumed.rawValue,
+                actions: [pauseFolder],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.devicePaused.rawValue,
+                actions: [resumeDevice],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.deviceResumed.rawValue,
+                actions: [pauseDevice],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.allDevicesPaused.rawValue,
+                actions: [resumeAllDevices],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.allDevicesResumed.rawValue,
+                actions: [pauseAllDevices],
+                intentIdentifiers: [],
+                options: []
+            ),
+            UNNotificationCategory(
+                identifier: NotificationCategory.folderStalled.rawValue,
+                actions: [openApp],
+                intentIdentifiers: [],
+                options: []
+            )
+        ]
+
+        UNUserNotificationCenter.current().setNotificationCategories(categories)
     }
     
     func setupPopover() {
@@ -184,6 +272,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if isActivelySyncing {
                 iconName = "arrow.triangle.2.circlepath"
                 accessibilityDescription = "Syncing"
+                pendingGlobalSyncNotification = true
             } else {
                 let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
                 let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
@@ -197,6 +286,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if isFullySynced {
                         iconName = "checkmark.circle.fill"
                         accessibilityDescription = "Synced"
+                        if pendingGlobalSyncNotification {
+                            syncthingClient.handleGlobalSyncComplete()
+                            pendingGlobalSyncNotification = false
+                        }
                     } else {
                         iconName = "exclamationmark.arrow.circlepath"
                         accessibilityDescription = "Out of Sync"
@@ -206,6 +299,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         statusButton.image = NSImage(systemSymbolName: iconName, accessibilityDescription: accessibilityDescription)
         statusButton.image?.isTemplate = true
+
+        if !syncthingClient.isConnected {
+            pendingGlobalSyncNotification = false
+        }
     }
     
     @objc func statusItemClicked() {
@@ -337,6 +434,62 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.startMonitoring() }
             .store(in: &cancellables)
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor [weak self] in
+            guard let self else {
+                completionHandler()
+                return
+            }
+            self.processNotificationResponse(response)
+            completionHandler()
+        }
+    }
+
+    @MainActor
+    private func processNotificationResponse(_ response: UNNotificationResponse) {
+        let identifier = response.actionIdentifier
+        if identifier == UNNotificationDismissActionIdentifier {
+            return
+        }
+
+        let userInfo = response.notification.request.content.userInfo
+
+        if identifier == UNNotificationDefaultActionIdentifier {
+            openMainWindow()
+            return
+        }
+
+        guard let action = NotificationAction(rawValue: identifier) else { return }
+        handleNotificationAction(action, userInfo: userInfo)
+    }
+
+    private func handleNotificationAction(_ action: NotificationAction, userInfo: [AnyHashable: Any]) {
+        guard let target = userInfo["target"] as? String else { return }
+
+        switch action {
+        case .resumeFolder:
+            guard target == "folder", let folderID = userInfo["id"] as? String else { return }
+            Task { await syncthingClient.resumeFolder(folderID: folderID) }
+        case .pauseFolder:
+            guard target == "folder", let folderID = userInfo["id"] as? String else { return }
+            Task { await syncthingClient.pauseFolder(folderID: folderID) }
+        case .resumeDevice:
+            guard target == "device", let deviceID = userInfo["id"] as? String else { return }
+            Task { await syncthingClient.resumeDevice(deviceID: deviceID) }
+        case .pauseDevice:
+            guard target == "device", let deviceID = userInfo["id"] as? String else { return }
+            Task { await syncthingClient.pauseDevice(deviceID: deviceID) }
+        case .resumeAllDevices:
+            guard target == "allDevices", let wasPaused = userInfo["paused"] as? Bool, wasPaused else { return }
+            Task { await syncthingClient.resumeAllDevices() }
+        case .pauseAllDevices:
+            guard target == "allDevices", let wasPaused = userInfo["paused"] as? Bool, !wasPaused else { return }
+            Task { await syncthingClient.pauseAllDevices() }
+        case .openApp:
+            openMainWindow()
+        }
     }
 }
 

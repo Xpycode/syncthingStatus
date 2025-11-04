@@ -74,7 +74,9 @@ struct ContentView: View {
         )
         .onPreferenceChange(ViewHeightKey.self) { newHeight in
             if isPopover {
-                appDelegate?.updatePopoverSize(height: newHeight)
+                DispatchQueue.main.async {
+                    appDelegate?.updatePopoverSize(height: newHeight)
+                }
             }
         }
         .frame(width: isPopover ? 400 : nil)
@@ -687,8 +689,19 @@ struct DeviceStatusRow: View {
                 if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
-                        if let rates = transferRates, rates.downloadRate > 0 {
-                            Text("↓ \(formatTransferRate(rates.downloadRate))").font(.caption2).foregroundColor(.blue)
+                        if let rates = transferRates {
+                            if rates.downloadRate > 0 || rates.uploadRate > 0 {
+                                HStack(spacing: 6) {
+                                    if rates.downloadRate > 0 {
+                                        Text("↓ \(formatTransferRate(rates.downloadRate))").font(.caption2).foregroundColor(.blue)
+                                    }
+                                    if rates.uploadRate > 0 {
+                                        Text("↑ \(formatTransferRate(rates.uploadRate))").font(.caption2).foregroundColor(.blue)
+                                    }
+                                }
+                            } else {
+                                Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
+                            }
                         } else {
                             Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
                         }
@@ -1021,6 +1034,7 @@ struct SettingsView: View {
     @ObservedObject var syncthingClient: SyncthingClient
     @State private var showResetConfirmation = false
     @State private var remainingMB: Double
+    @State private var stalledMinutes: Double
 
     private var isManualMode: Bool {
         !settings.useAutomaticDiscovery
@@ -1030,6 +1044,7 @@ struct SettingsView: View {
         self.settings = settings
         self.syncthingClient = syncthingClient
         _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
+        _stalledMinutes = State(initialValue: settings.stalledSyncTimeoutMinutes)
     }
 
     var body: some View {
@@ -1101,6 +1116,27 @@ struct SettingsView: View {
             Section("Notifications") {
                 Toggle("Show device connect notifications", isOn: $settings.showDeviceConnectNotifications)
                 Toggle("Show device disconnect notifications", isOn: $settings.showDeviceDisconnectNotifications)
+                Toggle("Show pause/resume notifications", isOn: $settings.showPauseResumeNotifications)
+                
+                Toggle("Alert when sync stalls", isOn: $settings.showStalledSyncNotifications)
+                
+                if settings.showStalledSyncNotifications {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Stall threshold")
+                            Spacer()
+                            Text("\(Int(stalledMinutes)) min")
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $stalledMinutes, in: 1...30, step: 1)
+                            .onChange(of: stalledMinutes) { _, newValue in
+                                settings.stalledSyncTimeoutMinutes = newValue
+                            }
+                        Text("Trigger a reminder if a folder stays in 'Syncing' without progress longer than this.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 
                 DisclosureGroup("Per-folder sync completion notifications") {
                     if syncthingClient.folders.isEmpty {
@@ -1136,10 +1172,14 @@ struct SettingsView: View {
             Button("Reset", role: .destructive) {
                 settings.resetToDefaults()
                 remainingMB = Double(settings.syncRemainingBytesThreshold) / 1_048_576.0
+                stalledMinutes = settings.stalledSyncTimeoutMinutes
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will restore the built-in localhost configuration and clear any manual API key.")
+        }
+        .onChange(of: settings.stalledSyncTimeoutMinutes) { _, newValue in
+            stalledMinutes = newValue
         }
     }
 }
