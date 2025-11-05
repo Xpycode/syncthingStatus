@@ -22,6 +22,25 @@ enum NotificationAction: String {
     case openApp
 }
 
+enum SyncthingClientError: LocalizedError {
+    case httpStatus(code: Int, endpoint: String)
+    case missingAPIKey
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let code, let endpoint):
+            switch code {
+            case 401, 403:
+                return "API key rejected (HTTP \(code)) when calling \(endpoint)."
+            default:
+                return "Syncthing returned HTTP \(code) for \(endpoint)."
+            }
+        case .missingAPIKey:
+            return "API key is missing."
+        }
+    }
+}
+
 // MARK: - API Key XML Parser
 class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
     private var isApiKeyTag = false
@@ -217,7 +236,10 @@ class SyncthingClient: ObservableObject {
     
     private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
-        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
+        #if DEBUG
+        print("SyncthingClient: using API key length \(apiKey.count)")
+        #endif
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -231,7 +253,7 @@ class SyncthingClient: ObservableObject {
         
         guard httpResponse.statusCode == 200 else {
             print("Syncthing request to \(endpoint) failed with HTTP \(httpResponse.statusCode)")
-            throw URLError(.badServerResponse)
+            throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: endpoint)
         }
         
         let decoder = JSONDecoder()
@@ -240,7 +262,7 @@ class SyncthingClient: ObservableObject {
     
     private func postRequest(endpoint: String) async throws {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
-        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -250,14 +272,15 @@ class SyncthingClient: ObservableObject {
         let (_, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("Syncthing POST request to \(endpoint) failed.")
-            throw URLError(.badServerResponse)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            print("Syncthing POST request to \(endpoint) failed with HTTP \(code).")
+            throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
         }
     }
 
     private func makeRawRequest(endpoint: String) async throws -> Data {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
-        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -266,7 +289,8 @@ class SyncthingClient: ObservableObject {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw URLError(.badServerResponse)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
         }
 
         return data
@@ -274,7 +298,7 @@ class SyncthingClient: ObservableObject {
 
     private func postRawRequest(endpoint: String, body: Data) async throws {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
-        guard let apiKey else { throw URLError(.userAuthenticationRequired) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -285,8 +309,9 @@ class SyncthingClient: ObservableObject {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("Syncthing raw POST request to \(endpoint) failed.")
-            throw URLError(.badServerResponse)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            print("Syncthing raw POST request to \(endpoint) failed with HTTP \(code).")
+            throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
         }
     }
     
@@ -298,8 +323,25 @@ class SyncthingClient: ObservableObject {
                 self.lastErrorMessage = nil
         } catch {
             self.isConnected = false
-                self.systemStatus = nil
-                self.lastErrorMessage = "Failed to connect to Syncthing: \(error.localizedDescription)"
+            self.systemStatus = nil
+
+            let message: String
+            if let clientError = error as? SyncthingClientError {
+                message = clientError.localizedDescription
+            } else if let urlError = error as? URLError {
+                switch urlError.code {
+                case .userAuthenticationRequired:
+                    message = "API key missing or invalid."
+                case .cannotFindHost, .cannotConnectToHost:
+                    message = "Could not reach Syncthing at \(settings.trimmedBaseURL)."
+                default:
+                    message = urlError.localizedDescription
+                }
+            } else {
+                message = error.localizedDescription
+            }
+
+            self.lastErrorMessage = "Failed to connect to Syncthing: \(message)"
         }
     }
     
