@@ -1,5 +1,7 @@
 import SwiftUI
 import Charts
+import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - PreferenceKey for dynamic height
 struct ViewHeightKey: PreferenceKey {
@@ -7,6 +9,7 @@ struct ViewHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }
+
 }
 
 // MARK: - ContentView
@@ -1060,6 +1063,8 @@ struct SettingsView: View {
     @State private var showResetConfirmation = false
     @State private var remainingMB: Double
     @State private var stalledMinutes: Double
+    @State private var configSelectionError: String?
+    @State private var isSelectingConfig = false
 
     private var isManualMode: Bool {
         !settings.useAutomaticDiscovery
@@ -1083,6 +1088,40 @@ struct SettingsView: View {
                 Text("Turn this off to point the app at a different Syncthing instance.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Button("Select Syncthing config.xml…") {
+                        selectSyncthingConfig()
+                    }
+                    .disabled(!settings.useAutomaticDiscovery)
+
+                    if let path = settings.configBookmarkDisplayPath {
+                        Text("Using: \(path)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Select your Syncthing config.xml so syncthingStatus can read the API key automatically.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if settings.hasConfigBookmark {
+                        Button("Forget selection") {
+                            settings.clearConfigBookmark()
+                            configSelectionError = nil
+                            if settings.useAutomaticDiscovery {
+                                Task { await syncthingClient.refresh() }
+                            }
+                        }
+                        .buttonStyle(.link)
+                    }
+
+                    if let configSelectionError {
+                        Text(configSelectionError)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+                }
             }
 
             Section("Manual Configuration") {
@@ -1203,9 +1242,91 @@ struct SettingsView: View {
         } message: {
             Text("This will restore the built-in localhost configuration and clear any manual API key.")
         }
+        .onChange(of: settings.useAutomaticDiscovery) { _, newValue in
+            if newValue {
+                if !settings.hasConfigBookmark {
+                    selectSyncthingConfig()
+                }
+            } else {
+                configSelectionError = nil
+            }
+        }
         .onChange(of: settings.stalledSyncTimeoutMinutes) { _, newValue in
             stalledMinutes = newValue
         }
+    }
+
+    private func selectSyncthingConfig() {
+        guard !isSelectingConfig else { return }
+        isSelectingConfig = true
+
+        let panel = NSOpenPanel()
+        panel.title = "Select Syncthing config.xml"
+        panel.prompt = "Grant Access"
+
+        let suggestedURL: URL?
+        if let existingPath = settings.configBookmarkPath {
+            suggestedURL = URL(fileURLWithPath: existingPath)
+        } else {
+            suggestedURL = defaultSyncthingConfigDirectory()?.appendingPathComponent("config.xml")
+        }
+
+        let pathDescription: String
+        if let suggestedURL {
+            pathDescription = (suggestedURL.path as NSString).abbreviatingWithTildeInPath
+        } else {
+            pathDescription = "~/Library/Application Support/Syncthing/config.xml"
+        }
+        panel.message = "syncthingStatus needs access to Syncthing's config.xml (typically \(pathDescription)). Press ⌘⇧. to show hidden folders."
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if #available(macOS 11.0, *) {
+            panel.allowedContentTypes = [.xml]
+        } else {
+            panel.allowedFileTypes = ["xml"]
+        }
+        if let existing = settings.configBookmarkPath {
+            let url = URL(fileURLWithPath: existing)
+            panel.directoryURL = url.deletingLastPathComponent()
+            panel.nameFieldStringValue = url.lastPathComponent
+        } else if let directory = defaultSyncthingConfigDirectory() {
+            panel.directoryURL = directory
+            panel.nameFieldStringValue = "config.xml"
+        } else {
+            panel.nameFieldStringValue = "config.xml"
+        }
+
+        panel.begin { response in
+            defer { isSelectingConfig = false }
+
+            guard response == .OK, let url = panel.url else {
+                if !settings.hasConfigBookmark {
+                    settings.useAutomaticDiscovery = false
+                }
+                return
+            }
+
+            do {
+                try settings.updateConfigBookmark(with: url)
+                configSelectionError = nil
+                if settings.useAutomaticDiscovery {
+                    Task { await syncthingClient.refresh() }
+                }
+            } catch {
+                configSelectionError = error.localizedDescription
+            }
+        }
+    }
+
+    private func defaultSyncthingConfigDirectory() -> URL? {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser
+        let primary = home.appendingPathComponent("Library/Application Support/Syncthing", isDirectory: true)
+        if fileManager.fileExists(atPath: primary.path) { return primary }
+        let alternate = home.appendingPathComponent(".config/syncthing", isDirectory: true)
+        if fileManager.fileExists(atPath: alternate.path) { return alternate }
+        return nil
     }
 }
 

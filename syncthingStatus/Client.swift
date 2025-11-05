@@ -25,6 +25,10 @@ enum NotificationAction: String {
 enum SyncthingClientError: LocalizedError {
     case httpStatus(code: Int, endpoint: String)
     case missingAPIKey
+    case configAccessDenied
+    case configMissingKey
+    case configReadFailed(message: String)
+    case configNotFound
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +41,14 @@ enum SyncthingClientError: LocalizedError {
             }
         case .missingAPIKey:
             return "API key is missing."
+        case .configAccessDenied:
+            return "Access to Syncthing config.xml was denied. Please reselect the file in Settings."
+        case .configMissingKey:
+            return "Syncthing config.xml did not contain an API key."
+        case .configReadFailed(let message):
+            return "Could not read Syncthing config.xml: \(message)"
+        case .configNotFound:
+            return "Select Syncthing's config.xml in Settings or enter the API key manually."
         }
     }
 }
@@ -173,32 +185,76 @@ class SyncthingClient: ObservableObject {
             Task { await self.refresh() }
         }
         .store(in: &cancellables)
+
+        settings.$configBookmarkData
+            .dropFirst()
+            .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.cachedAutomaticAPIKey = nil
+                guard self.settings.useAutomaticDiscovery else { return }
+                Task { await self.refresh() }
+            }
+            .store(in: &cancellables)
     }
     
-    private func loadAutomaticAPIKey() -> String? {
-        let fileManager = FileManager.default
-        let homeDir = fileManager.homeDirectoryForCurrentUser
-        let standardConfigPath = homeDir.appendingPathComponent("Library/Application Support/Syncthing/config.xml")
-        let alternativeConfigPath = homeDir.appendingPathComponent(".config/syncthing/config.xml")
-        
-        let configPath: URL?
-        if fileManager.fileExists(atPath: standardConfigPath.path) {
-            configPath = standardConfigPath
-        } else if fileManager.fileExists(atPath: alternativeConfigPath.path) {
-            configPath = alternativeConfigPath
-        } else {
-            configPath = nil
-        }
-        
-        guard let finalPath = configPath else { return nil }
-        guard let xmlData = try? Data(contentsOf: finalPath) else { return nil }
-        
-        let parser = XMLParser(data: xmlData)
+    private func extractAPIKey(from data: Data) -> String? {
+        let parser = XMLParser(data: data)
         let delegate = ApiKeyParserDelegate()
         parser.delegate = delegate
-        
+
         guard parser.parse(), let key = delegate.apiKey else { return nil }
-        return key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func defaultConfigLocations() -> [URL] {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            homeDir.appendingPathComponent("Library/Application Support/Syncthing/config.xml"),
+            homeDir.appendingPathComponent(".config/syncthing/config.xml")
+        ]
+    }
+
+    private func loadAutomaticAPIKey() -> Result<String, SyncthingClientError> {
+        if let bookmarkData = settings.configBookmarkData {
+            do {
+                var stale = false
+                let url = try URL(resolvingBookmarkData: bookmarkData, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
+
+                if stale {
+                    try? settings.updateConfigBookmark(with: url)
+                }
+
+                let hasAccess = url.startAccessingSecurityScopedResource()
+                defer {
+                    if hasAccess {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+
+                guard hasAccess else {
+                    return .failure(.configAccessDenied)
+                }
+
+                let data = try Data(contentsOf: url)
+                if let key = extractAPIKey(from: data) {
+                    return .success(key)
+                } else {
+                    return .failure(.configMissingKey)
+                }
+            } catch {
+                return .failure(.configReadFailed(message: error.localizedDescription))
+            }
+        }
+
+        for url in defaultConfigLocations() {
+            if let data = try? Data(contentsOf: url), let key = extractAPIKey(from: data) {
+                return .success(key)
+            }
+        }
+
+        return .failure(.configNotFound)
     }
     
     private func prepareCredentials() -> Bool {
@@ -211,9 +267,24 @@ class SyncthingClient: ObservableObject {
         
         if settings.useAutomaticDiscovery {
             if cachedAutomaticAPIKey == nil {
-                cachedAutomaticAPIKey = loadAutomaticAPIKey()
-                if cachedAutomaticAPIKey == nil {
-                    self.lastErrorMessage = "API key could not be loaded from config.xml."
+                switch loadAutomaticAPIKey() {
+                case .success(let key):
+                    cachedAutomaticAPIKey = key
+                case .failure(let error):
+                    switch error {
+                    case .configAccessDenied:
+                        self.lastErrorMessage = "Access to Syncthing config.xml was denied. Please reselect the file in Settings."
+                    case .configMissingKey:
+                        self.lastErrorMessage = "Syncthing config.xml did not contain an API key."
+                    case .configReadFailed(let message):
+                        self.lastErrorMessage = "Could not read Syncthing config.xml: \(message)"
+                    case .configNotFound:
+                        self.lastErrorMessage = "Select Syncthing's config.xml in Settings or enter the API key manually."
+                    default:
+                        self.lastErrorMessage = error.localizedDescription
+                    }
+                    cachedAutomaticAPIKey = nil
+                    return false
                 }
             }
             guard let key = cachedAutomaticAPIKey else { return false }

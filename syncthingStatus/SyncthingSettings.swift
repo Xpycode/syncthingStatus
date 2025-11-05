@@ -55,6 +55,14 @@ final class SyncthingSettings: ObservableObject {
         didSet { persistDefaultsIfNeeded() }
     }
 
+    @Published var configBookmarkData: Data? {
+        didSet { persistBookmarkIfNeeded() }
+    }
+
+    @Published var configBookmarkPath: String? {
+        didSet { persistBookmarkIfNeeded() }
+    }
+
     @Published var launchAtLogin: Bool = LaunchAtLoginHelper.isEnabled {
         didSet {
             LaunchAtLoginHelper.isEnabled = launchAtLogin
@@ -78,6 +86,8 @@ final class SyncthingSettings: ObservableObject {
         static let showStalledSyncNotifications = "SyncthingSettings.showStalledSyncNotifications"
         static let stalledSyncTimeoutMinutes = "SyncthingSettings.stalledSyncTimeoutMinutes"
         static let notificationEnabledFolderIDs = "SyncthingSettings.notificationEnabledFolderIDs"
+        static let configBookmarkData = "SyncthingSettings.configBookmarkData"
+        static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -97,6 +107,8 @@ final class SyncthingSettings: ObservableObject {
         showStalledSyncNotifications = defaults.object(forKey: Keys.showStalledSyncNotifications) as? Bool ?? false
         stalledSyncTimeoutMinutes = defaults.object(forKey: Keys.stalledSyncTimeoutMinutes) as? Double ?? 5.0
         notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
+        configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
+        configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         isLoading = false
     }
 
@@ -123,6 +135,7 @@ final class SyncthingSettings: ObservableObject {
         showStalledSyncNotifications = false
         stalledSyncTimeoutMinutes = 5.0
         notificationEnabledFolderIDs = []
+        clearConfigBookmark()
     }
 
     private func persistDefaultsIfNeeded() {
@@ -148,6 +161,41 @@ final class SyncthingSettings: ObservableObject {
         } else {
             keychain.save(manualAPIKey)
         }
+    }
+
+    private func persistBookmarkIfNeeded() {
+        guard !isLoading else { return }
+        if let data = configBookmarkData {
+            defaults.set(data, forKey: Keys.configBookmarkData)
+        } else {
+            defaults.removeObject(forKey: Keys.configBookmarkData)
+        }
+
+        if let path = configBookmarkPath {
+            defaults.set(path, forKey: Keys.configBookmarkPath)
+        } else {
+            defaults.removeObject(forKey: Keys.configBookmarkPath)
+        }
+    }
+
+    func updateConfigBookmark(with url: URL) throws {
+        let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+        configBookmarkData = bookmark
+        configBookmarkPath = url.path
+    }
+
+    func clearConfigBookmark() {
+        configBookmarkData = nil
+        configBookmarkPath = nil
+    }
+
+    var hasConfigBookmark: Bool {
+        configBookmarkData != nil
+    }
+
+    var configBookmarkDisplayPath: String? {
+        guard let path = configBookmarkPath else { return nil }
+        return (path as NSString).abbreviatingWithTildeInPath
     }
 }
 
