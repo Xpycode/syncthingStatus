@@ -1262,7 +1262,22 @@ struct SettingsView: View {
 
         let panel = NSOpenPanel()
         panel.title = "Select Syncthing config.xml"
-        panel.message = "syncthingStatus needs access to Syncthing's config.xml to discover your API key."
+        panel.prompt = "Grant Access"
+
+        let suggestedURL: URL?
+        if let existingPath = settings.configBookmarkPath {
+            suggestedURL = URL(fileURLWithPath: existingPath)
+        } else {
+            suggestedURL = defaultSyncthingConfigDirectory()?.appendingPathComponent("config.xml")
+        }
+
+        let pathDescription: String
+        if let suggestedURL {
+            pathDescription = (suggestedURL.path as NSString).abbreviatingWithTildeInPath
+        } else {
+            pathDescription = "~/Library/Application Support/Syncthing/config.xml"
+        }
+        panel.message = "syncthingStatus needs access to Syncthing's config.xml (typically \(pathDescription)). Press ⌘⇧. to show hidden folders."
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -1271,11 +1286,15 @@ struct SettingsView: View {
         } else {
             panel.allowedFileTypes = ["xml"]
         }
-        if let existingPath = settings.configBookmarkPath {
-            let existingURL = URL(fileURLWithPath: existingPath)
-            panel.directoryURL = existingURL.deletingLastPathComponent()
+        if let existing = settings.configBookmarkPath {
+            let url = URL(fileURLWithPath: existing)
+            panel.directoryURL = url.deletingLastPathComponent()
+            panel.nameFieldStringValue = url.lastPathComponent
         } else if let directory = defaultSyncthingConfigDirectory() {
             panel.directoryURL = directory
+            panel.nameFieldStringValue = "config.xml"
+        } else {
+            panel.nameFieldStringValue = "config.xml"
         }
 
         panel.begin { response in
