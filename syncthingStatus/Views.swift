@@ -91,14 +91,17 @@ struct HeaderView: View {
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("syncthingStatus").font(.headline)
+            Spacer(minLength: 0)
+
+            VStack(alignment: .center, spacing: 4) {
+                Text("syncthingStatus")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
                 if isConnected {
-                    HStack(spacing: 8) {
+                    HStack(alignment: .center, spacing: 8) {
                         Text("Connected")
                             .font(.caption)
                             .foregroundColor(.green)
-                        Spacer(minLength: 0)
                         HStack(spacing: 6) {
                             Text("↓ \(formatTransferRate(syncthingClient.currentDownloadSpeed))")
                                 .font(.caption2)
@@ -107,25 +110,21 @@ struct HeaderView: View {
                                 .font(.caption2)
                                 .foregroundColor(.green)
                         }
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text("Disconnected")
                         .font(.caption)
                         .foregroundColor(.red)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer()
-            
-            if syncthingClient.isRefreshing {
-                ProgressView()
-                    .controlSize(.small)
-            }
+            .frame(maxWidth: .infinity)
+            .layoutPriority(1)
 
             HStack(alignment: .bottom, spacing: 8) {
+                if syncthingClient.isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
                 if isConnected {
                     Button(action: {
                         if syncthingClient.allDevicesPaused {
