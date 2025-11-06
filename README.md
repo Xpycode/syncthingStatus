@@ -1,12 +1,14 @@
-# syncthingStatus
+<div align="center">
+  <img src="app-icon.png" alt="syncthingStatus icon" width="128" height="128">
+  <h1>syncthingStatus</h1>
+  <p>A lightweight macOS menu bar app for monitoring <a href="https://syncthing.net">Syncthing</a> status in real-time.</p>
 
-A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.net) status in real-time.
-
-![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
-![Swift](https://img.shields.io/badge/Swift-5.0-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
-[![Download](https://img.shields.io/github/v/release/Xpycode/syncthingStatus?label=Download&style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
+  ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
+  ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
+  ![License](https://img.shields.io/badge/license-MIT-green)
+  [![Download](https://img.shields.io/github/v/release/Xpycode/syncthingStatus?label=Download&style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  [![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
+</div>
 
 ## Features
 
