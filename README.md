@@ -14,9 +14,7 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
 - **Real-Time Monitoring**: Automatic updates every 10 seconds
 - **Visual Status Indicators**:
   - ![Synced](screenshots/icon-synched.png) **Synced**: When synced to at least one device
-  - ![Syncing](screenshots/icon-syncing.png) **Syncing**: During active synchronization
-  - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable
-  - ![Paused](screenshots/icon-paused.png) **Paused/Out of Sync**: For folders needing attention
+  - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
 - **System Information**: Display device name, device ID, uptime, and version information
@@ -31,11 +29,9 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
 ## Screenshots
 
 ### Popover View
-Quick status check from the menu bar - shows device name, sync status, and connected devices.
+Quick status check from the menu bar - shows device name, sync status, connected devices, and folder information.
 
-![Popover - Synced](screenshots/Popover-synched.png)
-
-![Popover - Syncing](screenshots/Popover-synching.png)
+![Popover View](screenshots/Popover.png)
 
 ### Main Window
 Detailed overview with system statistics, device information, folder status, and sync history.
@@ -44,14 +40,21 @@ Detailed overview with system statistics, device information, folder status, and
 
 ![Main Window - Syncing](screenshots/MainWindow-synching.png)
 
-![Main Window - Device Details](screenshots/MainWindow-synching-DETAIL.png)
+#### Detailed Views
+Expand devices and folders to see comprehensive information including connection details, transfer rates, and sync progress.
+
+![Main Window - Folder Details](screenshots/MainWindow-DetailFolder.png)
+
+![Main Window - Device Details](screenshots/MainWindow-DetailRemoteDevice.png)
 
 ### Settings
 Configure connection, sync thresholds, and notifications.
 
-![Settings - Connection & Thresholds](screenshots/SettingsWindow-1.png)
+![Settings - Connection](screenshots/SettingsWindow-1.png)
 
-![Settings - Notifications](screenshots/SettingsWindow-2.png)
+![Settings - Thresholds](screenshots/SettingsWindow-2.png)
+
+![Settings - Notifications](screenshots/SettingsWindow-3.png)
 
 ## Requirements
 
@@ -62,7 +65,7 @@ Configure connection, sync thresholds, and notifications.
 ## Installation
 
 ### Download Pre-built App
-1. Download the latest **[syncthingStatus-v1.0.dmg](https://github.com/Xpycode/syncthingStatus/releases/latest)** from the Releases page
+1. Download the latest **[syncthingStatus.dmg](https://github.com/Xpycode/syncthingStatus/releases/latest)** from the Releases page
 2. Open the DMG file
 3. Drag **syncthingStatus.app** to your Applications folder
 4. Launch the app - it will appear in your menu bar
