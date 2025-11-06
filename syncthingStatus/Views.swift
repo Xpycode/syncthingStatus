@@ -71,8 +71,13 @@ struct ContentView: View {
             }
         }
         .background(
-            GeometryReader { geometry in
-                Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
+            ZStack {
+                if isPopover {
+                    Color(nsColor: .windowBackgroundColor)
+                }
+                GeometryReader { geometry in
+                    Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
+                }
             }
         )
         .onPreferenceChange(ViewHeightKey.self) { newHeight in
