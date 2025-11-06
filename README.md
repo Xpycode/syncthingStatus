@@ -17,7 +17,7 @@ A lightweight macOS menu bar app for monitoring [Syncthing](https://syncthing.ne
   - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
-- **System Information**: Display device name, device ID, uptime, and version information
+- **System Information**: Display device name, uptime, and version information
 - **Sync History**: Track recent sync events and folder activity
 - **System Statistics**: View total folders, connected devices, data sizes, and current transfer speeds
 - **Sync Completion Notifications**: Get macOS notifications when folders finish syncing
