@@ -17,11 +17,10 @@
 - **Visual Status Indicators**:
   - ![Synced](screenshots/icon-synched.png) **Synced**: When synced to at least one device
   - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
-- **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
+- **Device Monitoring**: Track connection status and sync progress for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
 - **System Information**: Display device name, uptime, and version information
-- **Sync History**: Track recent sync events and folder activity
-- **System Statistics**: View total folders, connected devices, data sizes, and current transfer speeds
+- **System Statistics**: View total folders, connected devices, and data sizes
 - **Sync Completion Notifications**: Get macOS notifications when folders finish syncing
 - **Configurable Thresholds**: Customize when devices are considered "synced" (percentage and remaining data)
 - **Automatic Configuration**: Discovers API key from local Syncthing config.xml
@@ -36,14 +35,14 @@ Quick status check from the menu bar - shows device name, sync status, connected
 ![Popover View](screenshots/Popover.png)
 
 ### Main Window
-Detailed overview with system statistics, device information, folder status, and sync history.
+Detailed overview with system statistics, device information, and folder status.
 
 ![Main Window - Synced](screenshots/MainWindow-synched.png)
 
 ![Main Window - Syncing](screenshots/MainWindow-synching.png)
 
 #### Detailed Views
-Expand devices and folders to see comprehensive information including connection details, transfer rates, and sync progress.
+Expand devices and folders to see comprehensive information including connection details and sync progress.
 
 ![Main Window - Folder Details](screenshots/MainWindow-DetailFolder.png)
 
