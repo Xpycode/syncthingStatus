@@ -176,6 +176,7 @@ class SyncthingClient: ObservableObject {
             settings.$baseURLString,
             settings.$manualAPIKey
         )
+        .dropFirst()
         .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
         .sink { [weak self] useAuto, _, _ in
             guard let self else { return }
@@ -426,8 +427,7 @@ class SyncthingClient: ObservableObject {
         }
     }
     
-    func fetchConfig() async {
-        guard let localDeviceID = self.systemStatus?.myID else { return }
+    func fetchConfig(localDeviceID: String) async {
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
             // Find and store local device name
@@ -862,8 +862,8 @@ class SyncthingClient: ObservableObject {
         
         await fetchStatus()
         
-        if self.isConnected {
-            await fetchConfig()
+        if let systemStatus = self.systemStatus {
+            await fetchConfig(localDeviceID: systemStatus.myID)
 
             async let versionTask: () = fetchVersion()
             async let connectionsTask: () = fetchConnections()

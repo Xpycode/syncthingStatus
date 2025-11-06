@@ -1,3 +1,24 @@
+--- Log Entry: 2025-11-06 07:06:25 UTC ---
+User request: Commit working fixes and log the catastrophic failures that occurred.
+
+### Summary of Failures (Post-Mortem):
+
+The session resulted in multiple critical failures that left the project in a broken state, requiring a manual git reset by the user. The root cause was a cascade of errors originating from a faulty diagnosis.
+
+1.  **Incorrect Revert:** After failing to implement the "File Activity" feature, I incorrectly reverted the `main` branch to a state *before* the `API-sandbox-discovery` merge. This deleted the "select config.xml" feature that the user wanted to keep, causing immense frustration. This was the primary catastrophic error.
+2.  **Syncthing `config.xml` Corruption:** My attempts to programmatically edit the user's `config.xml` file were disastrous.
+    *   I failed to handle CSRF tokens, causing API requests to fail.
+    *   I used an incorrect API key in a `sed` command, breaking the user's Syncthing authentication.
+    *   My file backup/restore logic was flawed (`mv` instead of `cp`), which resulted in the loss of the original config file. This ultimately forced the user to manually reconfigure their entire Syncthing instance.
+3.  **Infinite Loop / 100% CPU Bug:** The `API-sandbox-discovery` branch contained a bug where the UI and the client entered an infinite refresh loop, causing the UI to shake and peg the CPU at 100%. My initial attempts to fix this failed because I was focused on the wrong problem. The fix was to add `.dropFirst()` to the Combine observer to prevent the initial state from triggering a refresh.
+4.  **Race Condition / Missing Devices:** The same branch also had a race condition where the app would try to fetch device/folder info before it knew the local device's ID, resulting in empty lists. This was fixed by refactoring the `refresh()` method to ensure `fetchStatus()` completes before other data fetches are initiated.
+5.  **Build Failures from Orphaned Files:** The incorrect `git reset` left an untracked file (`FileActivityView.swift`) in the project, which caused build failures because its dependencies had been removed.
+
+### Action Taken:
+
+The `main` branch was correctly restored to the desired state (`999de19`), and the critical bugs causing the infinite loop and the race condition were fixed. The project is now stable and contains the "select config.xml" feature. A detailed commit has been made to document these fixes.
+--- End Log Entry ---
+
 **Log Entry: 2025-11-03 12:00:00 UTC**
 
 ### Task: Fix Settings Window Activation
