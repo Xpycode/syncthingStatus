@@ -71,19 +71,10 @@ struct ContentView: View {
                 if isPopover {
                     Color(nsColor: .windowBackgroundColor)
                 }
-                GeometryReader { geometry in
-                    Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
-                }
             }
         )
-        .onPreferenceChange(ViewHeightKey.self) { newHeight in
-            if isPopover {
-                DispatchQueue.main.async {
-                    appDelegate?.updatePopoverSize(height: newHeight)
-                }
-            }
-        }
         .frame(width: isPopover ? 400 : nil)
+        .frame(height: isPopover ? 600 : nil)
     }
 }
 

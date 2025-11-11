@@ -212,30 +212,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
         popover?.contentViewController = controller
-    }
 
-    func updatePopoverSize(height: CGFloat) {
-        guard let popover else { return }
-        
+        // Set fixed size for popover with ScrollView
         let screenPadding: CGFloat = 100.0
         let maxHeight: CGFloat
-        
-        if let screen = statusIcon?.statusItem.button?.window?.screen {
-            maxHeight = screen.visibleFrame.height - screenPadding
-        } else if let mainScreen = NSScreen.main {
-            maxHeight = mainScreen.visibleFrame.height - screenPadding
+
+        if let screen = NSScreen.main {
+            maxHeight = min(600, screen.visibleFrame.height - screenPadding)
         } else {
-            maxHeight = 700
+            maxHeight = 600
         }
-        
-        let newHeight = min(height, maxHeight)
-        let newSize = NSSize(width: 400, height: newHeight)
-        
-        if popover.contentSize != newSize {
-            popover.contentSize = newSize
-        }
+
+        popover?.contentSize = NSSize(width: 400, height: maxHeight)
     }
-    
+
     private func startMonitoring() {
         Task {
             await syncthingClient.refresh()
