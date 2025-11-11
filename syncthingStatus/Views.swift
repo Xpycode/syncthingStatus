@@ -82,7 +82,6 @@ struct ContentView: View {
             }
         }
         .frame(width: isPopover ? 400 : nil)
-        .frame(maxHeight: isPopover ? 600 : nil)
     }
 }
 
