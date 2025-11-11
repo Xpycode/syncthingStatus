@@ -530,6 +530,55 @@ struct SyncthingStatusApp: App {
             CommandGroup(replacing: .appSettings) {
                 SettingsCommandBridge(appDelegate: appDelegate)
             }
+            CommandGroup(after: .windowArrangement) {
+                Menu("Debug") {
+                    Menu("Devices") {
+                        Button("5 Devices") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: 5,
+                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                            )
+                        }
+                        Button("10 Devices") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: 10,
+                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                            )
+                        }
+                        Button("15 Devices") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: 15,
+                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                            )
+                        }
+                    }
+                    Menu("Folders") {
+                        Button("5 Folders") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                folderCount: 5
+                            )
+                        }
+                        Button("10 Folders") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                folderCount: 10
+                            )
+                        }
+                        Button("15 Folders") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                folderCount: 15
+                            )
+                        }
+                    }
+                    Divider()
+                    Button("Disable Debug Mode") {
+                        appDelegate.syncthingClient.disableDebugMode()
+                    }
+                    .disabled(!appDelegate.syncthingClient.debugMode)
+                }
+            }
         }
     }
 }

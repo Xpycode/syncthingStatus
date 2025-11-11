@@ -130,6 +130,13 @@ class SyncthingClient: ObservableObject {
     @Published var lastErrorMessage: String?
     @Published var syncthingVersion: String?
     @Published var lastGlobalSyncNotificationSentAt: Date?
+
+    // Debug mode
+    @Published var debugMode = false
+    private var realDevices: [SyncthingDevice] = []
+    private var realFolders: [SyncthingFolder] = []
+    private var realConnections: [String: SyncthingConnection] = [:]
+    private var realFolderStatuses: [String: SyncthingFolderStatus] = [:]
     
     init(settings: SyncthingSettings, session: URLSession = .shared) {
         self.settings = settings
@@ -991,5 +998,117 @@ class SyncthingClient: ObservableObject {
 
     func resumeFolder(folderID: String) async {
         await setFolderPausedState(folderID: folderID, paused: false)
+    }
+
+    // MARK: - Debug Mode
+    func enableDebugMode(deviceCount: Int, folderCount: Int) {
+        if !debugMode {
+            // Store real data
+            realDevices = devices
+            realFolders = folders
+            realConnections = connections
+            realFolderStatuses = folderStatuses
+        }
+
+        debugMode = true
+
+        // Generate dummy devices
+        var dummyDevices: [SyncthingDevice] = []
+        var dummyConnections: [String: SyncthingConnection] = [:]
+
+        for i in 1...deviceCount {
+            let deviceID = "DUMMY\(i)-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG"
+            let connected = i % 3 != 0 // 2/3 connected, 1/3 disconnected
+
+            dummyDevices.append(SyncthingDevice(
+                deviceID: deviceID,
+                name: "Debug Device \(i)",
+                addresses: ["tcp://192.168.1.\(i):22000"],
+                paused: false
+            ))
+
+            if connected {
+                dummyConnections[deviceID] = SyncthingConnection(
+                    connected: true,
+                    address: "192.168.1.\(i):22000",
+                    clientVersion: "v1.27.0",
+                    type: "tcp",
+                    inBytesTotal: Int64.random(in: 1_000_000...1_000_000_000),
+                    outBytesTotal: Int64.random(in: 1_000_000...1_000_000_000)
+                )
+            } else {
+                dummyConnections[deviceID] = SyncthingConnection(
+                    connected: false,
+                    address: nil,
+                    clientVersion: nil,
+                    type: nil,
+                    inBytesTotal: 0,
+                    outBytesTotal: 0
+                )
+            }
+        }
+
+        // Generate dummy folders
+        var dummyFolders: [SyncthingFolder] = []
+        var dummyFolderStatuses: [String: SyncthingFolderStatus] = [:]
+
+        for i in 1...folderCount {
+            let folderID = "debug-folder-\(i)"
+            let states = ["idle", "syncing", "syncing"]
+            let state = states[i % states.count]
+
+            dummyFolders.append(SyncthingFolder(
+                id: folderID,
+                label: "Debug Folder \(i)",
+                path: "/Debug/Folder/\(i)",
+                devices: [],
+                paused: false
+            ))
+
+            if state == "syncing" {
+                let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
+                let globalFiles = Int.random(in: 100...1000)
+                dummyFolderStatuses[folderID] = SyncthingFolderStatus(
+                    globalFiles: globalFiles,
+                    globalBytes: globalBytes,
+                    localFiles: globalFiles,
+                    localBytes: globalBytes,
+                    needFiles: Int.random(in: 1...100),
+                    needBytes: Int64.random(in: 1_000_000...100_000_000),
+                    state: state,
+                    lastScan: nil
+                )
+            } else {
+                let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
+                let globalFiles = Int.random(in: 100...1000)
+                dummyFolderStatuses[folderID] = SyncthingFolderStatus(
+                    globalFiles: globalFiles,
+                    globalBytes: globalBytes,
+                    localFiles: globalFiles,
+                    localBytes: globalBytes,
+                    needFiles: 0,
+                    needBytes: 0,
+                    state: state,
+                    lastScan: nil
+                )
+            }
+        }
+
+        devices = dummyDevices
+        folders = dummyFolders
+        connections = dummyConnections
+        folderStatuses = dummyFolderStatuses
+    }
+
+    func disableDebugMode() {
+        guard debugMode else { return }
+
+        debugMode = false
+
+        // Restore real data
+        devices = realDevices
+        folders = realFolders
+        connections = realConnections
+        folderStatuses = realFolderStatuses
     }
 }

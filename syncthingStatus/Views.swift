@@ -54,12 +54,8 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
 
-                if isPopover {
+                ScrollView {
                     statusContent
-                } else {
-                    ScrollView {
-                        statusContent
-                    }
                 }
             }
             
