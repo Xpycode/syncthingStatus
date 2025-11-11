@@ -78,6 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var pendingGlobalSyncNotification = false
+    private var popoverSizeUpdateTask: Task<Void, Never>?
     
     override init() {
         let settings = SyncthingSettings()
@@ -212,18 +213,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
         popover?.contentViewController = controller
+    }
 
-        // Set fixed size for popover with ScrollView
-        let screenPadding: CGFloat = 100.0
-        let maxHeight: CGFloat
+    func updatePopoverSize(height: CGFloat) {
+        // Cancel any pending update
+        popoverSizeUpdateTask?.cancel()
 
-        if let screen = NSScreen.main {
-            maxHeight = min(600, screen.visibleFrame.height - screenPadding)
-        } else {
-            maxHeight = 600
+        // Debounce updates to prevent constant resizing
+        popoverSizeUpdateTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+
+            guard !Task.isCancelled, let popover else { return }
+
+            let screenPadding: CGFloat = 100.0
+            let screenHeight: CGFloat
+
+            if let screen = statusIcon?.statusItem.button?.window?.screen {
+                screenHeight = screen.visibleFrame.height
+            } else if let mainScreen = NSScreen.main {
+                screenHeight = mainScreen.visibleFrame.height
+            } else {
+                screenHeight = 900
+            }
+
+            // Use percentage of screen height as max, with padding
+            let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
+            let maxHeight = (screenHeight * maxHeightPercentage) - screenPadding
+
+            // Use content height up to max height
+            let finalHeight = min(height, maxHeight)
+            let newSize = NSSize(width: 400, height: finalHeight)
+
+            if popover.contentSize != newSize {
+                popover.contentSize = newSize
+            }
         }
-
-        popover?.contentSize = NSSize(width: 400, height: maxHeight)
     }
 
     private func startMonitoring() {

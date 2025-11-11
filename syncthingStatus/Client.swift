@@ -441,9 +441,11 @@ class SyncthingClient: ObservableObject {
                 if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
                     self.localDeviceName = localDevice.name
                 }
-                // Store only remote devices
-                self.devices = config.devices.filter { $0.deviceID != localDeviceID }
-                self.folders = config.folders
+                // Store only remote devices (unless in debug mode)
+                if !debugMode {
+                    self.devices = config.devices.filter { $0.deviceID != localDeviceID }
+                    self.folders = config.folders
+                }
         } catch {
             print("Failed to fetch system/config: \(error)")
         }
@@ -846,10 +848,12 @@ class SyncthingClient: ObservableObject {
     @MainActor
     private func handleDisconnectedState() {
         isConnected = false
-        devices = []
-        folders = []
-        connections = [:]
-        folderStatuses = [:]
+        if !debugMode {
+            devices = []
+            folders = []
+            connections = [:]
+            folderStatuses = [:]
+        }
         systemStatus = nil
         deviceCompletions = [:]
     }
@@ -1016,35 +1020,37 @@ class SyncthingClient: ObservableObject {
         var dummyDevices: [SyncthingDevice] = []
         var dummyConnections: [String: SyncthingConnection] = [:]
 
-        for i in 1...deviceCount {
-            let deviceID = "DUMMY\(i)-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG"
-            let connected = i % 3 != 0 // 2/3 connected, 1/3 disconnected
+        if deviceCount > 0 {
+            for i in 1...deviceCount {
+                let deviceID = "DUMMY\(i)-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG"
+                let connected = i % 3 != 0 // 2/3 connected, 1/3 disconnected
 
-            dummyDevices.append(SyncthingDevice(
-                deviceID: deviceID,
-                name: "Debug Device \(i)",
-                addresses: ["tcp://192.168.1.\(i):22000"],
-                paused: false
-            ))
+                dummyDevices.append(SyncthingDevice(
+                    deviceID: deviceID,
+                    name: "Debug Device \(i)",
+                    addresses: ["tcp://192.168.1.\(i):22000"],
+                    paused: false
+                ))
 
-            if connected {
-                dummyConnections[deviceID] = SyncthingConnection(
-                    connected: true,
-                    address: "192.168.1.\(i):22000",
-                    clientVersion: "v1.27.0",
-                    type: "tcp",
-                    inBytesTotal: Int64.random(in: 1_000_000...1_000_000_000),
-                    outBytesTotal: Int64.random(in: 1_000_000...1_000_000_000)
-                )
-            } else {
-                dummyConnections[deviceID] = SyncthingConnection(
-                    connected: false,
-                    address: nil,
-                    clientVersion: nil,
-                    type: nil,
-                    inBytesTotal: 0,
-                    outBytesTotal: 0
-                )
+                if connected {
+                    dummyConnections[deviceID] = SyncthingConnection(
+                        connected: true,
+                        address: "192.168.1.\(i):22000",
+                        clientVersion: "v1.27.0",
+                        type: "tcp",
+                        inBytesTotal: Int64.random(in: 1_000_000...1_000_000_000),
+                        outBytesTotal: Int64.random(in: 1_000_000...1_000_000_000)
+                    )
+                } else {
+                    dummyConnections[deviceID] = SyncthingConnection(
+                        connected: false,
+                        address: nil,
+                        clientVersion: nil,
+                        type: nil,
+                        inBytesTotal: 0,
+                        outBytesTotal: 0
+                    )
+                }
             }
         }
 
@@ -1052,7 +1058,8 @@ class SyncthingClient: ObservableObject {
         var dummyFolders: [SyncthingFolder] = []
         var dummyFolderStatuses: [String: SyncthingFolderStatus] = [:]
 
-        for i in 1...folderCount {
+        if folderCount > 0 {
+            for i in 1...folderCount {
             let folderID = "debug-folder-\(i)"
             let states = ["idle", "syncing", "syncing"]
             let state = states[i % states.count]
@@ -1091,6 +1098,7 @@ class SyncthingClient: ObservableObject {
                     state: state,
                     lastScan: nil
                 )
+            }
             }
         }
 

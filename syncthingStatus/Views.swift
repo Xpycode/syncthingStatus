@@ -58,9 +58,7 @@ struct ContentView: View {
                     statusContent
                 }
             }
-            
-            Spacer(minLength: 0)
-            
+
             if let appDelegate = appDelegate {
                 FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
                     .padding()
@@ -71,10 +69,20 @@ struct ContentView: View {
                 if isPopover {
                     Color(nsColor: .windowBackgroundColor)
                 }
+                GeometryReader { geometry in
+                    Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
+                }
             }
         )
+        .onPreferenceChange(ViewHeightKey.self) { newHeight in
+            if isPopover {
+                DispatchQueue.main.async {
+                    appDelegate?.updatePopoverSize(height: newHeight)
+                }
+            }
+        }
         .frame(width: isPopover ? 400 : nil)
-        .frame(height: isPopover ? 600 : nil)
+        .frame(maxHeight: isPopover ? 600 : nil)
     }
 }
 
@@ -1073,6 +1081,19 @@ struct SettingsView: View {
         Form {
             Section("General") {
                 Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Popover Max Height:")
+                        Spacer()
+                        Text("\(Int(settings.popoverMaxHeightPercentage))% of screen")
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $settings.popoverMaxHeightPercentage, in: 30...90, step: 5)
+                    Text("Controls how tall the status popover can grow before showing scrollbars")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Section("Connection Mode") {

@@ -69,6 +69,10 @@ final class SyncthingSettings: ObservableObject {
         }
     }
 
+    @Published var popoverMaxHeightPercentage: Double {
+        didSet { persistDefaultsIfNeeded() }
+    }
+
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
@@ -88,6 +92,7 @@ final class SyncthingSettings: ObservableObject {
         static let notificationEnabledFolderIDs = "SyncthingSettings.notificationEnabledFolderIDs"
         static let configBookmarkData = "SyncthingSettings.configBookmarkData"
         static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
+        static let popoverMaxHeightPercentage = "SyncthingSettings.popoverMaxHeightPercentage"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -109,6 +114,7 @@ final class SyncthingSettings: ObservableObject {
         notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
+        popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? 70.0
         isLoading = false
     }
 
@@ -135,6 +141,7 @@ final class SyncthingSettings: ObservableObject {
         showStalledSyncNotifications = false
         stalledSyncTimeoutMinutes = 5.0
         notificationEnabledFolderIDs = []
+        popoverMaxHeightPercentage = 70.0
         clearConfigBookmark()
     }
 
@@ -152,6 +159,7 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(showStalledSyncNotifications, forKey: Keys.showStalledSyncNotifications)
         defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
         defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
+        defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
     }
 
     private func persistKeychainIfNeeded() {
