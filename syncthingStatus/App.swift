@@ -215,7 +215,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         popover?.contentViewController = controller
     }
 
-    func updatePopoverSize(height: CGFloat) {
+    func updatePopoverSize(contentHeight: CGFloat) {
         // Cancel any pending update
         popoverSizeUpdateTask?.cancel()
 
@@ -240,8 +240,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
             let maxHeight = (screenHeight * maxHeightPercentage) - screenPadding
 
+            // Add fixed heights for header (~80px) and footer (~70px)
+            let headerFooterHeight: CGFloat = 150
+            let totalContentHeight = contentHeight + headerFooterHeight
+
             // Use content height up to max height
-            let finalHeight = min(height, maxHeight)
+            let finalHeight = min(totalContentHeight, maxHeight)
             let newSize = NSSize(width: 400, height: finalHeight)
 
             if popover.contentSize != newSize {

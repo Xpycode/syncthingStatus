@@ -9,7 +9,13 @@ struct ViewHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }
+}
 
+struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 // MARK: - ContentView
@@ -53,6 +59,11 @@ struct ContentView: View {
                     }
                 }
                 .padding(.horizontal)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
+                    }
+                )
 
                 ScrollView {
                     statusContent
@@ -69,15 +80,12 @@ struct ContentView: View {
                 if isPopover {
                     Color(nsColor: .windowBackgroundColor)
                 }
-                GeometryReader { geometry in
-                    Color.clear.preference(key: ViewHeightKey.self, value: geometry.size.height)
-                }
             }
         )
-        .onPreferenceChange(ViewHeightKey.self) { newHeight in
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight in
             if isPopover {
                 DispatchQueue.main.async {
-                    appDelegate?.updatePopoverSize(height: newHeight)
+                    appDelegate?.updatePopoverSize(contentHeight: contentHeight)
                 }
             }
         }
