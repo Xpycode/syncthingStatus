@@ -441,20 +441,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
-        
+
         syncthingClient.$deviceCompletions
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
-        
+
         syncthingClient.$transferRates
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
-        
+
         syncthingClient.$connections
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+
+        // Observe popover max height setting changes
+        settings.$popoverMaxHeightPercentage
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                // Trigger a popover size recalculation
+                if let self, let popover = self.popover, popover.isShown {
+                    // Force a refresh by temporarily closing and reopening
+                    let shouldReopen = popover.isShown
+                    if shouldReopen {
+                        self.closePopover()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            if let button = self.statusIcon?.statusItem.button {
+                                self.showPopover(button)
+                            }
+                        }
+                    }
+                }
+            }
             .store(in: &cancellables)
         
         syncthingClient.$devices
