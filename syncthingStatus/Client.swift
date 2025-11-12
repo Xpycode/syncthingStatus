@@ -1038,7 +1038,7 @@ class SyncthingClient: ObservableObject {
     // MARK: - Debug Mode
     func enableDebugMode(deviceCount: Int, folderCount: Int) {
         if !debugMode {
-            // Store real data
+            // Store real data only on the first transition to debug mode
             realDevices = devices
             realFolders = folders
             realConnections = connections
@@ -1046,6 +1046,12 @@ class SyncthingClient: ObservableObject {
         }
 
         debugMode = true
+
+        // Clear other related states
+        deviceCompletions = [:]
+        transferRates = [:]
+        deviceHistory = [:]
+        recentSyncEvents = []
 
         // Generate dummy devices
         var dummyDevices: [SyncthingDevice] = []
@@ -1149,6 +1155,11 @@ class SyncthingClient: ObservableObject {
         folders = realFolders
         connections = realConnections
         folderStatuses = realFolderStatuses
+        
+        // Clear any lingering debug state
+        deviceCompletions = [:]
+        transferRates = [:]
+        deviceHistory = [:]
         
         Task { await refresh() }
     }
