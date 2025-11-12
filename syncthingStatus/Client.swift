@@ -459,6 +459,7 @@ class SyncthingClient: ObservableObject {
     }
     
     func fetchConnections() async {
+        guard !debugMode else { return }
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
             self.updateConnectionHistory(newConnections: connectionsResponse.connections)
@@ -564,6 +565,7 @@ class SyncthingClient: ObservableObject {
     }
 
     func fetchFolderStatus() async {
+        guard !debugMode else { return }
         let foldersToFetch = self.folders
         for folder in foldersToFetch {
             do {
@@ -855,6 +857,7 @@ class SyncthingClient: ObservableObject {
     }
     
     func fetchDeviceCompletions() async {
+        guard !debugMode else { return }
         let devicesToFetch = self.devices
         for device in devicesToFetch {
             do {
