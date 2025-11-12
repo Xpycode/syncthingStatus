@@ -11,9 +11,14 @@ struct ViewHeightKey: PreferenceKey {
     }
 }
 
+// IMPORTANT: This PreferenceKey is critical for popover sizing!
+// The reduce() function MUST use max(value, nextValue()) without any conditional logic.
+// Adding thresholds or conditional updates will break initial popover sizing.
+// See commit cd9695f for details on why this matters.
 struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        // DO NOT add conditional logic here - always take the max value
         value = max(value, nextValue())
     }
 }
@@ -37,6 +42,14 @@ struct ContentView: View {
             if !syncthingClient.isConnected {
                 DisconnectedView(appDelegate: appDelegate, settings: settings)
             } else {
+                // CRITICAL: Popover sizing structure - DO NOT MODIFY without testing!
+                // This specific arrangement is required for proper popover height calculation:
+                // 1. statusContent is defined with VStack + modifiers
+                // 2. GeometryReader is attached via .background() to measure content height
+                // 3. statusContent (with GeometryReader) is placed inside ScrollView
+                // 4. .onPreferenceChange is attached to outer VStack (not ScrollView)
+                // Breaking this structure will cause popover to collapse to minimal height.
+                // See commits 4ddba8e and cd9695f for context.
                 let statusContent = VStack(spacing: 16) {
                     if let status = syncthingClient.systemStatus {
                         SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, version: syncthingClient.syncthingVersion, isPopover: isPopover)
@@ -80,6 +93,8 @@ struct ContentView: View {
                 }
             }
         )
+        // CRITICAL: This must be on the outer VStack, not on ScrollView!
+        // Preference changes need to be observed at a level that encompasses the view setting the preference.
         .onPreferenceChange(ContentHeightKey.self) { contentHeight in
             if isPopover {
                 appDelegate.updatePopoverSize(contentHeight: contentHeight)
