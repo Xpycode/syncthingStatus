@@ -1078,13 +1078,48 @@ class SyncthingClient: ObservableObject {
                     self.folders[localIndex].paused = paused
                 }
 
-            // 7. Wait for Syncthing to restart and then refresh
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            await refresh()
+            // 7. Poll for Syncthing availability with exponential backoff
+            await waitForSyncthingAvailability()
 
         } catch {
             print("Failed to set folder paused state for \(folderID): \(error)")
         }
+    }
+
+    private func waitForSyncthingAvailability() async {
+        var attempt = 0
+        let maxAttempts = 10
+        var delay: UInt64 = 250_000_000 // Start with 250ms
+
+        while attempt < maxAttempts {
+            do {
+                // Try to fetch system version to check if Syncthing is responding
+                guard let url = endpointURL(for: "system/version"), let apiKey = apiKey else {
+                    break
+                }
+
+                var request = URLRequest(url: url)
+                request.httpMethod = "GET"
+                request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+
+                let (_, response) = try await session.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    // Syncthing is available, do a full refresh
+                    await refresh()
+                    return
+                }
+            } catch {
+                // Syncthing not ready yet, continue polling
+            }
+
+            // Wait before next attempt with exponential backoff
+            try? await Task.sleep(nanoseconds: delay)
+            delay = min(delay * 2, 2_000_000_000) // Cap at 2 seconds
+            attempt += 1
+        }
+
+        // If we exhausted all attempts, do a refresh anyway
+        await refresh()
     }
 
     func pauseFolder(folderID: String) async {

@@ -5,6 +5,72 @@ import Combine
 import UserNotifications
 import QuartzCore
 
+// MARK: - Status Icon State Resolver
+@MainActor
+struct StatusIconStateResolver {
+    enum IconDisplayState {
+        case error(tooltip: String)
+        case upAndDown(isActivityBased: Bool)
+        case uploading
+        case downloading
+        case paused
+        case inSync
+        case outOfSync
+    }
+
+    private let activityThreshold: Double = 1024 // 1 KB/s
+
+    func resolveState(client: SyncthingClient, settings: SyncthingSettings) -> IconDisplayState {
+        // Rule 1: Not connected
+        guard client.isConnected else {
+            return .error(tooltip: "Disconnected")
+        }
+
+        // Rule 2: Check for network activity
+        let totalDownload = client.currentDownloadSpeed
+        let totalUpload = client.currentUploadSpeed
+        let isDownloading = totalDownload > activityThreshold
+        let isUploading = totalUpload > activityThreshold
+
+        if isUploading && isDownloading {
+            return .upAndDown(isActivityBased: true)
+        } else if isUploading {
+            return .uploading
+        } else if isDownloading {
+            return .downloading
+        }
+
+        // Rule 3: Check for active syncing (regardless of current speed)
+        let isActivelySyncing = client.folderStatuses.values.contains { $0.state == "syncing" } ||
+            client.deviceCompletions.contains { deviceID, completion in
+                guard let connection = client.connections[deviceID], connection.connected else { return false }
+                return !isEffectivelySynced(completion: completion, settings: settings)
+            }
+
+        if isActivelySyncing {
+            return .upAndDown(isActivityBased: false)
+        }
+
+        // Rule 4: Check for paused state
+        let connectedDevices = client.devices.filter { client.connections[$0.deviceID]?.connected == true }
+        let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
+
+        if allConnectedDevicesArePaused {
+            return .paused
+        }
+
+        // Rule 5: Check if fully synced
+        let isFullySynced = client.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
+
+        if isFullySynced {
+            return .inSync
+        }
+
+        // Default: Out of sync
+        return .outOfSync
+    }
+}
+
 // MARK: - Window Controller
 class MainWindowController: NSWindowController {
     convenience init(syncthingClient: SyncthingClient, settings: SyncthingSettings, appDelegate: AppDelegate) {
@@ -251,17 +317,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     private func startMonitoring() {
+        // Invalidate existing timer first
+        timer?.invalidate()
+        timer = nil
+
+        // Perform initial refresh
         Task {
             await syncthingClient.refresh()
-            self.updateStatusIcon()
-        }
-        
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: settings.refreshInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task {
-                await self.syncthingClient.refresh()
-                await MainActor.run { self.updateStatusIcon() }
+            await MainActor.run {
+                self.updateStatusIcon()
+
+                // Start timer AFTER initial refresh completes
+                self.timer = Timer.scheduledTimer(withTimeInterval: self.settings.refreshInterval, repeats: true) { [weak self] _ in
+                    guard let self = self else { return }
+                    Task {
+                        await self.syncthingClient.refresh()
+                        await MainActor.run { self.updateStatusIcon() }
+                    }
+                }
             }
         }
     }
@@ -270,49 +343,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         guard let icon = statusIcon else { return }
 
         let button = icon.statusItem.button
-        let activityThreshold: Double = 1024 // 1 KB/s
+        let resolver = StatusIconStateResolver()
+        let displayState = resolver.resolveState(client: syncthingClient, settings: settings)
 
-        if !syncthingClient.isConnected {
+        // Apply the resolved state
+        switch displayState {
+        case .error(let tooltip):
             icon.set(state: .error)
-            button?.toolTip = "Disconnected"
-            button?.setAccessibilityTitle("Disconnected")
+            button?.toolTip = tooltip
+            button?.setAccessibilityTitle(tooltip)
             pendingGlobalSyncNotification = false
-            return
-        }
 
-        let totalDownload = syncthingClient.currentDownloadSpeed
-        let totalUpload = syncthingClient.currentUploadSpeed
-
-        let isDownloading = totalDownload > activityThreshold
-        let isUploading = totalUpload > activityThreshold
-
-        let isActivelySyncing = syncthingClient.folderStatuses.values.contains { $0.state == "syncing" } ||
-            syncthingClient.deviceCompletions.contains { deviceID, completion in
-                guard let connection = syncthingClient.connections[deviceID], connection.connected else { return false }
-                return !isEffectivelySynced(completion: completion, settings: settings)
+        case .upAndDown(let isActivityBased):
+            icon.set(state: .upAndDown)
+            pendingGlobalSyncNotification = true
+            if isActivityBased {
+                button?.toolTip = "Syncing (network activity)"
+            } else {
+                button?.toolTip = "Syncing"
             }
+            button?.setAccessibilityTitle("Syncing")
 
-        let connectedDevices = syncthingClient.devices.filter { syncthingClient.connections[$0.deviceID]?.connected == true }
-        let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
-        let isFullySynced = syncthingClient.folderStatuses.values.allSatisfy { $0.state == "idle" && $0.needFiles == 0 }
-
-        if isUploading && isDownloading {
-            icon.set(state: .upAndDown)
-            pendingGlobalSyncNotification = true
-        } else if isUploading {
+        case .uploading:
             icon.set(state: .uploading)
+            button?.toolTip = "Uploading"
+            button?.setAccessibilityTitle("Uploading")
             pendingGlobalSyncNotification = true
-        } else if isDownloading {
+
+        case .downloading:
             icon.set(state: .downloading)
+            button?.toolTip = "Downloading"
+            button?.setAccessibilityTitle("Downloading")
             pendingGlobalSyncNotification = true
-        } else if isActivelySyncing {
-            icon.set(state: .upAndDown)
-            pendingGlobalSyncNotification = true
-        } else if allConnectedDevicesArePaused {
+
+        case .paused:
             icon.set(state: .normal)
             button?.toolTip = "Paused"
             button?.setAccessibilityTitle("Paused")
-        } else if isFullySynced {
+
+        case .inSync:
             icon.set(state: .normal)
             button?.toolTip = "In sync"
             button?.setAccessibilityTitle("In sync")
@@ -320,7 +389,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 syncthingClient.handleGlobalSyncComplete()
                 pendingGlobalSyncNotification = false
             }
-        } else {
+
+        case .outOfSync:
             icon.set(state: .error)
             button?.toolTip = "Out of sync"
             button?.setAccessibilityTitle("Out of sync")

@@ -14,7 +14,11 @@ struct ViewHeightKey: PreferenceKey {
 struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+        // Only update if change is significant (> 5 points)
+        let next = nextValue()
+        if abs(next - value) > 5 {
+            value = next
+        }
     }
 }
 
@@ -503,9 +507,8 @@ struct DeviceTransferSpeedChartView: View {
     let history: DeviceTransferHistory
 
     private var maxSpeed: Double {
-        let maxDown = history.dataPoints.map { $0.uploadRate }.max() ?? 0
-        let maxUp = history.dataPoints.map { $0.downloadRate }.max() ?? 0
-        let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
+        // Use cached max values instead of recalculating
+        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / 1024 // Convert to KB/s
         // Add 20% padding to max value for better visualization, minimum 1
         return max(maxValue * 1.2, 1)
     }
@@ -587,9 +590,8 @@ struct TotalTransferSpeedChartView: View {
     let history: DeviceTransferHistory
 
     private var maxSpeed: Double {
-        let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
-        let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
-        let maxValue = max(maxDown, maxUp) / 1024 // Convert to KB/s
+        // Use cached max values instead of recalculating
+        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / 1024 // Convert to KB/s
         // Add 20% padding to max value for better visualization, minimum 1
         return max(maxValue * 1.2, 1)
     }

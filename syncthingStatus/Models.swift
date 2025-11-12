@@ -117,6 +117,10 @@ struct DeviceTransferHistory {
     var dataPoints: [TransferDataPoint] = []
     let maxDataPoints = 60 // Keep 10 minutes of data (60 points at 10s intervals)
 
+    // Cached max values to avoid recalculating on every render
+    private(set) var maxDownloadRate: Double = 0
+    private(set) var maxUploadRate: Double = 0
+
     mutating func addDataPoint(downloadRate: Double, uploadRate: Double) {
         let point = TransferDataPoint(
             timestamp: Date(),
@@ -125,9 +129,30 @@ struct DeviceTransferHistory {
         )
         dataPoints.append(point)
 
-        // Remove old data points
+        // Update max values incrementally
+        maxDownloadRate = max(maxDownloadRate, downloadRate)
+        maxUploadRate = max(maxUploadRate, uploadRate)
+
+        // Remove old data points and recalculate max if needed
         if dataPoints.count > maxDataPoints {
-            dataPoints.removeFirst(dataPoints.count - maxDataPoints)
+            let removedCount = dataPoints.count - maxDataPoints
+            let removedPoints = dataPoints.prefix(removedCount)
+
+            // Only recalculate max if we're removing a point that was the maximum
+            let removedMaxDownload = removedPoints.max(by: { $0.downloadRate < $1.downloadRate })?.downloadRate ?? 0
+            let removedMaxUpload = removedPoints.max(by: { $0.uploadRate < $1.uploadRate })?.uploadRate ?? 0
+
+            dataPoints.removeFirst(removedCount)
+
+            // Recalculate max values if we removed the max
+            if removedMaxDownload >= maxDownloadRate || removedMaxUpload >= maxUploadRate {
+                recalculateMaxValues()
+            }
         }
+    }
+
+    private mutating func recalculateMaxValues() {
+        maxDownloadRate = dataPoints.max(by: { $0.downloadRate < $1.downloadRate })?.downloadRate ?? 0
+        maxUploadRate = dataPoints.max(by: { $0.uploadRate < $1.uploadRate })?.uploadRate ?? 0
     }
 }
