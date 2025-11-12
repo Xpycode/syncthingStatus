@@ -210,7 +210,7 @@ class SyncthingClient: ObservableObject {
             if useAuto {
                 self.cachedAutomaticAPIKey = nil
             }
-            Task { [weak self] in
+            Task { @MainActor [weak self] in
                 await self?.refresh()
             }
         }
@@ -223,7 +223,7 @@ class SyncthingClient: ObservableObject {
                 guard let self else { return }
                 self.cachedAutomaticAPIKey = nil
                 guard self.settings.useAutomaticDiscovery else { return }
-                Task { [weak self] in
+                Task { @MainActor [weak self] in
                     await self?.refresh()
                 }
             }
@@ -337,6 +337,18 @@ class SyncthingClient: ObservableObject {
         guard let baseURL else { return nil }
         return URL(string: "rest/\(endpoint)", relativeTo: baseURL)
     }
+
+    /// Creates a properly URL-encoded endpoint with query parameters
+    private func endpointURL(path: String, queryItems: [URLQueryItem]) -> URL? {
+        guard let baseURL else { return nil }
+        var components = URLComponents()
+        components.scheme = baseURL.scheme
+        components.host = baseURL.host
+        components.port = baseURL.port
+        components.path = baseURL.path.appending("/rest/\(path)")
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        return components.url
+    }
     
     private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
@@ -344,22 +356,46 @@ class SyncthingClient: ObservableObject {
         #if DEBUG
         print("SyncthingClient: using API key length \(apiKey.count)")
         #endif
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
-        
+
         let (data, response) = try await session.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
-        
+
         guard httpResponse.statusCode == 200 else {
             print("Syncthing request to \(endpoint) failed with HTTP \(httpResponse.statusCode)")
             throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: endpoint)
         }
-        
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(T.self, from: data)
+    }
+
+    /// Makes a GET request with properly URL-encoded query parameters
+    private func makeRequest<T: Codable>(path: String, queryItems: [URLQueryItem], responseType: T.Type) async throws -> T {
+        guard let url = endpointURL(path: path, queryItems: queryItems) else { throw URLError(.badURL) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            print("Syncthing request to \(path) failed with HTTP \(httpResponse.statusCode)")
+            throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: path)
+        }
+
         let decoder = JSONDecoder()
         return try decoder.decode(T.self, from: data)
     }
@@ -367,18 +403,45 @@ class SyncthingClient: ObservableObject {
     private func postRequest(endpoint: String) async throws {
         guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.setValue("0", forHTTPHeaderField: "Content-Length")
-        
+
         let (_, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            print("Syncthing POST request to \(endpoint) failed with HTTP \(code).")
-            throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        // Accept 200 OK, 201 Created, and 204 No Content as successful responses
+        guard (200...204).contains(httpResponse.statusCode) else {
+            print("Syncthing POST request to \(endpoint) failed with HTTP \(httpResponse.statusCode).")
+            throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: endpoint)
+        }
+    }
+
+    /// Makes a POST request with properly URL-encoded query parameters
+    private func postRequest(path: String, queryItems: [URLQueryItem]) async throws {
+        guard let url = endpointURL(path: path, queryItems: queryItems) else { throw URLError(.badURL) }
+        guard let apiKey else { throw SyncthingClientError.missingAPIKey }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("0", forHTTPHeaderField: "Content-Length")
+
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        // Accept 200 OK, 201 Created, and 204 No Content as successful responses
+        guard (200...204).contains(httpResponse.statusCode) else {
+            print("Syncthing POST request to \(path) failed with HTTP \(httpResponse.statusCode).")
+            throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: path)
         }
     }
 
@@ -613,7 +676,7 @@ class SyncthingClient: ObservableObject {
         let foldersToFetch = self.realFolders // Always fetch status for real folders
         for folder in foldersToFetch {
             do {
-                let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
+                let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
                 self.realFolderStatuses[folder.id] = status // Update the cache
                 
                 if !debugMode {
@@ -910,7 +973,7 @@ class SyncthingClient: ObservableObject {
         let devicesToFetch = self.realDevices // Always fetch for real devices
         for device in devicesToFetch {
             do {
-                let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
+                let completion = try await makeRequest(path: "db/completion", queryItems: [URLQueryItem(name: "device", value: device.deviceID)], responseType: SyncthingDeviceCompletion.self)
                 // No separate cache for completions, as they are keyed by real device IDs.
                 // We can just update the main dictionary.
                 if !debugMode {
@@ -993,7 +1056,7 @@ class SyncthingClient: ObservableObject {
     // MARK: - Control Functions
     func pauseDevice(deviceID: String) async {
         do {
-            try await postRequest(endpoint: "system/pause?device=\(deviceID)")
+            try await postRequest(path: "system/pause", queryItems: [URLQueryItem(name: "device", value: deviceID)])
             let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
             sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: true)
             await refresh()
@@ -1004,7 +1067,7 @@ class SyncthingClient: ObservableObject {
 
     func resumeDevice(deviceID: String) async {
         do {
-            try await postRequest(endpoint: "system/resume?device=\(deviceID)")
+            try await postRequest(path: "system/resume", queryItems: [URLQueryItem(name: "device", value: deviceID)])
             let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
             sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: false)
             await refresh()
@@ -1015,7 +1078,7 @@ class SyncthingClient: ObservableObject {
 
     func rescanFolder(folderID: String) async {
         do {
-            try await postRequest(endpoint: "db/scan?folder=\(folderID)")
+            try await postRequest(path: "db/scan", queryItems: [URLQueryItem(name: "folder", value: folderID)])
             // No immediate refresh needed as scanning is a background task
         } catch {
             print("Failed to rescan folder \(folderID): \(error)")

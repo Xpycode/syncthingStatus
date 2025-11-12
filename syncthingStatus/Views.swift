@@ -512,11 +512,11 @@ struct DeviceTransferSpeedChartView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Chart {
-                        // Download series (remote device receiving data)
+                        // Download series (data being received from remote device)
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / AppConstants.DataSize.bytesPerKB),
+                                y: .value("Speed", point.downloadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Download")
                             )
                             .foregroundStyle(.blue)
@@ -525,11 +525,11 @@ struct DeviceTransferSpeedChartView: View {
                             .symbolSize(20)
                         }
 
-                        // Upload series (remote device sending data)
+                        // Upload series (data being sent to remote device)
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / AppConstants.DataSize.bytesPerKB),
+                                y: .value("Speed", point.uploadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Upload")
                             )
                             .foregroundStyle(.green)

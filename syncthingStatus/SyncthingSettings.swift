@@ -27,7 +27,6 @@ final class SyncthingSettings: ObservableObject {
 
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
-    private var isLoading = false
     private var cancellables = Set<AnyCancellable>()
     private var saveWorkItem: DispatchWorkItem?
     private let keychainQueue = DispatchQueue(
@@ -249,9 +248,15 @@ final class SyncthingSettings: ObservableObject {
         keychainQueue.async { [weak self] in
             guard let self = self else { return }
             if key.isEmpty {
-                self.keychain.delete()
+                let success = self.keychain.delete()
+                if !success {
+                    print("SyncthingSettings: Warning - Failed to delete API key from keychain")
+                }
             } else {
-                self.keychain.save(key)
+                let success = self.keychain.save(key)
+                if !success {
+                    print("SyncthingSettings: Warning - Failed to save API key to keychain")
+                }
             }
         }
     }
@@ -301,8 +306,12 @@ private struct KeychainHelper {
         self.account = account
     }
 
-    func save(_ value: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    @discardableResult
+    func save(_ value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else {
+            print("KeychainHelper: Failed to encode API key as UTF-8")
+            return false
+        }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -317,8 +326,17 @@ private struct KeychainHelper {
         if status == errSecItemNotFound {
             var newQuery = query
             newQuery[kSecValueData as String] = data
-            SecItemAdd(newQuery as CFDictionary, nil)
+            let addStatus = SecItemAdd(newQuery as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                print("KeychainHelper: Failed to add item to keychain (status: \(addStatus))")
+                return false
+            }
+            return true
+        } else if status != errSecSuccess {
+            print("KeychainHelper: Failed to update keychain item (status: \(status))")
+            return false
         }
+        return true
     }
 
     func read() -> String? {
@@ -336,12 +354,18 @@ private struct KeychainHelper {
         return String(data: data, encoding: .utf8)
     }
 
-    func delete() {
+    @discardableResult
+    func delete() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            print("KeychainHelper: Failed to delete keychain item (status: \(status))")
+            return false
+        }
+        return true
     }
 }

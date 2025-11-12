@@ -59,10 +59,9 @@ func formatConnectionDuration(since date: Date?) -> String {
 func hasSignificantActivity(history: DeviceTransferHistory) -> Bool {
     // Only show chart if there's been meaningful transfer activity
     // Minimum threshold: 1 KB/s peak speed
-    let minThreshold: Double = 1024 // 1 KB/s in bytes/sec
     let maxDown = history.dataPoints.map { $0.downloadRate }.max() ?? 0
     let maxUp = history.dataPoints.map { $0.uploadRate }.max() ?? 0
-    return max(maxDown, maxUp) >= minThreshold
+    return max(maxDown, maxUp) >= AppConstants.Network.activityThresholdBytes
 }
 
 func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: SyncthingSettings) -> Bool {
