@@ -14,11 +14,7 @@ struct ViewHeightKey: PreferenceKey {
 struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // Only update if change is significant
-        let next = nextValue()
-        if abs(next - value) > AppConstants.UI.viewHeightUpdateThreshold {
-            value = next
-        }
+        value = max(value, nextValue())
     }
 }
 
