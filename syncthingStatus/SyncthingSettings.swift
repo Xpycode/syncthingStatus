@@ -3,79 +3,33 @@ import Security
 import Combine
 
 final class SyncthingSettings: ObservableObject {
-    @Published var useAutomaticDiscovery: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var baseURLString: String {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var manualAPIKey: String {
-        didSet { persistKeychainIfNeeded() }
-    }
-
-    @Published var syncCompletionThreshold: Double {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var syncRemainingBytesThreshold: Int64 {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var showSyncNotifications: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var refreshInterval: Double {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var showDeviceConnectNotifications: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-    
-    @Published var showDeviceDisconnectNotifications: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var showPauseResumeNotifications: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var showStalledSyncNotifications: Bool {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var stalledSyncTimeoutMinutes: Double {
-        didSet { persistDefaultsIfNeeded() }
-    }
-    
-    @Published var notificationEnabledFolderIDs: [String] {
-        didSet { persistDefaultsIfNeeded() }
-    }
-
-    @Published var configBookmarkData: Data? {
-        didSet { persistBookmarkIfNeeded() }
-    }
-
-    @Published var configBookmarkPath: String? {
-        didSet { persistBookmarkIfNeeded() }
-    }
-
+    @Published var useAutomaticDiscovery: Bool
+    @Published var baseURLString: String
+    @Published var manualAPIKey: String
+    @Published var syncCompletionThreshold: Double
+    @Published var syncRemainingBytesThreshold: Int64
+    @Published var showSyncNotifications: Bool
+    @Published var refreshInterval: Double
+    @Published var showDeviceConnectNotifications: Bool
+    @Published var showDeviceDisconnectNotifications: Bool
+    @Published var showPauseResumeNotifications: Bool
+    @Published var showStalledSyncNotifications: Bool
+    @Published var stalledSyncTimeoutMinutes: Double
+    @Published var notificationEnabledFolderIDs: [String]
+    @Published var configBookmarkData: Data?
+    @Published var configBookmarkPath: String?
     @Published var launchAtLogin: Bool = LaunchAtLoginHelper.isEnabled {
         didSet {
             LaunchAtLoginHelper.isEnabled = launchAtLogin
         }
     }
-
-    @Published var popoverMaxHeightPercentage: Double {
-        didSet { persistDefaultsIfNeeded() }
-    }
+    @Published var popoverMaxHeightPercentage: Double
 
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var isLoading = false
+    private var cancellables = Set<AnyCancellable>()
+    private var saveWorkItem: DispatchWorkItem?
 
     private enum Keys {
         static let useAutomaticDiscovery = "SyncthingSettings.useAutomaticDiscovery"
@@ -98,7 +52,8 @@ final class SyncthingSettings: ObservableObject {
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
         self.defaults = defaults
         self.keychain = KeychainHelper(service: keychainService, account: "ManualAPIKey")
-        isLoading = true
+
+        // Load all values
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
         baseURLString = defaults.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8384"
         manualAPIKey = keychain.read() ?? ""
@@ -115,7 +70,132 @@ final class SyncthingSettings: ObservableObject {
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? 70.0
-        isLoading = false
+
+        // Set up debounced auto-save observers
+        setupAutoSave()
+    }
+
+    private func setupAutoSave() {
+        // Observe UserDefaults-backed properties
+        Publishers.CombineLatest4(
+            $useAutomaticDiscovery,
+            $baseURLString,
+            $syncCompletionThreshold,
+            $syncRemainingBytesThreshold
+        )
+        .dropFirst()
+        .sink { [weak self] _, _, _, _ in
+            self?.scheduleSave()
+        }
+        .store(in: &cancellables)
+
+        Publishers.CombineLatest4(
+            $showSyncNotifications,
+            $refreshInterval,
+            $showDeviceConnectNotifications,
+            $showDeviceDisconnectNotifications
+        )
+        .dropFirst()
+        .sink { [weak self] _, _, _, _ in
+            self?.scheduleSave()
+        }
+        .store(in: &cancellables)
+
+        Publishers.CombineLatest4(
+            $showPauseResumeNotifications,
+            $showStalledSyncNotifications,
+            $stalledSyncTimeoutMinutes,
+            $popoverMaxHeightPercentage
+        )
+        .dropFirst()
+        .sink { [weak self] _, _, _, _ in
+            self?.scheduleSave()
+        }
+        .store(in: &cancellables)
+
+        $notificationEnabledFolderIDs
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleSave()
+            }
+            .store(in: &cancellables)
+
+        // Observe keychain-backed property
+        $manualAPIKey
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleKeychainSave()
+            }
+            .store(in: &cancellables)
+
+        // Observe bookmark properties
+        Publishers.CombineLatest(
+            $configBookmarkData,
+            $configBookmarkPath
+        )
+        .dropFirst()
+        .sink { [weak self] _, _ in
+            self?.scheduleBookmarkSave()
+        }
+        .store(in: &cancellables)
+    }
+
+    private func scheduleSave() {
+        // Cancel pending save
+        saveWorkItem?.cancel()
+
+        // Schedule new save after delay
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.persistAllDefaults()
+        }
+        saveWorkItem = workItem
+
+        // Debounce: wait 300ms after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+    }
+
+    private func scheduleKeychainSave() {
+        // Cancel pending save
+        saveWorkItem?.cancel()
+
+        // Schedule new save after delay
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.persistKeychainIfNeeded()
+        }
+        saveWorkItem = workItem
+
+        // Debounce: wait 300ms after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+    }
+
+    private func scheduleBookmarkSave() {
+        // Cancel pending save
+        saveWorkItem?.cancel()
+
+        // Schedule new save after delay
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.persistBookmarkIfNeeded()
+        }
+        saveWorkItem = workItem
+
+        // Debounce: wait 300ms after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+    }
+
+    private func persistAllDefaults() {
+        defaults.set(useAutomaticDiscovery, forKey: Keys.useAutomaticDiscovery)
+        defaults.set(baseURLString, forKey: Keys.baseURL)
+        defaults.set(syncCompletionThreshold, forKey: Keys.syncCompletionThreshold)
+        defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
+        defaults.set(showSyncNotifications, forKey: Keys.showSyncNotifications)
+        defaults.set(refreshInterval, forKey: Keys.refreshInterval)
+        defaults.set(showDeviceConnectNotifications, forKey: Keys.showDeviceConnectNotifications)
+        defaults.set(showDeviceDisconnectNotifications, forKey: Keys.showDeviceDisconnectNotifications)
+        defaults.set(showPauseResumeNotifications, forKey: Keys.showPauseResumeNotifications)
+        defaults.set(showStalledSyncNotifications, forKey: Keys.showStalledSyncNotifications)
+        defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
+        defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
+        defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
     }
 
     var trimmedBaseURL: String {
@@ -145,25 +225,7 @@ final class SyncthingSettings: ObservableObject {
         clearConfigBookmark()
     }
 
-    private func persistDefaultsIfNeeded() {
-        guard !isLoading else { return }
-        defaults.set(useAutomaticDiscovery, forKey: Keys.useAutomaticDiscovery)
-        defaults.set(baseURLString, forKey: Keys.baseURL)
-        defaults.set(syncCompletionThreshold, forKey: Keys.syncCompletionThreshold)
-        defaults.set(syncRemainingBytesThreshold, forKey: Keys.syncRemainingBytesThreshold)
-        defaults.set(showSyncNotifications, forKey: Keys.showSyncNotifications)
-        defaults.set(refreshInterval, forKey: Keys.refreshInterval)
-        defaults.set(showDeviceConnectNotifications, forKey: Keys.showDeviceConnectNotifications)
-        defaults.set(showDeviceDisconnectNotifications, forKey: Keys.showDeviceDisconnectNotifications)
-        defaults.set(showPauseResumeNotifications, forKey: Keys.showPauseResumeNotifications)
-        defaults.set(showStalledSyncNotifications, forKey: Keys.showStalledSyncNotifications)
-        defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
-        defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
-        defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
-    }
-
     private func persistKeychainIfNeeded() {
-        guard !isLoading else { return }
         if manualAPIKey.isEmpty {
             keychain.delete()
         } else {
@@ -172,7 +234,6 @@ final class SyncthingSettings: ObservableObject {
     }
 
     private func persistBookmarkIfNeeded() {
-        guard !isLoading else { return }
         if let data = configBookmarkData {
             defaults.set(data, forKey: Keys.configBookmarkData)
         } else {

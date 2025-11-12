@@ -104,6 +104,9 @@ class SyncthingClient: ObservableObject {
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
     private var totalTransferHistory = DeviceTransferHistory() // Aggregate for all devices
     @Published var isRefreshing = false
+
+    // Task management for cancellation
+    private var activeRefreshTask: Task<Void, Never>?
     
     private struct StalledSyncTracker {
         var syncStart: Date
@@ -144,6 +147,10 @@ class SyncthingClient: ObservableObject {
         self.settings = settings
         self.session = session
         observeSettings()
+    }
+
+    deinit {
+        activeRefreshTask?.cancel()
     }
 
     // MARK: - Computed Statistics
@@ -192,7 +199,9 @@ class SyncthingClient: ObservableObject {
             if useAuto {
                 self.cachedAutomaticAPIKey = nil
             }
-            Task { await self.refresh() }
+            Task { [weak self] in
+                await self?.refresh()
+            }
         }
         .store(in: &cancellables)
 
@@ -203,7 +212,9 @@ class SyncthingClient: ObservableObject {
                 guard let self else { return }
                 self.cachedAutomaticAPIKey = nil
                 guard self.settings.useAutomaticDiscovery else { return }
-                Task { await self.refresh() }
+                Task { [weak self] in
+                    await self?.refresh()
+                }
             }
             .store(in: &cancellables)
     }
@@ -237,24 +248,25 @@ class SyncthingClient: ObservableObject {
                 }
 
                 let hasAccess = url.startAccessingSecurityScopedResource()
-                defer {
-                    if hasAccess {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-
                 guard hasAccess else {
                     return .failure(.configAccessDenied)
                 }
+                defer {
+                    url.stopAccessingSecurityScopedResource()
+                }
 
-                let data = try Data(contentsOf: url)
-                if let key = extractAPIKey(from: data) {
-                    return .success(key)
-                } else {
-                    return .failure(.configMissingKey)
+                do {
+                    let data = try Data(contentsOf: url)
+                    if let key = extractAPIKey(from: data) {
+                        return .success(key)
+                    } else {
+                        return .failure(.configMissingKey)
+                    }
+                } catch {
+                    return .failure(.configReadFailed(message: error.localizedDescription))
                 }
             } catch {
-                return .failure(.configReadFailed(message: error.localizedDescription))
+                return .failure(.configReadFailed(message: "Bookmark resolution failed: \(error.localizedDescription)"))
             }
         }
 
@@ -919,6 +931,16 @@ class SyncthingClient: ObservableObject {
     }
     
     func refresh() async {
+        // Cancel any previous refresh task
+        activeRefreshTask?.cancel()
+
+        activeRefreshTask = Task {
+            await performRefresh()
+        }
+        await activeRefreshTask?.value
+    }
+
+    private func performRefresh() async {
         guard !isRefreshing else {
             print("Refresh already in progress.")
             return
@@ -930,17 +952,26 @@ class SyncthingClient: ObservableObject {
             self.handleDisconnectedState()
             return
         }
-        
+
+        // Check for cancellation
+        guard !Task.isCancelled else { return }
+
         await fetchStatus()
-        
+
+        // Check for cancellation
+        guard !Task.isCancelled else { return }
+
         if let systemStatus = self.systemStatus {
             await fetchConfig(localDeviceID: systemStatus.myID)
+
+            // Check for cancellation
+            guard !Task.isCancelled else { return }
 
             async let versionTask: () = fetchVersion()
             async let connectionsTask: () = fetchConnections()
             async let folderStatusTask: () = fetchFolderStatus()
             async let deviceCompletionTask: () = fetchDeviceCompletions()
-            
+
             _ = await [versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
         }
     }
@@ -1072,23 +1103,40 @@ class SyncthingClient: ObservableObject {
             return
         }
 
-        // Save current real data to cache before enabling debug mode (only if not already in debug mode)
-        if !debugMode {
+        let shouldSaveReal = !debugMode
+
+        // Generate dummy data FIRST (before touching any state)
+        let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses) =
+            generateDummyData(deviceCount: deviceCount, folderCount: folderCount)
+
+        // Now update ALL state atomically
+        if shouldSaveReal {
             realDevices = devices
             realFolders = folders
             realConnections = connections
             realFolderStatuses = folderStatuses
         }
 
+        // Update all state together to minimize race condition window
         debugMode = true
         debugDeviceCount = deviceCount
         debugFolderCount = folderCount
+        devices = dummyDevices
+        folders = dummyFolders
+        connections = dummyConnections
+        folderStatuses = dummyFolderStatuses
 
         // Clear other related states
         deviceCompletions = [:]
         transferRates = [:]
         deviceHistory = [:]
         recentSyncEvents = []
+    }
+
+    private func generateDummyData(deviceCount: Int, folderCount: Int)
+        -> (devices: [SyncthingDevice], folders: [SyncthingFolder],
+            connections: [String: SyncthingConnection],
+            statuses: [String: SyncthingFolderStatus]) {
 
         // Generate dummy devices
         var dummyDevices: [SyncthingDevice] = []
@@ -1158,54 +1206,51 @@ class SyncthingClient: ObservableObject {
 
         if folderCount > 0 {
             for i in 1...folderCount {
-            let folderName = folderNames[(i - 1) % folderNames.count]
-            let folderID = folderName.lowercased().replacingOccurrences(of: "-", with: "")
-            let folderPath = folderPaths[(i - 1) % folderPaths.count]
-            let states = ["idle", "syncing", "syncing"]
-            let state = states[i % states.count]
+                let folderName = folderNames[(i - 1) % folderNames.count]
+                let folderID = folderName.lowercased().replacingOccurrences(of: "-", with: "")
+                let folderPath = folderPaths[(i - 1) % folderPaths.count]
+                let states = ["idle", "syncing", "syncing"]
+                let state = states[i % states.count]
 
-            dummyFolders.append(SyncthingFolder(
-                id: folderID,
-                label: folderName,
-                path: folderPath,
-                devices: [],
-                paused: false
-            ))
+                dummyFolders.append(SyncthingFolder(
+                    id: folderID,
+                    label: folderName,
+                    path: folderPath,
+                    devices: [],
+                    paused: false
+                ))
 
-            if state == "syncing" {
-                let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
-                let globalFiles = Int.random(in: 100...1000)
-                dummyFolderStatuses[folderID] = SyncthingFolderStatus(
-                    globalFiles: globalFiles,
-                    globalBytes: globalBytes,
-                    localFiles: globalFiles,
-                    localBytes: globalBytes,
-                    needFiles: Int.random(in: 1...100),
-                    needBytes: Int64.random(in: 1_000_000...100_000_000),
-                    state: state,
-                    lastScan: nil
-                )
-            } else {
-                let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
-                let globalFiles = Int.random(in: 100...1000)
-                dummyFolderStatuses[folderID] = SyncthingFolderStatus(
-                    globalFiles: globalFiles,
-                    globalBytes: globalBytes,
-                    localFiles: globalFiles,
-                    localBytes: globalBytes,
-                    needFiles: 0,
-                    needBytes: 0,
-                    state: state,
-                    lastScan: nil
-                )
-            }
+                if state == "syncing" {
+                    let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
+                    let globalFiles = Int.random(in: 100...1000)
+                    dummyFolderStatuses[folderID] = SyncthingFolderStatus(
+                        globalFiles: globalFiles,
+                        globalBytes: globalBytes,
+                        localFiles: globalFiles,
+                        localBytes: globalBytes,
+                        needFiles: Int.random(in: 1...100),
+                        needBytes: Int64.random(in: 1_000_000...100_000_000),
+                        state: state,
+                        lastScan: nil
+                    )
+                } else {
+                    let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
+                    let globalFiles = Int.random(in: 100...1000)
+                    dummyFolderStatuses[folderID] = SyncthingFolderStatus(
+                        globalFiles: globalFiles,
+                        globalBytes: globalBytes,
+                        localFiles: globalFiles,
+                        localBytes: globalBytes,
+                        needFiles: 0,
+                        needBytes: 0,
+                        state: state,
+                        lastScan: nil
+                    )
+                }
             }
         }
 
-        devices = dummyDevices
-        folders = dummyFolders
-        connections = dummyConnections
-        folderStatuses = dummyFolderStatuses
+        return (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses)
     }
 
     func disableDebugMode() {
