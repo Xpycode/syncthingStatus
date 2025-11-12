@@ -24,7 +24,7 @@ struct ContentHeightKey: PreferenceKey {
 
 // MARK: - ContentView
 struct ContentView: View {
-    weak var appDelegate: AppDelegate?
+    var appDelegate: AppDelegate  // Strong reference - AppDelegate outlives views
     @ObservedObject var syncthingClient: SyncthingClient
     @ObservedObject var settings: SyncthingSettings
     var isPopover: Bool
@@ -71,16 +71,14 @@ struct ContentView: View {
                         })
                 }
                 .onPreferenceChange(ContentHeightKey.self) { newHeight in
-                    if let appDelegate = appDelegate, isPopover {
+                    if isPopover {
                         appDelegate.updatePopoverSize(contentHeight: newHeight)
                     }
                 }
             }
 
-            if let appDelegate = appDelegate {
-                FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
-                    .padding()
-            }
+            FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
+                .padding()
         }
         .background(
             ZStack {
@@ -162,7 +160,7 @@ struct HeaderView: View {
 
 struct DisconnectedView: View {
     @Environment(\.openSettings) private var openSettings
-    weak var appDelegate: AppDelegate?
+    var appDelegate: AppDelegate  // Strong reference
     let settings: SyncthingSettings
     
     var body: some View {
@@ -176,11 +174,7 @@ struct DisconnectedView: View {
                 if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
             Button("Open Settings") {
-                if let appDelegate {
-                    appDelegate.presentSettings(using: openSettings.callAsFunction)
-                } else {
-                    openSettings()
-                }
+                appDelegate.presentSettings(using: openSettings.callAsFunction)
             }
             .buttonStyle(.bordered)
             Spacer()
@@ -190,7 +184,7 @@ struct DisconnectedView: View {
 
 struct FooterView: View {
     @Environment(\.openSettings) private var openSettings
-    weak var appDelegate: AppDelegate?
+    var appDelegate: AppDelegate  // Strong reference
     let settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
     let isConnected: Bool
@@ -217,11 +211,7 @@ struct FooterView: View {
                 }.disabled(!isConnected)
                 
                 Button("Settings") {
-                    if let appDelegate {
-                        appDelegate.presentSettings(using: openSettings.callAsFunction)
-                    } else {
-                        openSettings()
-                    }
+                    appDelegate.presentSettings(using: openSettings.callAsFunction)
                 }
                 .buttonStyle(.bordered)
                 
@@ -229,14 +219,12 @@ struct FooterView: View {
                 
                 if isPopover {
                     Button("Open in Window") {
-                        appDelegate?.openMainWindow()
+                        appDelegate.openMainWindow()
                     }
                     .buttonStyle(.bordered)
                 }
-                
-                if let appDelegate = appDelegate {
-                    Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
-                }
+
+                Button("Quit") { appDelegate.quit() }.foregroundColor(.red)
             }
         }
     }

@@ -30,6 +30,10 @@ final class SyncthingSettings: ObservableObject {
     private var isLoading = false
     private var cancellables = Set<AnyCancellable>()
     private var saveWorkItem: DispatchWorkItem?
+    private let keychainQueue = DispatchQueue(
+        label: "com.syncthingstatus.keychain",
+        qos: .userInitiated
+    )
 
     private enum Keys {
         static let useAutomaticDiscovery = "SyncthingSettings.useAutomaticDiscovery"
@@ -56,7 +60,7 @@ final class SyncthingSettings: ObservableObject {
         // Load all values
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
         baseURLString = defaults.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8384"
-        manualAPIKey = keychain.read() ?? ""
+        manualAPIKey = ""  // Will be loaded async after init
         syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? 95.0
         syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
         showSyncNotifications = defaults.object(forKey: Keys.showSyncNotifications) as? Bool ?? true
@@ -73,6 +77,19 @@ final class SyncthingSettings: ObservableObject {
 
         // Set up debounced auto-save observers
         setupAutoSave()
+
+        // Load API key async after init completes
+        loadAPIKeyAsync()
+    }
+
+    private func loadAPIKeyAsync() {
+        keychainQueue.async { [weak self] in
+            guard let self = self else { return }
+            let key = self.keychain.read() ?? ""
+            DispatchQueue.main.async {
+                self.manualAPIKey = key
+            }
+        }
     }
 
     private func setupAutoSave() {
@@ -226,10 +243,16 @@ final class SyncthingSettings: ObservableObject {
     }
 
     private func persistKeychainIfNeeded() {
-        if manualAPIKey.isEmpty {
-            keychain.delete()
-        } else {
-            keychain.save(manualAPIKey)
+        let key = manualAPIKey  // Capture value on main thread
+
+        // Perform keychain operations on background queue
+        keychainQueue.async { [weak self] in
+            guard let self = self else { return }
+            if key.isEmpty {
+                self.keychain.delete()
+            } else {
+                self.keychain.save(key)
+            }
         }
     }
 

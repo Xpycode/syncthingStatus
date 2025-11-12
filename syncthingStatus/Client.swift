@@ -143,9 +143,20 @@ class SyncthingClient: ObservableObject {
     private var realConnections: [String: SyncthingConnection] = [:]
     private var realFolderStatuses: [String: SyncthingFolderStatus] = [:]
     
-    init(settings: SyncthingSettings, session: URLSession = .shared) {
+    init(settings: SyncthingSettings, session: URLSession? = nil) {
         self.settings = settings
-        self.session = session
+
+        // Configure URLSession with appropriate timeouts if not provided
+        if let session = session {
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 10     // 10s per request
+            config.timeoutIntervalForResource = 30    // 30s total
+            config.waitsForConnectivity = false       // Fail fast
+            self.session = URLSession(configuration: config)
+        }
+
         observeSettings()
     }
 
@@ -547,15 +558,18 @@ class SyncthingClient: ObservableObject {
             totalUpload += rates.uploadRate
 
             // Store historical data for charts
-            var history = transferHistory[deviceID] ?? DeviceTransferHistory()
-            history.addDataPoint(downloadRate: rates.downloadRate, uploadRate: rates.uploadRate)
-            transferHistory[deviceID] = history
-            deviceTransferHistory[deviceID] = history
+            if transferHistory[deviceID] == nil {
+                transferHistory[deviceID] = DeviceTransferHistory()
+            }
+            transferHistory[deviceID]?.addDataPoint(downloadRate: rates.downloadRate, uploadRate: rates.uploadRate)
         }
 
         // Store aggregate total history
         totalTransferHistory.addDataPoint(downloadRate: totalDownload, uploadRate: totalUpload)
         totalTransferHistory_published = totalTransferHistory
+
+        // Share the single dictionary reference instead of duplicating
+        deviceTransferHistory = transferHistory
     }
 
     private func updateConnectionHistory(newConnections: [String: SyncthingConnection]) {
