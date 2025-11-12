@@ -133,6 +133,8 @@ class SyncthingClient: ObservableObject {
 
     // Debug mode
     @Published var debugMode = false
+    @Published var debugDeviceCount = 0
+    @Published var debugFolderCount = 0
     private var realDevices: [SyncthingDevice] = []
     private var realFolders: [SyncthingFolder] = []
     private var realConnections: [String: SyncthingConnection] = [:]
@@ -1064,7 +1066,23 @@ class SyncthingClient: ObservableObject {
 
     // MARK: - Debug Mode
     func enableDebugMode(deviceCount: Int, folderCount: Int) {
+        // If both counts are 0, disable debug mode entirely
+        if deviceCount == 0 && folderCount == 0 {
+            disableDebugMode()
+            return
+        }
+
+        // Save current real data to cache before enabling debug mode (only if not already in debug mode)
+        if !debugMode {
+            realDevices = devices
+            realFolders = folders
+            realConnections = connections
+            realFolderStatuses = folderStatuses
+        }
+
         debugMode = true
+        debugDeviceCount = deviceCount
+        debugFolderCount = folderCount
 
         // Clear other related states
         deviceCompletions = [:]
@@ -1076,14 +1094,23 @@ class SyncthingClient: ObservableObject {
         var dummyDevices: [SyncthingDevice] = []
         var dummyConnections: [String: SyncthingConnection] = [:]
 
+        let deviceNames = [
+            "MacStudio-Main", "MBPro-16-Work", "MBPro-14-Travel",
+            "LinuxWorkstation-Dev", "WinTower-Gaming", "Thinkpad-T14s-Lab",
+            "MacMini-Media", "SurfacePro-Test", "XPS-15-Graphics",
+            "HP-ZBook-Render", "iMac-ProStudio", "Dell-Precision-CAD",
+            "RaspberryPi-NAS", "Mac-Pro-Studio", "Framework-Laptop"
+        ]
+
         if deviceCount > 0 {
             for i in 1...deviceCount {
                 let deviceID = "DUMMY\(i)-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG"
                 let connected = i % 3 != 0 // 2/3 connected, 1/3 disconnected
+                let deviceName = deviceNames[(i - 1) % deviceNames.count]
 
                 dummyDevices.append(SyncthingDevice(
                     deviceID: deviceID,
-                    name: "Debug Device \(i)",
+                    name: deviceName,
                     addresses: ["tcp://192.168.1.\(i):22000"],
                     paused: false
                 ))
@@ -1114,16 +1141,33 @@ class SyncthingClient: ObservableObject {
         var dummyFolders: [SyncthingFolder] = []
         var dummyFolderStatuses: [String: SyncthingFolderStatus] = [:]
 
+        let folderNames = [
+            "Documents", "Projects", "Source-Code", "Photos-2025",
+            "Raw-Footage", "Video-Edits", "Music-Beds", "CAD-Files",
+            "Backups", "Scripts-Python", "Reference-Docs", "Receipts",
+            "Travel-Content", "Syncthing-Test", "Downloads", "Tax-Data"
+        ]
+
+        let folderPaths = [
+            "/Users/Shared/Documents", "/Users/Work/Projects", "/Developer/Source-Code",
+            "/Media/Photos/2025", "/Media/Video/Raw-Footage", "/Media/Video/Edits",
+            "/Audio/Music-Beds", "/Engineering/CAD-Files", "/Backups/System",
+            "/Developer/Scripts/Python", "/Documents/Reference", "/Finance/Receipts",
+            "/Media/Travel-Content", "/Test/Syncthing", "/Users/Downloads", "/Finance/Tax-Data"
+        ]
+
         if folderCount > 0 {
             for i in 1...folderCount {
-            let folderID = "debug-folder-\(i)"
+            let folderName = folderNames[(i - 1) % folderNames.count]
+            let folderID = folderName.lowercased().replacingOccurrences(of: "-", with: "")
+            let folderPath = folderPaths[(i - 1) % folderPaths.count]
             let states = ["idle", "syncing", "syncing"]
             let state = states[i % states.count]
 
             dummyFolders.append(SyncthingFolder(
                 id: folderID,
-                label: "Debug Folder \(i)",
-                path: "/Debug/Folder/\(i)",
+                label: folderName,
+                path: folderPath,
                 devices: [],
                 paused: false
             ))
@@ -1167,18 +1211,20 @@ class SyncthingClient: ObservableObject {
     func disableDebugMode() {
         guard debugMode else { return }
         debugMode = false
+        debugDeviceCount = 0
+        debugFolderCount = 0
 
         // Restore real data from the cache
         devices = realDevices
         folders = realFolders
         connections = realConnections
         folderStatuses = realFolderStatuses
-        
+
         // Clear any lingering debug state and trigger a refresh for other data
         deviceCompletions = [:]
         transferRates = [:]
         deviceHistory = [:]
-        
+
         Task { await refresh() }
     }
 }

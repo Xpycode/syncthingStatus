@@ -219,7 +219,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         self.lastContentHeight = contentHeight
         guard let popover else { return }
 
-        let screenPadding: CGFloat = 100.0
         let screenHeight: CGFloat
 
         if let screen = statusIcon?.statusItem.button?.window?.screen {
@@ -232,6 +231,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
         // Use percentage of screen height as max, with padding
         let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
+        // At 100%, use minimal padding for proper arrow positioning; otherwise use standard padding
+        let screenPadding: CGFloat = (settings.popoverMaxHeightPercentage >= 100) ? 40.0 : 100.0
         let maxHeight = (screenHeight * maxHeightPercentage) - screenPadding
 
         // Add fixed heights for header (~80px) and footer (~70px)
@@ -343,8 +344,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             windowController?.window?.delegate = self
         }
         NSApp.setActivationPolicy(.regular)
-        windowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+        windowController?.showWindow(nil)
+        windowController?.window?.makeKeyAndOrderFront(nil)
     }
 
     func presentSettings(using openSettingsAction: @escaping () -> Void) {
@@ -558,61 +560,75 @@ struct SyncthingStatusApp: App {
                         Button("5 Devices") {
                             appDelegate.syncthingClient.enableDebugMode(
                                 deviceCount: 5,
-                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                                folderCount: appDelegate.syncthingClient.debugFolderCount
                             )
                         }
                         Button("10 Devices") {
                             appDelegate.syncthingClient.enableDebugMode(
                                 deviceCount: 10,
-                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                                folderCount: appDelegate.syncthingClient.debugFolderCount
                             )
                         }
                         Button("15 Devices") {
                             appDelegate.syncthingClient.enableDebugMode(
                                 deviceCount: 15,
-                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                                folderCount: appDelegate.syncthingClient.debugFolderCount
                             )
                         }
                         Divider()
                         Button("No Debug Devices") {
                             appDelegate.syncthingClient.enableDebugMode(
                                 deviceCount: 0,
-                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                                folderCount: appDelegate.syncthingClient.debugFolderCount
                             )
+                        }
+                        Button("Disable All Debug Data") {
+                            appDelegate.syncthingClient.disableDebugMode()
                         }
                     }
                     Menu("Folders") {
                         Button("5 Folders") {
                             appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
                                 folderCount: 5
                             )
                         }
                         Button("10 Folders") {
                             appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
                                 folderCount: 10
                             )
                         }
                         Button("15 Folders") {
                             appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
                                 folderCount: 15
                             )
                         }
                         Divider()
                         Button("No Debug Folders") {
                             appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
                                 folderCount: 0
                             )
                         }
+                        Button("Disable All Debug Data") {
+                            appDelegate.syncthingClient.disableDebugMode()
+                        }
                     }
                     Divider()
-                    Button("Disable Debug Mode") {
+                    Button("Random Devices & Folders") {
+                        let randomDevices = Int.random(in: 1...15)
+                        let randomFolders = Int.random(in: 1...16)
+                        appDelegate.syncthingClient.enableDebugMode(
+                            deviceCount: randomDevices,
+                            folderCount: randomFolders
+                        )
+                    }
+                    Divider()
+                    Button("Disable All Debug Data") {
                         appDelegate.syncthingClient.disableDebugMode()
                     }
-                    .disabled(!appDelegate.syncthingClient.debugMode)
                 }
             }
         }

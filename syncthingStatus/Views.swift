@@ -1092,7 +1092,7 @@ struct SettingsView: View {
                         Text("\(Int(settings.popoverMaxHeightPercentage))% of screen")
                             .foregroundColor(.secondary)
                     }
-                    Slider(value: $settings.popoverMaxHeightPercentage, in: 30...90, step: 5)
+                    Slider(value: $settings.popoverMaxHeightPercentage, in: 30...100, step: 5)
                     Text("Controls how tall the status popover can grow before showing scrollbars")
                         .font(.caption)
                         .foregroundColor(.secondary)
