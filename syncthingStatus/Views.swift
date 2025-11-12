@@ -62,6 +62,14 @@ struct ContentView: View {
 
                 ScrollView {
                     statusContent
+                        .background(GeometryReader { geometry in
+                            Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
+                        })
+                }
+                .onPreferenceChange(ContentHeightKey.self) { newHeight in
+                    if let appDelegate = appDelegate, isPopover {
+                        appDelegate.updatePopoverSize(contentHeight: newHeight)
+                    }
                 }
             }
 

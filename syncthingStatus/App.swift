@@ -78,7 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var pendingGlobalSyncNotification = false
-    private var popoverSizeUpdateTask: Task<Void, Never>?
+    private var lastContentHeight: CGFloat = 0
     
     override init() {
         let settings = SyncthingSettings()
@@ -213,12 +213,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
         popover?.contentViewController = controller
-
-        // Set initial size based on screen percentage
-        updatePopoverSizeForSetting()
     }
 
-    func updatePopoverSizeForSetting() {
+    func updatePopoverSize(contentHeight: CGFloat) {
+        self.lastContentHeight = contentHeight
         guard let popover else { return }
 
         let screenPadding: CGFloat = 100.0
@@ -234,53 +232,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
         // Use percentage of screen height as max, with padding
         let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
-        let height = (screenHeight * maxHeightPercentage) - screenPadding
+        let maxHeight = (screenHeight * maxHeightPercentage) - screenPadding
 
-        let newSize = NSSize(width: 400, height: height)
+        // Add fixed heights for header (~80px) and footer (~70px)
+        let headerFooterHeight: CGFloat = 150
+        let totalContentHeight = contentHeight + headerFooterHeight
 
-        print("📊 Setting popover size: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, height=\(height)")
+        // Use content height up to max height
+        let finalHeight = min(totalContentHeight, maxHeight)
+        let newSize = NSSize(width: 400, height: finalHeight)
 
-        popover.contentSize = newSize
-    }
+        print("📊 Popover sizing: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, maxHeight=\(maxHeight), contentHeight=\(contentHeight), totalContent=\(totalContentHeight), finalHeight=\(finalHeight)")
 
-    func updatePopoverSize(contentHeight: CGFloat) {
-        // Cancel any pending update
-        popoverSizeUpdateTask?.cancel()
-
-        // Debounce updates to prevent constant resizing
-        popoverSizeUpdateTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
-
-            guard !Task.isCancelled, let popover else { return }
-
-            let screenPadding: CGFloat = 100.0
-            let screenHeight: CGFloat
-
-            if let screen = statusIcon?.statusItem.button?.window?.screen {
-                screenHeight = screen.visibleFrame.height
-            } else if let mainScreen = NSScreen.main {
-                screenHeight = mainScreen.visibleFrame.height
-            } else {
-                screenHeight = 900
-            }
-
-            // Use percentage of screen height as max, with padding
-            let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
-            let maxHeight = (screenHeight * maxHeightPercentage) - screenPadding
-
-            // Add fixed heights for header (~80px) and footer (~70px)
-            let headerFooterHeight: CGFloat = 150
-            let totalContentHeight = contentHeight + headerFooterHeight
-
-            // Use content height up to max height
-            let finalHeight = min(totalContentHeight, maxHeight)
-            let newSize = NSSize(width: 400, height: finalHeight)
-
-            print("📊 Popover sizing: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, maxHeight=\(maxHeight), contentHeight=\(contentHeight), totalContent=\(totalContentHeight), finalHeight=\(finalHeight)")
-
-            if popover.contentSize != newSize {
-                popover.contentSize = newSize
-            }
+        if popover.contentSize != newSize {
+            popover.contentSize = newSize
         }
     }
 
@@ -495,7 +460,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         settings.$popoverMaxHeightPercentage
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updatePopoverSizeForSetting()
+                guard let self else { return }
+                self.updatePopoverSize(contentHeight: self.lastContentHeight)
             }
             .store(in: &cancellables)
         
@@ -607,6 +573,13 @@ struct SyncthingStatusApp: App {
                                 folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
                             )
                         }
+                        Divider()
+                        Button("No Debug Devices") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: 0,
+                                folderCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.folders.count : 0
+                            )
+                        }
                     }
                     Menu("Folders") {
                         Button("5 Folders") {
@@ -625,6 +598,13 @@ struct SyncthingStatusApp: App {
                             appDelegate.syncthingClient.enableDebugMode(
                                 deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
                                 folderCount: 15
+                            )
+                        }
+                        Divider()
+                        Button("No Debug Folders") {
+                            appDelegate.syncthingClient.enableDebugMode(
+                                deviceCount: appDelegate.syncthingClient.debugMode ? appDelegate.syncthingClient.devices.count : 0,
+                                folderCount: 0
                             )
                         }
                     }
