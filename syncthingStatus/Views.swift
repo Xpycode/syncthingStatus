@@ -59,11 +59,6 @@ struct ContentView: View {
                     }
                 }
                 .padding(.horizontal)
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
-                    }
-                )
 
                 ScrollView {
                     statusContent
@@ -82,13 +77,6 @@ struct ContentView: View {
                 }
             }
         )
-        .onPreferenceChange(ContentHeightKey.self) { contentHeight in
-            if isPopover {
-                DispatchQueue.main.async {
-                    appDelegate?.updatePopoverSize(contentHeight: contentHeight)
-                }
-            }
-        }
         .frame(width: isPopover ? 400 : nil)
     }
 }

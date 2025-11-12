@@ -213,6 +213,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             rootView: ContentView(appDelegate: self, syncthingClient: syncthingClient, settings: settings, isPopover: true)
         )
         popover?.contentViewController = controller
+
+        // Set initial size based on screen percentage
+        updatePopoverSizeForSetting()
+    }
+
+    func updatePopoverSizeForSetting() {
+        guard let popover else { return }
+
+        let screenPadding: CGFloat = 100.0
+        let screenHeight: CGFloat
+
+        if let screen = statusIcon?.statusItem.button?.window?.screen {
+            screenHeight = screen.visibleFrame.height
+        } else if let mainScreen = NSScreen.main {
+            screenHeight = mainScreen.visibleFrame.height
+        } else {
+            screenHeight = 900
+        }
+
+        // Use percentage of screen height as max, with padding
+        let maxHeightPercentage = settings.popoverMaxHeightPercentage / 100.0
+        let height = (screenHeight * maxHeightPercentage) - screenPadding
+
+        let newSize = NSSize(width: 400, height: height)
+
+        print("📊 Setting popover size: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, height=\(height)")
+
+        popover.contentSize = newSize
     }
 
     func updatePopoverSize(contentHeight: CGFloat) {
@@ -247,6 +275,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             // Use content height up to max height
             let finalHeight = min(totalContentHeight, maxHeight)
             let newSize = NSSize(width: 400, height: finalHeight)
+
+            print("📊 Popover sizing: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, maxHeight=\(maxHeight), contentHeight=\(contentHeight), totalContent=\(totalContentHeight), finalHeight=\(finalHeight)")
 
             if popover.contentSize != newSize {
                 popover.contentSize = newSize
@@ -465,19 +495,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         settings.$popoverMaxHeightPercentage
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                // Trigger a popover size recalculation
-                if let self, let popover = self.popover, popover.isShown {
-                    // Force a refresh by temporarily closing and reopening
-                    let shouldReopen = popover.isShown
-                    if shouldReopen {
-                        self.closePopover()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            if let button = self.statusIcon?.statusItem.button {
-                                self.showPopover(button)
-                            }
-                        }
-                    }
-                }
+                self?.updatePopoverSizeForSetting()
             }
             .store(in: &cancellables)
         
