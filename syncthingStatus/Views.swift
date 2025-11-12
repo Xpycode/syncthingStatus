@@ -63,17 +63,14 @@ struct ContentView: View {
                     }
                 }
                 .padding(.horizontal)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
+                    }
+                )
 
                 ScrollView {
                     statusContent
-                        .background(GeometryReader { geometry in
-                            Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
-                        })
-                }
-                .onPreferenceChange(ContentHeightKey.self) { newHeight in
-                    if isPopover {
-                        appDelegate.updatePopoverSize(contentHeight: newHeight)
-                    }
                 }
             }
 
@@ -87,6 +84,11 @@ struct ContentView: View {
                 }
             }
         )
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight in
+            if isPopover {
+                appDelegate.updatePopoverSize(contentHeight: contentHeight)
+            }
+        }
         .frame(width: isPopover ? 400 : nil)
     }
 }
