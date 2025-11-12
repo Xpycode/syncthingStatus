@@ -447,7 +447,14 @@ class SyncthingClient: ObservableObject {
                     self.folders = config.folders
                 }
         } catch {
-            print("Failed to fetch system/config: \(error)")
+            let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
+            print(errorMessage)
+            self.lastErrorMessage = errorMessage
+            if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                if code == 401 || code == 403 {
+                    self.isConnected = false
+                }
+            }
         }
     }
     
@@ -458,7 +465,14 @@ class SyncthingClient: ObservableObject {
                 self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
         } catch {
-            print("Failed to fetch system/connections: \(error)")
+            let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
+            print(errorMessage)
+            self.lastErrorMessage = errorMessage
+            if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                if code == 401 || code == 403 {
+                    self.isConnected = false
+                }
+            }
         }
     }
 
@@ -557,7 +571,14 @@ class SyncthingClient: ObservableObject {
                 self.folderStatuses[folder.id] = status
                 self.trackSyncEvent(folder: folder, status: status)
             } catch {
-                print("Failed to fetch db/status for folder \(folder.id): \(error)")
+                let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
+                print(errorMessage)
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
+                    }
+                }
             }
         }
     }
@@ -840,7 +861,14 @@ class SyncthingClient: ObservableObject {
                 let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
                 self.deviceCompletions[device.deviceID] = completion
             } catch {
-                print("Failed to fetch db/completion for device \(device.deviceID): \(error)")
+                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
+                print(errorMessage)
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
+                    }
+                }
             }
         }
     }
@@ -1118,5 +1146,7 @@ class SyncthingClient: ObservableObject {
         folders = realFolders
         connections = realConnections
         folderStatuses = realFolderStatuses
+        
+        Task { await refresh() }
     }
 }
