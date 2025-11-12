@@ -437,41 +437,58 @@ class SyncthingClient: ObservableObject {
     func fetchConfig(localDeviceID: String) async {
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
-            // Find and store local device name
-                if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
-                    self.localDeviceName = localDevice.name
-                }
-                // Store only remote devices (unless in debug mode)
-                if !debugMode {
-                    self.devices = config.devices.filter { $0.deviceID != localDeviceID }
-                    self.folders = config.folders
-                }
+            
+            if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
+                self.localDeviceName = localDevice.name
+            }
+            let remoteDevices = config.devices.filter { $0.deviceID != localDeviceID }
+            
+            // Always cache the real data
+            self.realDevices = remoteDevices
+            self.realFolders = config.folders
+            
+            // Only update the published properties if not in debug mode
+            if !debugMode {
+                self.devices = remoteDevices
+                self.folders = config.folders
+            }
         } catch {
             let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
             print(errorMessage)
-            self.lastErrorMessage = errorMessage
-            if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                if code == 401 || code == 403 {
-                    self.isConnected = false
+            // Only update UI-facing properties if not in debug mode
+            if !debugMode {
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
+                    }
                 }
             }
         }
     }
     
     func fetchConnections() async {
-        guard !debugMode else { return }
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
-            self.updateConnectionHistory(newConnections: connectionsResponse.connections)
+            
+            // Always cache the real data
+            self.realConnections = connectionsResponse.connections
+            
+            // Only update the published properties if not in debug mode
+            if !debugMode {
+                self.updateConnectionHistory(newConnections: connectionsResponse.connections)
                 self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
+            }
         } catch {
             let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
             print(errorMessage)
-            self.lastErrorMessage = errorMessage
-            if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                if code == 401 || code == 403 {
-                    self.isConnected = false
+            if !debugMode {
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
+                    }
                 }
             }
         }
@@ -565,20 +582,25 @@ class SyncthingClient: ObservableObject {
     }
 
     func fetchFolderStatus() async {
-        guard !debugMode else { return }
-        let foldersToFetch = self.folders
+        let foldersToFetch = self.realFolders // Always fetch status for real folders
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(endpoint: "db/status?folder=\(folder.id)", responseType: SyncthingFolderStatus.self)
-                self.folderStatuses[folder.id] = status
-                self.trackSyncEvent(folder: folder, status: status)
+                self.realFolderStatuses[folder.id] = status // Update the cache
+                
+                if !debugMode {
+                    self.folderStatuses[folder.id] = status
+                    self.trackSyncEvent(folder: folder, status: status)
+                }
             } catch {
                 let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
                 print(errorMessage)
-                self.lastErrorMessage = errorMessage
-                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                    if code == 401 || code == 403 {
-                        self.isConnected = false
+                if !debugMode {
+                    self.lastErrorMessage = errorMessage
+                    if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                        if code == 401 || code == 403 {
+                            self.isConnected = false
+                        }
                     }
                 }
             }
@@ -857,19 +879,24 @@ class SyncthingClient: ObservableObject {
     }
     
     func fetchDeviceCompletions() async {
-        guard !debugMode else { return }
-        let devicesToFetch = self.devices
+        let devicesToFetch = self.realDevices // Always fetch for real devices
         for device in devicesToFetch {
             do {
                 let completion = try await makeRequest(endpoint: "db/completion?device=\(device.deviceID)", responseType: SyncthingDeviceCompletion.self)
-                self.deviceCompletions[device.deviceID] = completion
+                // No separate cache for completions, as they are keyed by real device IDs.
+                // We can just update the main dictionary.
+                if !debugMode {
+                    self.deviceCompletions[device.deviceID] = completion
+                }
             } catch {
                 let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
                 print(errorMessage)
-                self.lastErrorMessage = errorMessage
-                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                    if code == 401 || code == 403 {
-                        self.isConnected = false
+                if !debugMode {
+                    self.lastErrorMessage = errorMessage
+                    if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                        if code == 401 || code == 403 {
+                            self.isConnected = false
+                        }
                     }
                 }
             }
@@ -1037,14 +1064,6 @@ class SyncthingClient: ObservableObject {
 
     // MARK: - Debug Mode
     func enableDebugMode(deviceCount: Int, folderCount: Int) {
-        if !debugMode {
-            // Store real data only on the first transition to debug mode
-            realDevices = devices
-            realFolders = folders
-            realConnections = connections
-            realFolderStatuses = folderStatuses
-        }
-
         debugMode = true
 
         // Clear other related states
@@ -1147,16 +1166,15 @@ class SyncthingClient: ObservableObject {
 
     func disableDebugMode() {
         guard debugMode else { return }
-
         debugMode = false
 
-        // Restore real data
+        // Restore real data from the cache
         devices = realDevices
         folders = realFolders
         connections = realConnections
         folderStatuses = realFolderStatuses
         
-        // Clear any lingering debug state
+        // Clear any lingering debug state and trigger a refresh for other data
         deviceCompletions = [:]
         transferRates = [:]
         deviceHistory = [:]
