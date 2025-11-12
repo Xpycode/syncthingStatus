@@ -61,19 +61,19 @@ final class SyncthingSettings: ObservableObject {
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
         baseURLString = defaults.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8384"
         manualAPIKey = ""  // Will be loaded async after init
-        syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? 95.0
-        syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? 1_048_576 // 1 MB
+        syncCompletionThreshold = defaults.object(forKey: Keys.syncCompletionThreshold) as? Double ?? AppConstants.Sync.defaultCompletionThreshold
+        syncRemainingBytesThreshold = defaults.object(forKey: Keys.syncRemainingBytesThreshold) as? Int64 ?? AppConstants.Sync.defaultRemainingBytesThreshold
         showSyncNotifications = defaults.object(forKey: Keys.showSyncNotifications) as? Bool ?? true
-        refreshInterval = defaults.object(forKey: Keys.refreshInterval) as? Double ?? 10.0
+        refreshInterval = defaults.object(forKey: Keys.refreshInterval) as? Double ?? AppConstants.Network.defaultRefreshIntervalSeconds
         showDeviceConnectNotifications = defaults.object(forKey: Keys.showDeviceConnectNotifications) as? Bool ?? false
         showDeviceDisconnectNotifications = defaults.object(forKey: Keys.showDeviceDisconnectNotifications) as? Bool ?? false
         showPauseResumeNotifications = defaults.object(forKey: Keys.showPauseResumeNotifications) as? Bool ?? true
         showStalledSyncNotifications = defaults.object(forKey: Keys.showStalledSyncNotifications) as? Bool ?? false
-        stalledSyncTimeoutMinutes = defaults.object(forKey: Keys.stalledSyncTimeoutMinutes) as? Double ?? 5.0
+        stalledSyncTimeoutMinutes = defaults.object(forKey: Keys.stalledSyncTimeoutMinutes) as? Double ?? AppConstants.Sync.defaultStalledTimeoutMinutes
         notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
-        popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? 70.0
+        popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
 
         // Set up debounced auto-save observers
         setupAutoSave()
@@ -167,8 +167,8 @@ final class SyncthingSettings: ObservableObject {
         }
         saveWorkItem = workItem
 
-        // Debounce: wait 300ms after last change
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+        // Debounce: wait after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
     }
 
     private func scheduleKeychainSave() {
@@ -181,8 +181,8 @@ final class SyncthingSettings: ObservableObject {
         }
         saveWorkItem = workItem
 
-        // Debounce: wait 300ms after last change
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+        // Debounce: wait after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
     }
 
     private func scheduleBookmarkSave() {
@@ -195,8 +195,8 @@ final class SyncthingSettings: ObservableObject {
         }
         saveWorkItem = workItem
 
-        // Debounce: wait 300ms after last change
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+        // Debounce: wait after last change
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
     }
 
     private func persistAllDefaults() {

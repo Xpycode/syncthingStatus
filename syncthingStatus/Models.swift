@@ -115,7 +115,7 @@ struct TransferDataPoint: Identifiable {
 
 struct DeviceTransferHistory {
     var dataPoints: [TransferDataPoint] = []
-    let maxDataPoints = 60 // Keep 10 minutes of data (60 points at 10s intervals)
+    let maxDataPoints = AppConstants.UI.maxTransferDataPoints
 
     // Cached max values to avoid recalculating on every render
     private(set) var maxDownloadRate: Double = 0

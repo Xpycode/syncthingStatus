@@ -18,9 +18,8 @@ struct StatusIconStateResolver {
         case outOfSync
     }
 
-    private let activityThreshold: Double = 1024 // 1 KB/s
-
     func resolveState(client: SyncthingClient, settings: SyncthingSettings) -> IconDisplayState {
+        let activityThreshold = AppConstants.Network.activityThresholdBytes
         // Rule 1: Not connected
         guard client.isConnected else {
             return .error(tooltip: "Disconnected")

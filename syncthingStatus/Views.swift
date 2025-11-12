@@ -14,9 +14,9 @@ struct ViewHeightKey: PreferenceKey {
 struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // Only update if change is significant (> 5 points)
+        // Only update if change is significant
         let next = nextValue()
-        if abs(next - value) > 5 {
+        if abs(next - value) > AppConstants.UI.viewHeightUpdateThreshold {
             value = next
         }
     }
@@ -496,7 +496,7 @@ struct DeviceTransferSpeedChartView: View {
 
     private var maxSpeed: Double {
         // Use cached max values instead of recalculating
-        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / 1024 // Convert to KB/s
+        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / AppConstants.DataSize.bytesPerKB
         // Add 20% padding to max value for better visualization, minimum 1
         return max(maxValue * 1.2, 1)
     }
@@ -516,7 +516,7 @@ struct DeviceTransferSpeedChartView: View {
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / 1024),
+                                y: .value("Speed", point.uploadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Download")
                             )
                             .foregroundStyle(.blue)
@@ -529,7 +529,7 @@ struct DeviceTransferSpeedChartView: View {
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / 1024),
+                                y: .value("Speed", point.downloadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Upload")
                             )
                             .foregroundStyle(.green)
@@ -579,7 +579,7 @@ struct TotalTransferSpeedChartView: View {
 
     private var maxSpeed: Double {
         // Use cached max values instead of recalculating
-        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / 1024 // Convert to KB/s
+        let maxValue = max(history.maxDownloadRate, history.maxUploadRate) / AppConstants.DataSize.bytesPerKB
         // Add 20% padding to max value for better visualization, minimum 1
         return max(maxValue * 1.2, 1)
     }
@@ -595,7 +595,7 @@ struct TotalTransferSpeedChartView: View {
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.downloadRate / 1024),
+                                y: .value("Speed", point.downloadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Download")
                             )
                             .foregroundStyle(.blue)
@@ -608,7 +608,7 @@ struct TotalTransferSpeedChartView: View {
                         ForEach(history.dataPoints) { point in
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value("Speed", point.uploadRate / 1024),
+                                y: .value("Speed", point.uploadRate / AppConstants.DataSize.bytesPerKB),
                                 series: .value("Type", "Upload")
                             )
                             .foregroundStyle(.green)

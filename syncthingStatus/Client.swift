@@ -98,7 +98,7 @@ class SyncthingClient: ObservableObject {
     // Sync event tracking
     private var previousFolderStates: [String: String] = [:] // folderID -> state
     private var syncEvents: [SyncEvent] = []
-    private let maxEvents = 50 // Keep last 50 events
+    private let maxEvents = AppConstants.UI.maxSyncEvents
 
     // Transfer history for charts
     private var transferHistory: [String: DeviceTransferHistory] = [:] // deviceID -> history
@@ -151,8 +151,8 @@ class SyncthingClient: ObservableObject {
             self.session = session
         } else {
             let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 10     // 10s per request
-            config.timeoutIntervalForResource = 30    // 30s total
+            config.timeoutIntervalForRequest = AppConstants.Network.requestTimeoutSeconds
+            config.timeoutIntervalForResource = AppConstants.Network.resourceTimeoutSeconds
             config.waitsForConnectivity = false       // Fail fast
             self.session = URLSession(configuration: config)
         }
@@ -204,7 +204,7 @@ class SyncthingClient: ObservableObject {
             settings.$manualAPIKey
         )
         .dropFirst()
-        .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+        .debounce(for: .milliseconds(AppConstants.Debounce.settingsChangeDelayMs), scheduler: RunLoop.main)
         .sink { [weak self] useAuto, _, _ in
             guard let self else { return }
             if useAuto {
@@ -218,7 +218,7 @@ class SyncthingClient: ObservableObject {
 
         settings.$configBookmarkData
             .dropFirst()
-            .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+            .debounce(for: .milliseconds(AppConstants.Debounce.settingsChangeDelayMs), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.cachedAutomaticAPIKey = nil
@@ -1102,8 +1102,8 @@ class SyncthingClient: ObservableObject {
 
     private func waitForSyncthingAvailability() async {
         var attempt = 0
-        let maxAttempts = 10
-        var delay: UInt64 = 250_000_000 // Start with 250ms
+        let maxAttempts = AppConstants.Polling.maxPollingAttempts
+        var delay: UInt64 = AppConstants.Polling.initialPollingDelayMs
 
         while attempt < maxAttempts {
             do {
@@ -1128,7 +1128,7 @@ class SyncthingClient: ObservableObject {
 
             // Wait before next attempt with exponential backoff
             try? await Task.sleep(nanoseconds: delay)
-            delay = min(delay * 2, 2_000_000_000) // Cap at 2 seconds
+            delay = min(delay * 2, AppConstants.Polling.maxPollingDelayMs)
             attempt += 1
         }
 
