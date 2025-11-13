@@ -781,7 +781,8 @@ struct DeviceStatusRow: View {
         DisclosureGroup {
             VStack(spacing: 8) {
                 if let connection, connection.connected {
-                    // Row 1: Address, Connection Type, Client Version (3 columns)
+                    // Row 2: Address, Connection Type, Client Version (3 columns)
+                    // Padded left to align with device name
                     HStack(alignment: .top, spacing: 12) {
                         // Left: Address
                         VStack(alignment: .leading, spacing: 2) {
@@ -820,12 +821,14 @@ struct DeviceStatusRow: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
+                    .padding(.leading, 48) // Align with device name
 
                     Divider()
 
                     // Row 3: Conditional 4-column display
                     // When actively transferring: Received | Sent | Download Speed | Upload Speed
                     // When idle: Received | Sent | Completion | Remaining
+                    // Padded left to align with device name
                     HStack(alignment: .top, spacing: 12) {
                         // Column 1: Data Received (always shown)
                         VStack(alignment: .center, spacing: 2) {
@@ -884,6 +887,7 @@ struct DeviceStatusRow: View {
                             completionAndRemainingColumns
                         }
                     }
+                    .padding(.leading, 48) // Align with device name
 
                     if let history = syncthingClient.deviceTransferHistory[device.deviceID], hasSignificantActivity(history: history) {
                         Divider()
