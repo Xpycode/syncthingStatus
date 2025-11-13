@@ -547,9 +547,13 @@ class SyncthingClient: ObservableObject {
                 self.folders = config.folders
             }
         } catch {
-            let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
+            // Skip cancelled errors - these are transient and happen during refresh
+            let errorDescription = error.localizedDescription
+            guard !errorDescription.contains("cancelled") else { return }
+
+            let errorMessage = "Failed to fetch config: \(errorDescription)"
             print(errorMessage)
-            // Only update UI-facing properties if not in debug mode
+            // Only update UI-facing properties if not in demo mode
             if !demoMode {
                 self.lastErrorMessage = errorMessage
                 if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
@@ -575,7 +579,11 @@ class SyncthingClient: ObservableObject {
                 self.connections = connectionsResponse.connections
             }
         } catch {
-            let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
+            // Skip cancelled errors - these are transient and happen during refresh
+            let errorDescription = error.localizedDescription
+            guard !errorDescription.contains("cancelled") else { return }
+
+            let errorMessage = "Failed to fetch connections: \(errorDescription)"
             print(errorMessage)
             if !demoMode {
                 self.lastErrorMessage = errorMessage
@@ -690,7 +698,11 @@ class SyncthingClient: ObservableObject {
                     self.trackSyncEvent(folder: folder, status: status)
                 }
             } catch {
-                let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
+                // Skip cancelled errors - these are transient and happen during refresh
+                let errorDescription = error.localizedDescription
+                guard !errorDescription.contains("cancelled") else { continue }
+
+                let errorMessage = "Failed to fetch folder status for \(folder.id): \(errorDescription)"
                 print(errorMessage)
                 if !demoMode {
                     self.lastErrorMessage = errorMessage
@@ -986,7 +998,11 @@ class SyncthingClient: ObservableObject {
                     self.deviceCompletions[device.deviceID] = completion
                 }
             } catch {
-                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
+                // Skip cancelled errors - these are transient and happen during refresh
+                let errorDescription = error.localizedDescription
+                guard !errorDescription.contains("cancelled") else { continue }
+
+                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(errorDescription)"
                 print(errorMessage)
                 if !demoMode {
                     self.lastErrorMessage = errorMessage
