@@ -32,8 +32,8 @@
 - **Menu Bar Integration**: Unobtrusive status indicator that lives in your macOS menu bar
 - **Real-Time Monitoring**: Automatic updates every 10 seconds
 - **Visual Status Indicators**:
-  - ![Synced](screenshots/icon-synched.png) **Synced**: When synced to at least one device
-  - ![Disconnected](screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
+  - ![Synced](github/screenshots/icon-synched.png) **Synced**: When synced to at least one device
+  - ![Disconnected](github/screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
 - **System Information**: Display device name, uptime, and version information
