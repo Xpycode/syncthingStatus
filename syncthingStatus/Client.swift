@@ -148,6 +148,8 @@ class SyncthingClient: ObservableObject {
     private var realFolders: [SyncthingFolder] = []
     private var realConnections: [String: SyncthingConnection] = [:]
     private var realFolderStatuses: [String: SyncthingFolderStatus] = [:]
+    private var realTransferHistory: [String: DeviceTransferHistory] = [:]
+    private var realTotalTransferHistory = DeviceTransferHistory()
     
     init(settings: SyncthingSettings, session: URLSession? = nil) {
         self.settings = settings
@@ -1249,6 +1251,8 @@ class SyncthingClient: ObservableObject {
             realFolders = folders
             realConnections = connections
             realFolderStatuses = folderStatuses
+            realTransferHistory = transferHistory
+            realTotalTransferHistory = totalTransferHistory
         }
 
         // Update all state together to minimize race condition window
@@ -1261,8 +1265,38 @@ class SyncthingClient: ObservableObject {
         connections = dummyConnections
         folderStatuses = dummyFolderStatuses
 
-        // Set demo transfer rates and clear other states
+        // Set demo transfer rates and aggregate transfer history for charts
         transferRates = dummyTransferRates
+
+        // Aggregate transfer history from all devices for the total chart
+        // Sum up rates at each time index across all connected devices
+        var aggregateHistory = DeviceTransferHistory()
+        let historyArrays = transferHistory.values.map { $0.dataPoints }
+
+        if let firstHistory = historyArrays.first {
+            for i in 0..<firstHistory.count {
+                var totalDownload: Double = 0
+                var totalUpload: Double = 0
+
+                // Sum rates from all devices at this time index
+                for historyArray in historyArrays {
+                    if i < historyArray.count {
+                        totalDownload += historyArray[i].downloadRate
+                        totalUpload += historyArray[i].uploadRate
+                    }
+                }
+
+                aggregateHistory.addDataPoint(downloadRate: totalDownload, uploadRate: totalUpload)
+            }
+        }
+
+        totalTransferHistory = aggregateHistory
+        totalTransferHistory_published = aggregateHistory
+
+        // Publish device transfer history for per-device charts
+        deviceTransferHistory = transferHistory
+
+        // Clear other states
         deviceCompletions = [:]
         deviceHistory = [:]
         recentSyncEvents = []
@@ -1473,8 +1507,12 @@ class SyncthingClient: ObservableObject {
         folders = realFolders
         connections = realConnections
         folderStatuses = realFolderStatuses
+        transferHistory = realTransferHistory
+        totalTransferHistory = realTotalTransferHistory
+        totalTransferHistory_published = realTotalTransferHistory
+        deviceTransferHistory = realTransferHistory
 
-        // Clear any lingering debug state and trigger a refresh for other data
+        // Clear any lingering demo state and trigger a refresh for other data
         deviceCompletions = [:]
         transferRates = [:]
         deviceHistory = [:]
