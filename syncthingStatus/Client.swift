@@ -1367,9 +1367,9 @@ class SyncthingClient: ObservableObject {
                 let uploadSpeed: Double
 
                 if scenario == .allSynced {
-                    // All synced scenario: minimal or zero transfer speeds
-                    downloadSpeed = Double.random(in: 0...100_000)  // 0-100 KB/s
-                    uploadSpeed = Double.random(in: 0...100_000)
+                    // All synced scenario: zero transfer speeds (nothing to sync)
+                    downloadSpeed = 0
+                    uploadSpeed = 0
                 } else {
                     // Mixed scenario: Some devices actively transferring
                     if j < 15 {
@@ -1398,9 +1398,9 @@ class SyncthingClient: ObservableObject {
             let uploadRate: Double
 
             if scenario == .allSynced {
-                // All synced: very low or zero speeds
-                downloadRate = Double.random(in: 0...50_000)    // 0-50 KB/s
-                uploadRate = Double.random(in: 0...20_000)      // 0-20 KB/s
+                // All synced: zero speeds (nothing to sync)
+                downloadRate = 0
+                uploadRate = 0
             } else {
                 // Mixed: realistic varied speeds
                 // Some devices transferring actively, others idle
