@@ -6,9 +6,26 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
+  ![Version](https://img.shields.io/badge/version-1.2-brightgreen)
   [![Download](https://img.shields.io/github/v/release/Xpycode/syncthingStatus?label=Download&style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   [![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
 </div>
+
+## What's New in Version 1.2
+
+### Major Improvements
+- **Redesigned UI Layout** - Ultra-compact multi-column layouts for better space utilization
+- **Collapsible Sections** - Expandable device and folder details with disclosure groups
+- **Enhanced Activity Charts** - Collapsible transfer speed charts with improved visualization
+- **Demo Mode Scenarios** - Quick test scenarios including high-speed transfers
+- **Improved Layout Stability** - Fixed header shifting issues during updates
+- **Better Data Alignment** - Standardized spacing and alignment across all views
+
+### Bug Fixes & Performance
+- Fixed layout shifting in system statistics header
+- Resolved transfer speed display alignment issues
+- Improved monospaced digit formatting for stable number displays
+- Comprehensive code quality improvements and optimized view rendering
 
 ## Features
 
@@ -29,33 +46,33 @@
 
 ## Screenshots
 
-### Popover View
-Quick status check from the menu bar - shows device name, sync status, connected devices, and folder information.
-
-![Popover View](screenshots/Popover.png)
-
 ### Main Window
-Detailed overview with system statistics, device information, and folder status.
+Compact overview with system statistics, expandable device and folder details.
 
-![Main Window - Synced](screenshots/MainWindow-synched.png)
+![Main Window - Overview](screenshotsV1.2/MainWindow-1.png)
 
-![Main Window - Syncing](screenshots/MainWindow-synching.png)
+![Main Window - Activity Charts](screenshotsV1.2/MainWindow-Activity.png)
 
-#### Detailed Views
-Expand devices and folders to see comprehensive information including connection details, transfer rates, and sync progress.
+### Popover Views
+Quick status check from the menu bar - adapts to your configuration size.
 
-![Main Window - Folder Details](screenshots/MainWindow-DetailFolder.png)
+| Small | Medium | Large |
+|-------|--------|-------|
+| ![Small](screenshotsV1.2/Popover-small.png) | ![Medium](screenshotsV1.2/Popover-medium.png) | ![Large](screenshotsV1.2/Popover-large.png) |
 
-![Main Window - Device Details](screenshots/MainWindow-DetailRemoteDevice.png)
+### Detailed Views
+Expandable sections showing comprehensive device and folder information.
 
-### Settings
-Configure connection, sync thresholds, and notifications.
+![Devices Expanded](screenshotsV1.2/MainWindow-DevicesExpanded.png)
 
-![Settings - Connection](screenshots/SettingsWindow-1.png)
+![Services Expanded](screenshotsV1.2/MainWindow-ServicesExpanded.png)
 
-![Settings - Thresholds](screenshots/SettingsWindow-2.png)
+### Settings & Demo Mode
+Configure connection, thresholds, notifications, and test with demo scenarios.
 
-![Settings - Notifications](screenshots/SettingsWindow-3.png)
+![Settings](screenshotsV1.2/Settings-1.png)
+
+![Demo Mode](screenshotsV1.2/DemoMode-QuickScenarios.png)
 
 ## Requirements
 
