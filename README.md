@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="screenshots/syncthingStatus.png" alt="syncthingStatus" width="400">
+  <img src="github/screenshots/syncthingStatus.png" alt="syncthingStatus" width="400">
   <h1>syncthingStatus</h1>
   <p>A lightweight macOS menu bar app for monitoring <a href="https://syncthing.net">Syncthing</a> status in real-time.</p>
 
@@ -51,38 +51,38 @@ The main interface - quick access from your menu bar. The size can be adjusted v
 
 | Small | Medium | Large |
 |-------|--------|-------|
-| ![Small](screenshots/Popover-small.png) | ![Medium](screenshots/Popover-medium.png) | ![Large](screenshots/Popover-large.png) |
+| ![Small](github/screenshots/Popover-small.png) | ![Medium](github/screenshots/Popover-medium.png) | ![Large](github/screenshots/Popover-large.png) |
 
 ### Main Window
 Detailed overview with system statistics, expandable device and folder details.
 
-![Main Window - Overview](screenshots/MainWindow-1.png)
+![Main Window - Overview](github/screenshots/MainWindow-1.png)
 
-![Main Window - Activity Charts](screenshots/MainWindow-Activity.png)
+![Main Window - Activity Charts](github/screenshots/MainWindow-Activity.png)
 
 ### Detailed Views
 Expandable sections showing comprehensive device and folder information.
 
-![Devices Expanded](screenshots/MainWindow-DevicesExpanded.png)
+![Devices Expanded](github/screenshots/MainWindow-DevicesExpanded.png)
 
-![Services Expanded](screenshots/MainWindow-ServicesExpanded.png)
+![Services Expanded](github/screenshots/MainWindow-ServicesExpanded.png)
 
 ### Settings
 Comprehensive configuration options for customizing the app to your needs.
 
 **Connection Settings** - Configure how the app connects to Syncthing:
-![Settings - Connection](screenshots/Settings-1.png)
+![Settings - Connection](github/screenshots/Settings-1.png)
 
 **Sync Thresholds** - Customize when devices are considered "synced":
-![Settings - Thresholds](screenshots/Settings-2.png)
+![Settings - Thresholds](github/screenshots/Settings-2.png)
 
 **General** - Launch at login settings and popover max height control (percentage of screen height):
-![Settings - Notifications](screenshots/Settings-3.png)
+![Settings - Notifications](github/screenshots/Settings-3.png)
 
 ### Demo Mode
 Test the app with simulated scenarios without affecting your actual Syncthing setup. Includes quick scenarios like "All Synced", "Syncing", "High-Speed Transfers", and more.
 
-![Demo Mode](screenshots/DemoMode-QuickScenarios.png)
+![Demo Mode](github/screenshots/DemoMode-QuickScenarios.png)
 
 ## Requirements
 
@@ -135,7 +135,7 @@ To connect to a remote Syncthing instance:
 
 ## Technical Details
 
-<img src="app-icon.png" alt="App Icon" width="64" height="64" align="right">
+<img src="github/icons/app-icon.png" alt="App Icon" width="64" height="64" align="right">
 
 Built with:
 - **SwiftUI** for modern, declarative UI

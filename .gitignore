@@ -84,9 +84,7 @@ AppVersions/
 3_ScreenshotsCoding/
 4_AppIcons/
 7_EXPORT/
-
-# Exception: screenshots folder is tracked for GitHub display
-!screenshots/
+8_forGitHub/
 
 # Screenshot files in root (keep only those in screenshots/ folder)
 /SHOTTR--*.png
