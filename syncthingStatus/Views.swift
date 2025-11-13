@@ -121,12 +121,9 @@ struct HeaderView: View {
                 Spacer()
             }
 
-            // Row 2: Status/speeds centered, buttons on right
-            HStack(alignment: .center, spacing: 8) {
-                // Left spacer to push content right
-                Spacer()
-
-                // Middle: Connection status and speeds (fixed width for stability)
+            // Row 2: Status/speeds centered with buttons overlaid on right
+            ZStack {
+                // Center layer: Connection status and speeds (absolutely centered)
                 HStack(alignment: .center, spacing: 8) {
                     if isConnected {
                         Text("Connected")
@@ -148,41 +145,39 @@ struct HeaderView: View {
                             .foregroundColor(.red)
                     }
                 }
-                .frame(minWidth: 240) // Min width to accommodate high speeds
-                .fixedSize() // Don't expand beyond content size
+                .frame(maxWidth: .infinity) // Take full width to center content
 
-                // Right spacer for balance
-                Spacer()
-
-                // Right: Buttons group (fixed size, won't expand)
-                HStack(alignment: .center, spacing: 8) {
-                    if syncthingClient.isRefreshing {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    if isConnected {
-                        Button(action: {
-                            if syncthingClient.allDevicesPaused {
-                                Task { await syncthingClient.resumeAllDevices() }
-                            } else {
-                                Task { await syncthingClient.pauseAllDevices() }
+                // Right layer: Buttons positioned on trailing edge
+                HStack {
+                    Spacer()
+                    HStack(alignment: .center, spacing: 8) {
+                        if syncthingClient.isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        if isConnected {
+                            Button(action: {
+                                if syncthingClient.allDevicesPaused {
+                                    Task { await syncthingClient.resumeAllDevices() }
+                                } else {
+                                    Task { await syncthingClient.pauseAllDevices() }
+                                }
+                            }) {
+                                Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
                             }
-                        }) {
-                            Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+                        }
+
+                        Button(action: onRefresh) {
+                            Image(systemName: "arrow.clockwise")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+                        .disabled(syncthingClient.isRefreshing)
                     }
-
-                    Button(action: onRefresh) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(syncthingClient.isRefreshing)
                 }
-                .fixedSize() // Buttons don't expand
             }
         }
     }
