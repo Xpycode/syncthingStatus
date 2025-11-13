@@ -1,6 +1,4 @@
 <div align="center">
-  <img src="app-icon.png" alt="syncthingStatus icon" width="128" height="128">
-  <br><br>
   <img src="screenshots/syncthingStatus.png" alt="syncthingStatus" width="400">
   <h1>syncthingStatus</h1>
   <p>A lightweight macOS menu bar app for monitoring <a href="https://syncthing.net">Syncthing</a> status in real-time.</p>
@@ -126,6 +124,8 @@ To connect to a remote Syncthing instance:
 4. Enter the API key (found in Syncthing's web UI under Actions → Settings → API Key)
 
 ## Technical Details
+
+<img src="app-icon.png" alt="App Icon" width="64" height="64" align="right">
 
 Built with:
 - **SwiftUI** for modern, declarative UI
