@@ -741,6 +741,42 @@ struct DeviceStatusRow: View {
         }
     }
 
+    private var completionAndRemainingColumns: some View {
+        Group {
+            // Column 3: Completion
+            VStack(alignment: .center, spacing: 2) {
+                Text("Completion")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let completion {
+                    Text(String(format: "%.2f%%", completion.completion))
+                        .font(.caption)
+                } else {
+                    Text("—")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            // Column 4: Remaining
+            VStack(alignment: .center, spacing: 2) {
+                Text("Remaining")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let completion, completion.needBytes > 0 {
+                    Text(formatBytes(completion.needBytes))
+                        .font(.caption)
+                } else {
+                    Text("—")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
     private var detailedView: some View {
         DisclosureGroup {
             VStack(spacing: 8) {
@@ -787,9 +823,11 @@ struct DeviceStatusRow: View {
 
                     Divider()
 
-                    // Row 3: Data Received, Data Sent, Completion, Remaining (4 columns, all centered)
+                    // Row 3: Conditional 4-column display
+                    // When actively transferring: Received | Sent | Download Speed | Upload Speed
+                    // When idle: Received | Sent | Completion | Remaining
                     HStack(alignment: .top, spacing: 12) {
-                        // Column 1: Data Received
+                        // Column 1: Data Received (always shown)
                         VStack(alignment: .center, spacing: 2) {
                             Text("Received")
                                 .font(.caption)
@@ -799,7 +837,7 @@ struct DeviceStatusRow: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        // Column 2: Data Sent
+                        // Column 2: Data Sent (always shown)
                         VStack(alignment: .center, spacing: 2) {
                             Text("Sent")
                                 .font(.caption)
@@ -809,70 +847,41 @@ struct DeviceStatusRow: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        // Column 3: Completion
-                        VStack(alignment: .center, spacing: 2) {
-                            Text("Completion")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            if let completion {
-                                Text(String(format: "%.2f%%", completion.completion))
-                                    .font(.caption)
-                            } else {
-                                Text("—")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        // Column 4: Remaining
-                        VStack(alignment: .center, spacing: 2) {
-                            Text("Remaining")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            if let completion, completion.needBytes > 0 {
-                                Text(formatBytes(completion.needBytes))
-                                    .font(.caption)
-                            } else {
-                                Text("—")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    if let rates = transferRates {
-                        let remoteDownloadRate = rates.uploadRate
-                        let remoteUploadRate = rates.downloadRate
-                        if remoteDownloadRate > 0 || remoteUploadRate > 0 {
-                            Divider()
-                            HStack(alignment: .top, spacing: 12) {
-                                if remoteDownloadRate > 0 {
-                                    VStack(alignment: .center, spacing: 2) {
-                                        Text("Download Speed")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(formatTransferRate(remoteDownloadRate))
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.blue)
-                                    }
-                                    .frame(maxWidth: .infinity)
+                        // Columns 3 & 4: Show speeds if actively transferring, otherwise show completion/remaining
+                        if let rates = transferRates {
+                            let remoteDownloadRate = rates.uploadRate
+                            let remoteUploadRate = rates.downloadRate
+                            if remoteDownloadRate > 0 || remoteUploadRate > 0 {
+                                // Column 3: Download Speed (when active)
+                                VStack(alignment: .center, spacing: 2) {
+                                    Text("Download")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(formatTransferRate(remoteDownloadRate))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
                                 }
-                                if remoteUploadRate > 0 {
-                                    VStack(alignment: .center, spacing: 2) {
-                                        Text("Upload Speed")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(formatTransferRate(remoteUploadRate))
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.blue)
-                                    }
-                                    .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity)
+
+                                // Column 4: Upload Speed (when active)
+                                VStack(alignment: .center, spacing: 2) {
+                                    Text("Upload")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(formatTransferRate(remoteUploadRate))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
                                 }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                // Show completion/remaining when no active transfer
+                                completionAndRemainingColumns
                             }
+                        } else {
+                            // No transfer rates available, show completion/remaining
+                            completionAndRemainingColumns
                         }
                     }
 
