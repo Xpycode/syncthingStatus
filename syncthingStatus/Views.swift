@@ -121,13 +121,12 @@ struct HeaderView: View {
                 Spacer()
             }
 
-            // Row 2: Three columns (empty, status/speeds, buttons)
-            HStack(alignment: .center, spacing: 12) {
-                // Left column: Empty (for balance)
+            // Row 2: Status/speeds centered, buttons on right
+            HStack(alignment: .center, spacing: 8) {
+                // Left spacer to push content right
                 Spacer()
-                    .frame(maxWidth: .infinity)
 
-                // Middle column: Connection status and speeds (fixed width)
+                // Middle: Connection status and speeds (fixed width for stability)
                 HStack(alignment: .center, spacing: 8) {
                     if isConnected {
                         Text("Connected")
@@ -137,9 +136,11 @@ struct HeaderView: View {
                             Text("↓ \(formatTransferRate(syncthingClient.currentDownloadSpeed))")
                                 .font(.caption2)
                                 .foregroundColor(.blue)
+                                .monospacedDigit() // Prevents width changes with different digits
                             Text("↑ \(formatTransferRate(syncthingClient.currentUploadSpeed))")
                                 .font(.caption2)
                                 .foregroundColor(.green)
+                                .monospacedDigit() // Prevents width changes with different digits
                         }
                     } else {
                         Text("Disconnected")
@@ -147,9 +148,13 @@ struct HeaderView: View {
                             .foregroundColor(.red)
                     }
                 }
-                .frame(width: 200) // Fixed width to prevent shifting
+                .frame(minWidth: 240) // Min width to accommodate high speeds
+                .fixedSize() // Don't expand beyond content size
 
-                // Right column: Buttons aligned to right
+                // Right spacer for balance
+                Spacer()
+
+                // Right: Buttons group (fixed size, won't expand)
                 HStack(alignment: .center, spacing: 8) {
                     if syncthingClient.isRefreshing {
                         ProgressView()
@@ -177,7 +182,7 @@ struct HeaderView: View {
                     .controlSize(.small)
                     .disabled(syncthingClient.isRefreshing)
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .fixedSize() // Buttons don't expand
             }
         }
     }
