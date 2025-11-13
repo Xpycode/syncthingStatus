@@ -1052,42 +1052,136 @@ struct FolderStatusRow: View {
         }
     }
 
+    private var localFilesAndSizeColumns: some View {
+        Group {
+            // Column 3: Local Files
+            VStack(alignment: .center, spacing: 2) {
+                Text("Local Files")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let status {
+                    Text("\(status.localFiles)")
+                        .font(.caption)
+                } else {
+                    Text("—")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            // Column 4: Local Size
+            VStack(alignment: .center, spacing: 2) {
+                Text("Local Size")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let status {
+                    Text(formatBytes(status.localBytes))
+                        .font(.caption)
+                } else {
+                    Text("—")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
     private var detailedView: some View {
         DisclosureGroup {
-            VStack(spacing: 6) {
-                InfoRow(label: "Path", value: folder.path)
-
+            VStack(spacing: 8) {
                 if let status {
-                    Divider()
-                    InfoRow(label: "Global Files", value: "\(status.globalFiles) files")
-                    InfoRow(label: "Global Size", value: formatBytes(status.globalBytes))
-
-                    Divider()
-                    InfoRow(label: "Local Files", value: "\(status.localFiles) files")
-                    InfoRow(label: "Local Size", value: formatBytes(status.localBytes))
-
-                    if status.needFiles > 0 {
-                        Divider()
-                        InfoRow(label: "Need to Sync", value: "\(status.needFiles) files")
-                        InfoRow(label: "Need to Sync Size", value: formatBytes(status.needBytes))
+                    // Row 2: Path (full width)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Path:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(folder.path)
+                                .font(.caption)
+                                .textSelection(.enabled)
+                        }
+                        Spacer()
                     }
+                    .padding(.leading, 48) // Align with folder name
 
+                    Divider()
+
+                    // Row 3: 4 columns - conditional display based on sync state
+                    HStack(alignment: .top, spacing: 12) {
+                        // Column 1: Global Files (always shown)
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Global Files")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(status.globalFiles)")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Column 2: Global Size (always shown)
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Global Size")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(status.globalBytes))
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Columns 3 & 4: Show sync progress if syncing, otherwise show local info
+                        if status.state == "syncing" && status.needBytes > 0 {
+                            let total = Double(status.globalBytes)
+                            let current = Double(status.localBytes)
+                            if total > 0 {
+                                let percentage = (current / total) * 100
+                                // Column 3: Progress percentage
+                                VStack(alignment: .center, spacing: 2) {
+                                    Text("Progress")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(String(format: "%.1f%%", percentage))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
+                                }
+                                .frame(maxWidth: .infinity)
+
+                                // Column 4: Remaining
+                                VStack(alignment: .center, spacing: 2) {
+                                    Text("Remaining")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(status.needFiles) files")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                localFilesAndSizeColumns
+                            }
+                        } else {
+                            localFilesAndSizeColumns
+                        }
+                    }
+                    .padding(.leading, 48) // Align with folder name
+
+                    // Progress bar if syncing
                     if status.state == "syncing", status.needBytes > 0 {
                         let total = Double(status.globalBytes)
                         let current = Double(status.localBytes)
                         if total > 0 {
-                            Divider()
-                            let percentage = (current / total) * 100
-                            InfoRow(label: "Progress", value: String(format: "%.2f%%", percentage))
-                            ProgressView(value: current / total).progressViewStyle(.linear)
-                                .padding(.vertical, 4)
+                            ProgressView(value: current / total)
+                                .progressViewStyle(.linear)
+                                .padding(.leading, 48)
                         }
                     }
                 }
             }
             .padding(.vertical, 4)
         } label: {
-            HStack {
+            HStack(alignment: .center) {
                 Button(action: {
                     if folder.paused {
                         Task { await syncthingClient.resumeFolder(folderID: folder.id) }
@@ -1102,27 +1196,17 @@ struct FolderStatusRow: View {
                 Image(systemName: "folder.fill")
                     .foregroundColor(.secondary)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(folder.label.isEmpty ? folder.id : folder.label).font(.headline)
-                    if let status {
-                        HStack(spacing: 4) {
-                            Text("\(status.localFiles) files")
-                            Text("•")
-                            Text(formatBytes(status.localBytes))
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
-                }
+                Text(folder.label.isEmpty ? folder.id : folder.label).font(.headline)
+
                 Spacer()
+
                 if let status {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(status.state.capitalized).font(.subheadline).foregroundColor(statusColor)
-                        if status.needFiles > 0 {
-                            Text("\(status.needFiles) items pending").font(.caption2).foregroundColor(.orange)
-                        } else {
-                            Text("Up to date").font(.caption2).foregroundColor(.green)
-                        }
+                    if status.state == "syncing" && status.needFiles > 0 {
+                        Text("Syncing").font(.subheadline).foregroundColor(.blue)
+                    } else if status.needFiles > 0 {
+                        Text("Idle").font(.subheadline).foregroundColor(.green)
+                    } else {
+                        Text("Up to date").font(.subheadline).foregroundColor(.green)
                     }
                 }
             }
