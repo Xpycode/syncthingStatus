@@ -46,19 +46,19 @@
 
 ## Screenshots
 
-### Main Window
-Compact overview with system statistics, expandable device and folder details.
-
-![Main Window - Overview](screenshots/MainWindow-1.png)
-
-![Main Window - Activity Charts](screenshots/MainWindow-Activity.png)
-
-### Popover Views
-Quick status check from the menu bar - adapts to your configuration size.
+### Popover - Quick Status Check
+The main interface - quick access from your menu bar. Resizable to fit your needs.
 
 | Small | Medium | Large |
 |-------|--------|-------|
 | ![Small](screenshots/Popover-small.png) | ![Medium](screenshots/Popover-medium.png) | ![Large](screenshots/Popover-large.png) |
+
+### Main Window
+Detailed overview with system statistics, expandable device and folder details.
+
+![Main Window - Overview](screenshots/MainWindow-1.png)
+
+![Main Window - Activity Charts](screenshots/MainWindow-Activity.png)
 
 ### Detailed Views
 Expandable sections showing comprehensive device and folder information.
