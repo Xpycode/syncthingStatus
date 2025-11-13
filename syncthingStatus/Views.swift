@@ -301,8 +301,8 @@ struct SystemStatisticsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     // Middle column: Local and Global Data
-                    VStack(alignment: .leading, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .center, spacing: 8) {
+                        VStack(alignment: .center, spacing: 2) {
                             Text("Local Data")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -310,7 +310,7 @@ struct SystemStatisticsView: View {
                                 .font(.title3)
                                 .fontWeight(.semibold)
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .center, spacing: 2) {
                             Text("Global Data")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -319,7 +319,7 @@ struct SystemStatisticsView: View {
                                 .fontWeight(.semibold)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                     // Right column: Total Received and Sent
                     VStack(alignment: .trailing, spacing: 8) {
