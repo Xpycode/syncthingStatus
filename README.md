@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="4_AppIcons/app-icon.png" alt="syncthingStatus icon" width="128" height="128">
+  <img src="app-icon.png" alt="syncthingStatus icon" width="128" height="128">
   <h1>syncthingStatus</h1>
   <p>A lightweight macOS menu bar app for monitoring <a href="https://syncthing.net">Syncthing</a> status in real-time.</p>
 
@@ -49,30 +49,30 @@
 ### Main Window
 Compact overview with system statistics, expandable device and folder details.
 
-![Main Window - Overview](2_LLM-Docs/screenshotsV1.2/MainWindow-1.png)
+![Main Window - Overview](screenshots/MainWindow-1.png)
 
-![Main Window - Activity Charts](2_LLM-Docs/screenshotsV1.2/MainWindow-Activity.png)
+![Main Window - Activity Charts](screenshots/MainWindow-Activity.png)
 
 ### Popover Views
 Quick status check from the menu bar - adapts to your configuration size.
 
 | Small | Medium | Large |
 |-------|--------|-------|
-| ![Small](2_LLM-Docs/screenshotsV1.2/Popover-small.png) | ![Medium](2_LLM-Docs/screenshotsV1.2/Popover-medium.png) | ![Large](2_LLM-Docs/screenshotsV1.2/Popover-large.png) |
+| ![Small](screenshots/Popover-small.png) | ![Medium](screenshots/Popover-medium.png) | ![Large](screenshots/Popover-large.png) |
 
 ### Detailed Views
 Expandable sections showing comprehensive device and folder information.
 
-![Devices Expanded](2_LLM-Docs/screenshotsV1.2/MainWindow-DevicesExpanded.png)
+![Devices Expanded](screenshots/MainWindow-DevicesExpanded.png)
 
-![Services Expanded](2_LLM-Docs/screenshotsV1.2/MainWindow-ServicesExpanded.png)
+![Services Expanded](screenshots/MainWindow-ServicesExpanded.png)
 
 ### Settings & Demo Mode
 Configure connection, thresholds, notifications, and test with demo scenarios.
 
-![Settings](2_LLM-Docs/screenshotsV1.2/Settings-1.png)
+![Settings](screenshots/Settings-1.png)
 
-![Demo Mode](2_LLM-Docs/screenshotsV1.2/DemoMode-QuickScenarios.png)
+![Demo Mode](screenshots/DemoMode-QuickScenarios.png)
 
 ## Requirements
 
