@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="screenshots/syncthingStatus.png" alt="syncthingStatus">
+  <img src="screenshots/syncthingStatus.png" alt="syncthingStatus" width="400">
   <h1>syncthingStatus</h1>
   <p>A lightweight macOS menu bar app for monitoring <a href="https://syncthing.net">Syncthing</a> status in real-time.</p>
 
