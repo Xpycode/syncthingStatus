@@ -277,68 +277,70 @@ struct SystemStatisticsView: View {
     var body: some View {
         GroupBox(label: Text("System Statistics").frame(maxWidth: .infinity, alignment: .center)) {
             VStack(spacing: 8) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Total Folders")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(syncthingClient.folders.count)")
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                // Compact layout: 3 columns (left, middle, right)
+                HStack(alignment: .top, spacing: 16) {
+                    // Left column: Folders and Devices
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Total Folders")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(syncthingClient.folders.count)")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connected Devices")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(syncthingClient.totalDevicesConnected) / \(syncthingClient.devices.count)")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Connected Devices")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(syncthingClient.totalDevicesConnected) / \(syncthingClient.devices.count)")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Divider()
+                    // Middle column: Local and Global Data
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Local Data")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(syncthingClient.totalSyncedData))
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Global Data")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(syncthingClient.totalGlobalData))
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Local Data")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(formatBytes(syncthingClient.totalSyncedData))
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                    // Right column: Total Received and Sent
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Total Received")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(syncthingClient.totalDataReceived))
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Total Sent")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(syncthingClient.totalDataSent))
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                        }
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Global Data")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(formatBytes(syncthingClient.totalGlobalData))
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                }
-
-                Divider()
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Total Received")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(formatBytes(syncthingClient.totalDataReceived))
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Total Sent")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(formatBytes(syncthingClient.totalDataSent))
-                            .font(.subheadline)
-                            .foregroundColor(.green)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if syncthingClient.currentDownloadSpeed > 0 || syncthingClient.currentUploadSpeed > 0 {
