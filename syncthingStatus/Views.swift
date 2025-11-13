@@ -787,27 +787,59 @@ struct DeviceStatusRow: View {
 
                     Divider()
 
-                    // Row 2: Data Received, Data Sent (2 columns)
+                    // Row 3: Data Received, Data Sent, Completion, Remaining (4 columns, all centered)
                     HStack(alignment: .top, spacing: 12) {
-                        // Left: Data Received
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Data Received:")
+                        // Column 1: Data Received
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Received")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text(formatBytes(connection.inBytesTotal))
                                 .font(.caption)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity)
 
-                        // Right: Data Sent
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("Data Sent:")
+                        // Column 2: Data Sent
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Sent")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text(formatBytes(connection.outBytesTotal))
                                 .font(.caption)
                         }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .frame(maxWidth: .infinity)
+
+                        // Column 3: Completion
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Completion")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if let completion {
+                                Text(String(format: "%.2f%%", completion.completion))
+                                    .font(.caption)
+                            } else {
+                                Text("—")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Column 4: Remaining
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Remaining")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if let completion, completion.needBytes > 0 {
+                                Text(formatBytes(completion.needBytes))
+                                    .font(.caption)
+                            } else {
+                                Text("—")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
 
                     if let rates = transferRates {
@@ -817,8 +849,8 @@ struct DeviceStatusRow: View {
                             Divider()
                             HStack(alignment: .top, spacing: 12) {
                                 if remoteDownloadRate > 0 {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Download Speed:")
+                                    VStack(alignment: .center, spacing: 2) {
+                                        Text("Download Speed")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text(formatTransferRate(remoteDownloadRate))
@@ -826,11 +858,11 @@ struct DeviceStatusRow: View {
                                             .fontWeight(.semibold)
                                             .foregroundColor(.blue)
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(maxWidth: .infinity)
                                 }
                                 if remoteUploadRate > 0 {
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        Text("Upload Speed:")
+                                    VStack(alignment: .center, spacing: 2) {
+                                        Text("Upload Speed")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text(formatTransferRate(remoteUploadRate))
@@ -838,41 +870,9 @@ struct DeviceStatusRow: View {
                                             .fontWeight(.semibold)
                                             .foregroundColor(.blue)
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                    .frame(maxWidth: .infinity)
                                 }
                             }
-                        }
-                    }
-
-                    if let completion {
-                        Divider()
-                        // Row 3: Completion, Remaining (2 columns)
-                        HStack(alignment: .top, spacing: 12) {
-                            // Left: Completion
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Completion:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(String(format: "%.2f%%", completion.completion))
-                                    .font(.caption)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                            // Right: Remaining
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("Remaining:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                if completion.needBytes > 0 {
-                                    Text(formatBytes(completion.needBytes))
-                                        .font(.caption)
-                                } else {
-                                    Text("—")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
 
@@ -893,7 +893,7 @@ struct DeviceStatusRow: View {
             }
             .padding(.vertical, 4)
         } label: {
-            HStack {
+            HStack(alignment: .center) {
                 Button(action: {
                     if device.paused {
                         Task { await syncthingClient.resumeDevice(deviceID: device.deviceID) }
@@ -909,13 +909,8 @@ struct DeviceStatusRow: View {
                     .foregroundColor(.secondary)
                 Text(device.name).font(.headline)
 
-                // Connected For duration
-                if let history = connectionHistory, let connectedSince = history.connectedSince {
-                    Text("•").foregroundColor(.secondary).font(.caption)
-                    Text(formatConnectionDuration(since: connectedSince)).font(.caption).foregroundColor(.secondary)
-                }
-
                 Spacer()
+
                 if device.paused {
                     Text("Paused").font(.subheadline).foregroundColor(.secondary)
                 } else if let connection, connection.connected {
