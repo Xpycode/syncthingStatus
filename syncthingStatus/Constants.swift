@@ -42,6 +42,61 @@ enum AppConstants {
 
         /// Maximum data points for transfer history charts (10 minutes at 10s intervals)
         static let maxTransferDataPoints = 60
+
+        // MARK: - Spacing
+        /// No spacing between elements
+        static let spacingNone: CGFloat = 0
+
+        /// Extra small spacing (used for tight groupings)
+        static let spacingXS: CGFloat = 2
+
+        /// Small spacing (used within related elements)
+        static let spacingS: CGFloat = 4
+
+        /// Medium spacing (default for most UI elements)
+        static let spacingM: CGFloat = 8
+
+        /// Large spacing (used between sections/groups)
+        static let spacingL: CGFloat = 12
+
+        /// Extra large spacing (used between major sections)
+        static let spacingXL: CGFloat = 16
+
+        /// Extra extra large spacing (used for major separations)
+        static let spacingXXL: CGFloat = 20
+
+        // MARK: - Padding
+        /// Minimal padding
+        static let paddingXS: CGFloat = 4
+
+        /// Standard padding
+        static let paddingS: CGFloat = 8
+
+        /// Medium padding
+        static let paddingM: CGFloat = 20
+
+        // MARK: - Sizes
+        /// Small icon size
+        static let iconSizeSmall: CGFloat = 8
+
+        /// Medium icon size
+        static let iconSizeM: CGFloat = 16
+
+        /// Label width for info rows
+        static let labelWidth: CGFloat = 120
+
+        /// Chart height
+        static let chartHeight: CGFloat = 150
+
+        /// Detail row indent (aligns with disclosure arrow + device name)
+        static let detailRowIndent: CGFloat = 48
+
+        // MARK: - Window Sizes
+        /// Popover width
+        static let popoverWidth: CGFloat = 400
+
+        /// Settings window width
+        static let settingsWidth: CGFloat = 480
     }
 
     // MARK: - Polling & Retry

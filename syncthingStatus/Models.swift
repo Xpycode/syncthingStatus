@@ -17,16 +17,16 @@ struct SyncthingConfig: Codable {
     var folders: [SyncthingFolder]
 }
 
-struct SyncthingDevice: Codable, Identifiable {
+struct SyncthingDevice: Codable, Identifiable, Equatable {
     let deviceID: String
     let name: String
     let addresses: [String]
     let paused: Bool
-    
+
     var id: String { deviceID }
 }
 
-struct SyncthingFolder: Codable, Identifiable {
+struct SyncthingFolder: Codable, Identifiable, Equatable {
     let id: String
     let label: String
     let path: String
@@ -34,11 +34,11 @@ struct SyncthingFolder: Codable, Identifiable {
     var paused: Bool
 }
 
-struct SyncthingFolderDevice: Codable {
+struct SyncthingFolderDevice: Codable, Equatable {
     let deviceID: String
 }
 
-struct SyncthingConnection: Codable {
+struct SyncthingConnection: Codable, Equatable {
     let connected: Bool
     let address: String?
     let clientVersion: String?
@@ -59,7 +59,7 @@ struct SyncthingConnectionsTotal: Codable {
     let outBytesTotal: Int64?
 }
 
-struct SyncthingFolderStatus: Codable {
+struct SyncthingFolderStatus: Codable, Equatable {
     let globalFiles: Int
     let globalBytes: Int64
     let localFiles: Int
@@ -70,20 +70,20 @@ struct SyncthingFolderStatus: Codable {
     let lastScan: String?
 }
 
-struct SyncthingDeviceCompletion: Codable {
+struct SyncthingDeviceCompletion: Codable, Equatable {
     let completion: Double
     let globalBytes: Int64
     let needBytes: Int64
 }
 
 // MARK: - Transfer Rate Tracking
-struct TransferRates {
+struct TransferRates: Equatable {
     var downloadRate: Double = 0  // bytes per second
     var uploadRate: Double = 0    // bytes per second
 }
 
 // MARK: - Connection History Tracking
-struct ConnectionHistory {
+struct ConnectionHistory: Equatable {
     var connectedSince: Date?      // When device connected
     var lastSeen: Date?            // Last time device was connected
     var isCurrentlyConnected: Bool = false
@@ -96,13 +96,22 @@ enum SyncEventType {
     case idle
 }
 
-struct SyncEvent: Identifiable {
+struct SyncEvent: Identifiable, Equatable {
     let id = UUID()
     let folderID: String
     let folderName: String
     let eventType: SyncEventType
     let timestamp: Date
     let details: String?
+
+    // Custom Equatable implementation - compare everything except UUID
+    static func == (lhs: SyncEvent, rhs: SyncEvent) -> Bool {
+        lhs.folderID == rhs.folderID &&
+        lhs.folderName == rhs.folderName &&
+        lhs.eventType == rhs.eventType &&
+        lhs.timestamp == rhs.timestamp &&
+        lhs.details == rhs.details
+    }
 }
 
 // MARK: - Time-Series Data for Charts
