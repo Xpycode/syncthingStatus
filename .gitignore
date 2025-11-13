@@ -79,6 +79,12 @@ notifications.md
 Repository-Screenshots/
 AppVersions/
 
+# Organized folders (excluded from git)
+2_ScreenshotsLLM/
+7_EXPORT/
+8_AppIcons/
+9_DOCS/
+
 # Screenshot files in root (keep only those in screenshots/ folder)
 /SHOTTR--*.png
 /LWScreenShot*.png
