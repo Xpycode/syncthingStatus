@@ -8,7 +8,7 @@
   ![License](https://img.shields.io/badge/license-MIT-green)
   ![Version](https://img.shields.io/badge/version-1.2-brightgreen)
   [![Download](https://img.shields.io/badge/Download-v1.2-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
-  ![Downloads](https://img.shields.io/badge/downloads-11-yellow?style=flat-square)
+  [![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
 </div>
 
 ## What's New in Version 1.2
