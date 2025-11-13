@@ -640,6 +640,13 @@ struct SyncthingStatusApp: App {
                                 scenario: .mixed
                             )
                         }
+                        Button("⚡️ High Speed Test (8 devices, 8 folders, 50-999 MB/s)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: 8,
+                                folderCount: 8,
+                                scenario: .highSpeed
+                            )
+                        }
                         Button("🎲 Random (1-15 devices & folders, mixed)") {
                             appDelegate.syncthingClient.enableDemoMode(
                                 deviceCount: Int.random(in: 1...15),
@@ -708,6 +715,13 @@ struct SyncthingStatusApp: App {
                                 deviceCount: appDelegate.syncthingClient.demoDeviceCount,
                                 folderCount: appDelegate.syncthingClient.demoFolderCount,
                                 scenario: .allSynced
+                            )
+                        }
+                        Button("High Speed (Test Layout Stability)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: .highSpeed
                             )
                         }
                     }

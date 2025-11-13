@@ -5,6 +5,7 @@ import UserNotifications
 enum DemoScenario {
     case mixed        // Mixed syncing states (some idle, some syncing)
     case allSynced    // Everything 100% synced - perfect for screenshots
+    case highSpeed    // High/varying transfer speeds to test layout stability
 }
 
 enum NotificationCategory: String {
@@ -1370,6 +1371,10 @@ class SyncthingClient: ObservableObject {
                     // All synced scenario: zero transfer speeds (nothing to sync)
                     downloadSpeed = 0
                     uploadSpeed = 0
+                } else if scenario == .highSpeed {
+                    // High speed scenario: Very high and varying speeds to test layout stability
+                    downloadSpeed = Double.random(in: 50_000_000...500_000_000)  // 50 MB/s - 500 MB/s
+                    uploadSpeed = Double.random(in: 10_000_000...200_000_000)    // 10 MB/s - 200 MB/s
                 } else {
                     // Mixed scenario: Some devices actively transferring
                     if j < 15 {
@@ -1401,6 +1406,10 @@ class SyncthingClient: ObservableObject {
                 // All synced: zero speeds (nothing to sync)
                 downloadRate = 0
                 uploadRate = 0
+            } else if scenario == .highSpeed {
+                // High speed: Very high speeds to test layout (e.g., 999.9 MB/s)
+                downloadRate = Double.random(in: 50_000_000...999_900_000)  // 50 MB/s - 999.9 MB/s
+                uploadRate = Double.random(in: 10_000_000...500_000_000)    // 10 MB/s - 500 MB/s
             } else {
                 // Mixed: realistic varied speeds
                 // Some devices transferring actively, others idle
@@ -1449,6 +1458,8 @@ class SyncthingClient: ObservableObject {
                 let state: String
                 if scenario == .allSynced {
                     state = "idle"  // All folders are idle/synced
+                } else if scenario == .highSpeed {
+                    state = "syncing"  // All folders actively syncing at high speed
                 } else {
                     let states = ["idle", "syncing", "syncing"]
                     state = states[i % states.count]
