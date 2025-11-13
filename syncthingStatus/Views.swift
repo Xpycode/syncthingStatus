@@ -156,7 +156,8 @@ struct HeaderView: View {
                     }) {
                         Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
                 }
                 
@@ -250,7 +251,7 @@ struct SystemStatusView: View {
     var isPopover: Bool = true
 
     var body: some View {
-        GroupBox("Local Device") {
+        GroupBox(label: Text("Local Device").frame(maxWidth: .infinity, alignment: .center)) {
             HStack {
                 Text(deviceName)
                     .fontWeight(.medium)
@@ -274,7 +275,7 @@ struct SystemStatisticsView: View {
     @ObservedObject var syncthingClient: SyncthingClient
 
     var body: some View {
-        GroupBox("System Statistics") {
+        GroupBox(label: Text("System Statistics").frame(maxWidth: .infinity, alignment: .center)) {
             VStack(spacing: 8) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -375,7 +376,7 @@ struct RemoteDevicesView: View {
     var isPopover: Bool = true
 
     var body: some View {
-        GroupBox("Remote Devices") {
+        GroupBox(label: Text("Remote Devices").frame(maxWidth: .infinity, alignment: .center)) {
             if syncthingClient.devices.isEmpty {
                 Text("No remote devices configured").foregroundColor(.secondary).padding(.vertical, 4)
             } else {
@@ -403,7 +404,7 @@ struct FolderSyncStatusView: View {
     var isPopover: Bool = true
 
     var body: some View {
-        GroupBox("Folder Sync Status") {
+        GroupBox(label: Text("Folder Sync Status").frame(maxWidth: .infinity, alignment: .center)) {
             if syncthingClient.folders.isEmpty {
                 Text("No folders configured").foregroundColor(.secondary).padding(.vertical, 4)
             } else {
@@ -422,7 +423,7 @@ struct SyncHistoryView: View {
     @State private var showAll = false
 
     var body: some View {
-        GroupBox("Recent Sync Activity") {
+        GroupBox(label: Text("Recent Sync Activity").frame(maxWidth: .infinity, alignment: .center)) {
             if events.isEmpty {
                 Text("No sync activity yet").foregroundColor(.secondary).padding(.vertical, 4)
             } else {
@@ -519,7 +520,7 @@ struct DeviceTransferSpeedChartView: View {
     }
 
     var body: some View {
-        GroupBox("\(displayName) - Transfer Speed") {
+        GroupBox(label: Text("\(displayName) - Transfer Speed").frame(maxWidth: .infinity, alignment: .center)) {
             if history.dataPoints.isEmpty {
                 Text("No data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
@@ -598,7 +599,7 @@ struct TotalTransferSpeedChartView: View {
     }
 
     var body: some View {
-        GroupBox("Total Transfer Speed") {
+        GroupBox(label: Text("Total Transfer Speed").frame(maxWidth: .infinity, alignment: .center)) {
             if history.dataPoints.isEmpty {
                 Text("No transfer data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
