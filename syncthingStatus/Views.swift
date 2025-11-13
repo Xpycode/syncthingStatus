@@ -1092,8 +1092,9 @@ struct FolderStatusRow: View {
         DisclosureGroup {
             VStack(spacing: 8) {
                 if let status {
-                    // Row 2: Path (full width)
-                    HStack {
+                    // Single row: Path + 4 data columns
+                    HStack(alignment: .top, spacing: 12) {
+                        // Left: Path
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Path:")
                                 .font(.caption)
@@ -1101,15 +1102,9 @@ struct FolderStatusRow: View {
                             Text(folder.path)
                                 .font(.caption)
                                 .textSelection(.enabled)
+                                .lineLimit(1)
                         }
-                        Spacer()
-                    }
-                    .padding(.leading, 48) // Align with folder name
-
-                    Divider()
-
-                    // Row 3: 4 columns - conditional display based on sync state
-                    HStack(alignment: .top, spacing: 12) {
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         // Column 1: Global Files (always shown)
                         VStack(alignment: .center, spacing: 2) {
                             Text("Global Files")
