@@ -496,7 +496,9 @@ struct SyncEventRow: View {
 
 struct DeviceTransferSpeedChartView: View {
     let deviceName: String
+    let deviceID: String
     let history: DeviceTransferHistory
+    @AppStorage("deviceTransferChartExpanded") private var isExpanded: Bool = true
 
     private var maxSpeed: Double {
         // Use cached max values instead of recalculating
@@ -510,7 +512,7 @@ struct DeviceTransferSpeedChartView: View {
     }
 
     var body: some View {
-        GroupBox(label: Text("\(displayName) - Transfer Speed").frame(maxWidth: .infinity, alignment: .center)) {
+        DisclosureGroup(isExpanded: $isExpanded) {
             if history.dataPoints.isEmpty {
                 Text("No data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
@@ -574,12 +576,17 @@ struct DeviceTransferSpeedChartView: View {
                 }
                 .padding(.vertical, 8)
             }
+        } label: {
+            Text("\(displayName) - Activity")
+                .frame(maxWidth: .infinity, alignment: .center)
         }
+        .groupBoxStyle(.automatic)
     }
 }
 
 struct TotalTransferSpeedChartView: View {
     let history: DeviceTransferHistory
+    @AppStorage("totalTransferChartExpanded") private var isExpanded: Bool = true
 
     private var maxSpeed: Double {
         // Use cached max values instead of recalculating
@@ -589,7 +596,7 @@ struct TotalTransferSpeedChartView: View {
     }
 
     var body: some View {
-        GroupBox(label: Text("Total Transfer Speed").frame(maxWidth: .infinity, alignment: .center)) {
+        DisclosureGroup(isExpanded: $isExpanded) {
             if history.dataPoints.isEmpty {
                 Text("No transfer data yet").foregroundColor(.secondary).padding(.vertical, 20)
             } else {
@@ -653,7 +660,11 @@ struct TotalTransferSpeedChartView: View {
                 }
                 .padding(.vertical, 8)
             }
+        } label: {
+            Text("Total Activity")
+                .frame(maxWidth: .infinity, alignment: .center)
         }
+        .groupBoxStyle(.automatic)
     }
 }
 
@@ -889,9 +900,13 @@ struct DeviceStatusRow: View {
                     }
                     .padding(.leading, 48) // Align with device name
 
-                    if let history = syncthingClient.deviceTransferHistory[device.deviceID], hasSignificantActivity(history: history) {
-                        Divider()
-                        DeviceTransferSpeedChartView(deviceName: device.name, history: history)
+                    // Always show transfer speed chart (even when empty) to prevent window jumping
+                    Divider()
+                    if let history = syncthingClient.deviceTransferHistory[device.deviceID] {
+                        DeviceTransferSpeedChartView(deviceName: device.name, deviceID: device.deviceID, history: history)
+                    } else {
+                        // Show placeholder if no history yet
+                        DeviceTransferSpeedChartView(deviceName: device.name, deviceID: device.deviceID, history: DeviceTransferHistory())
                     }
                 } else {
                     if !device.addresses.isEmpty {
