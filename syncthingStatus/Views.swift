@@ -322,50 +322,27 @@ struct SystemStatisticsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     // Right column: Total Received and Sent
-                    VStack(alignment: .leading, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        VStack(alignment: .trailing, spacing: 2) {
                             Text("Total Received")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text(formatBytes(syncthingClient.totalDataReceived))
-                                .font(.subheadline)
+                                .font(.title3)
+                                .fontWeight(.semibold)
                                 .foregroundColor(.blue)
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .trailing, spacing: 2) {
                             Text("Total Sent")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text(formatBytes(syncthingClient.totalDataSent))
-                                .font(.subheadline)
+                                .font(.title3)
+                                .fontWeight(.semibold)
                                 .foregroundColor(.green)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if syncthingClient.currentDownloadSpeed > 0 || syncthingClient.currentUploadSpeed > 0 {
-                    Divider()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Current Download")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(formatTransferRate(syncthingClient.currentDownloadSpeed))
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
-                                .fontWeight(.medium)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Current Upload")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(formatTransferRate(syncthingClient.currentUploadSpeed))
-                                .font(.subheadline)
-                                .foregroundColor(.green)
-                                .fontWeight(.medium)
-                        }
-                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
