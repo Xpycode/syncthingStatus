@@ -1224,7 +1224,7 @@ class SyncthingClient: ObservableObject {
         let shouldSaveReal = !demoMode
 
         // Generate dummy data FIRST (before touching any state)
-        let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses) =
+        let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses, dummyTransferRates) =
             generateDummyData(deviceCount: deviceCount, folderCount: folderCount, scenario: scenario)
 
         // Now update ALL state atomically
@@ -1245,9 +1245,9 @@ class SyncthingClient: ObservableObject {
         connections = dummyConnections
         folderStatuses = dummyFolderStatuses
 
-        // Clear other related states
+        // Set demo transfer rates and clear other states
+        transferRates = dummyTransferRates
         deviceCompletions = [:]
-        transferRates = [:]
         deviceHistory = [:]
         recentSyncEvents = []
     }
@@ -1255,7 +1255,8 @@ class SyncthingClient: ObservableObject {
     private func generateDummyData(deviceCount: Int, folderCount: Int, scenario: DemoScenario)
         -> (devices: [SyncthingDevice], folders: [SyncthingFolder],
             connections: [String: SyncthingConnection],
-            statuses: [String: SyncthingFolderStatus]) {
+            statuses: [String: SyncthingFolderStatus],
+            transferRates: [String: TransferRates]) {
 
         // Generate dummy devices
         var dummyDevices: [SyncthingDevice] = []
@@ -1340,6 +1341,35 @@ class SyncthingClient: ObservableObject {
             transferHistory[deviceID] = history
         }
 
+        // Generate current transfer rates (what shows in header)
+        var dummyTransferRates: [String: TransferRates] = [:]
+        for (deviceID, connection) in dummyConnections where connection.connected {
+            let downloadRate: Double
+            let uploadRate: Double
+
+            if scenario == .allSynced {
+                // All synced: very low or zero speeds
+                downloadRate = Double.random(in: 0...50_000)    // 0-50 KB/s
+                uploadRate = Double.random(in: 0...20_000)      // 0-20 KB/s
+            } else {
+                // Mixed: realistic varied speeds
+                // Some devices transferring actively, others idle
+                let isActive = Bool.random()
+                if isActive {
+                    downloadRate = Double.random(in: 500_000...25_000_000)  // 500 KB/s - 25 MB/s
+                    uploadRate = Double.random(in: 100_000...5_000_000)     // 100 KB/s - 5 MB/s
+                } else {
+                    downloadRate = Double.random(in: 0...100_000)  // 0-100 KB/s
+                    uploadRate = Double.random(in: 0...50_000)     // 0-50 KB/s
+                }
+            }
+
+            dummyTransferRates[deviceID] = TransferRates(
+                downloadRate: downloadRate,
+                uploadRate: uploadRate
+            )
+        }
+
         // Generate dummy folders
         var dummyFolders: [SyncthingFolder] = []
         var dummyFolderStatuses: [String: SyncthingFolderStatus] = [:]
@@ -1412,7 +1442,7 @@ class SyncthingClient: ObservableObject {
             }
         }
 
-        return (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses)
+        return (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses, dummyTransferRates)
     }
 
     func disableDemoMode() {
