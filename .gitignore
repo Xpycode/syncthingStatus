@@ -80,10 +80,10 @@ Repository-Screenshots/
 AppVersions/
 
 # Organized folders (excluded from git)
-2_ScreenshotsLLM/
+2_LLM-Docs/
+3_ScreenshotsCoding/
+4_AppIcons/
 7_EXPORT/
-8_AppIcons/
-9_DOCS/
 
 # Screenshot files in root (keep only those in screenshots/ folder)
 /SHOTTR--*.png
