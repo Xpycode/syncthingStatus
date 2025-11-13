@@ -23,9 +23,13 @@ ProjectName/
 ├── 5_Marketing/                # Marketing materials (IGNORED)
 ├── 6_Design/                   # Design assets & mockups (IGNORED)
 ├── 7_EXPORT/                   # Distribution files & builds (IGNORED)
-├── 8_forGitHub/                # GitHub-specific files (TRACKED)
+├── 8_forGitHub/                # Deprecated - use github/ instead (IGNORED)
 ├── 9_Tests/                    # Test artifacts (OPTIONAL TRACK)
 ├── 10_Dependencies/            # External dependencies (IGNORED)
+├── github/                     # GitHub display files (TRACKED)
+│   ├── screenshots/            # Screenshots for README
+│   ├── icons/                  # App icons and social preview
+│   └── releases/               # DMG files for distribution (optional)
 ├── docs/                       # GitHub Pages (TRACKED, must be in root)
 ├── .github/                    # GitHub config (TRACKED)
 ├── README.md                   # Project README (TRACKED)
@@ -147,15 +151,21 @@ ProjectName/
 
 ---
 
-### 🔵 8_forGitHub/ - GitHub Assets (TRACKED)
-**What:** Files specifically for GitHub repository display
+### 🔵 github/ - GitHub Display Files (TRACKED)
+**What:** All files needed for GitHub repository display
 **Contains:**
-- `repo-social-preview.png` - GitHub social preview (1280x640)
-- `issue-templates/` - GitHub issue templates
-- `pull-request-template.md` - PR template
-- `CONTRIBUTING.md` - Contribution guidelines
+- `screenshots/` - Screenshots for README (all app screenshots)
+- `icons/` - App icons and branding
+  - `app-icon.png` - Main app icon for README
+  - `repo-social-preview.png` - GitHub social preview (1280x640)
+- `releases/` - DMG distribution files (optional)
+  - `ProjectName-v1.0.dmg`
+  - `ProjectName-v1.1.dmg`
+  - `ProjectName-v1.2.dmg`
 
-**Why tracked:** These enhance the GitHub repository experience.
+**Why tracked:** These files are displayed on GitHub - screenshots in README, icons for branding, and optionally DMG files for easy access (though GitHub Releases is recommended for large binaries).
+
+**Note:** This replaces the old `8_forGitHub/` folder and scattered `screenshots/` + `app-icon.png` in root. Everything GitHub needs is now in one organized location.
 
 ---
 
@@ -248,6 +258,7 @@ playground.xcworkspace
 5_Marketing/
 6_Design/
 7_EXPORT/
+8_forGitHub/
 9_Tests/
 10_Dependencies/
 

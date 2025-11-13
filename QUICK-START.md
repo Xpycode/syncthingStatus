@@ -42,6 +42,7 @@ git push
 
 ```bash
 mkdir -p 1_Xcode
+mkdir -p github/{screenshots,icons,releases}
 mkdir -p 2_LLM-Docs/SessionLogs
 mkdir -p 3_ScreenshotsCoding/{Bugs,UI-Issues}
 mkdir -p 4_AppIcons
@@ -52,13 +53,13 @@ mkdir -p 7_EXPORT/Releases
 
 ```bash
 mkdir -p 1_Xcode
+mkdir -p github/{screenshots,icons,releases}
 mkdir -p 2_LLM-Docs/SessionLogs
 mkdir -p 3_ScreenshotsCoding/{Bugs,UI-Issues,Crashes,Performance}
 mkdir -p 4_AppIcons/variations
 mkdir -p 5_Marketing/{Screenshots,Descriptions,Videos}
 mkdir -p 6_Design/{Mockups,Prototypes,ColorSchemes}
 mkdir -p 7_EXPORT/{Releases,Beta,Archives}
-mkdir -p 8_forGitHub
 mkdir -p 9_Tests/{TestPlans,TestResults,Coverage}
 mkdir -p 10_Dependencies/{Frameworks,Licenses}
 ```
@@ -68,13 +69,13 @@ mkdir -p 10_Dependencies/{Frameworks,Licenses}
 | Folder | Description | Examples |
 |--------|-------------|----------|
 | **1_Xcode/** | Xcode project & source | `*.xcodeproj`, `*.swift`, `Assets.xcassets` |
+| **github/** | GitHub display files | Screenshots, icons, DMG releases |
 | **2_LLM-Docs/** | AI sessions & planning | `SessionLog-2025-11-13.md`, `Roadmap.md` |
 | **3_ScreenshotsCoding/** | Debug screenshots | Bug screenshots, error messages |
-| **4_AppIcons/** | App icons & branding | `app-icon.png`, design source files |
+| **4_AppIcons/** | App icons backup | `app-icon.png`, design source files |
 | **5_Marketing/** | App Store materials | Screenshots, descriptions, videos |
 | **6_Design/** | UI/UX design files | Figma/Sketch files, mockups |
-| **7_EXPORT/** | Built apps & releases | `.dmg`, `.app`, `.ipa` files |
-| **8_forGitHub/** | GitHub assets | Social preview, issue templates |
+| **7_EXPORT/** | Built apps backup | `.dmg`, `.app`, `.ipa` files |
 | **9_Tests/** | Testing artifacts | Test plans, results, coverage |
 | **10_Dependencies/** | External libraries | Frameworks, licenses |
 
@@ -98,6 +99,7 @@ DerivedData/
 5_Marketing/
 6_Design/
 7_EXPORT/
+8_forGitHub/
 9_Tests/
 10_Dependencies/
 ```
@@ -149,9 +151,9 @@ DerivedData/
 - Git will track it as a rename, preserving history
 
 ### "Images not showing in README"
-- Update README.md image paths:
-  - Old: `![Icon](app-icon.png)`
-  - New: `![Icon](4_AppIcons/app-icon.png)`
+- Update README.md image paths to use github/ folder:
+  - Old: `![Icon](app-icon.png)` or `![Icon](screenshots/image.png)`
+  - New: `![Icon](github/icons/app-icon.png)` or `![Icon](github/screenshots/image.png)`
 
 ### "I need to add more folders"
 - Add to numbered sequence: `11_Legal/`, `12_Analytics/`

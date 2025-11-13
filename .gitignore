@@ -90,8 +90,8 @@ AppVersions/
 /SHOTTR--*.png
 /LWScreenShot*.png
 
-# Old distribution files (keep only latest)
-syncthingStatus-v1.0.dmg
+# Old distribution files in root (deprecated - now in github/releases/)
+# Note: github/releases/ DMGs are tracked
 
 # fastlane
 #

@@ -88,6 +88,12 @@ echo ""
 echo -e "${BLUE}Essential Folders:${NC}"
 create_dir "1_Xcode" "Xcode project & source code (TRACKED)"
 
+create_dir "github" "GitHub display files (TRACKED)"
+create_dir "github/screenshots" "Screenshots for README"
+create_dir "github/icons" "App icons and social preview"
+create_dir "github/releases" "DMG files (optional)"
+create_readme "github" "GitHub Display Files" "All files needed for GitHub repository display - screenshots, icons, and optionally release DMGs."
+
 create_dir "2_LLM-Docs" "LLM sessions & planning (IGNORED)"
 create_dir "2_LLM-Docs/SessionLogs" "Conversation logs with AI"
 create_readme "2_LLM-Docs" "LLM Documentation" "This folder contains AI interaction logs, planning documents, and analysis."
@@ -98,11 +104,11 @@ create_dir "3_ScreenshotsCoding/UI-Issues" "UI/UX issues"
 create_readme "3_ScreenshotsCoding" "Coding Screenshots" "Screenshots for debugging and sharing with LLMs or team members."
 
 create_dir "4_AppIcons" "Icon design & assets (IGNORED)"
-create_readme "4_AppIcons" "App Icons & Branding" "App icons, logo files, and branding assets."
+create_readme "4_AppIcons" "App Icons & Branding" "App icons, logo files, and branding assets (backups - use github/icons/ for tracked versions)."
 
 create_dir "7_EXPORT" "Distribution files & builds (IGNORED)"
 create_dir "7_EXPORT/Releases" "Released versions"
-create_readme "7_EXPORT" "Distribution Files" "Built applications, DMGs, and distribution packages."
+create_readme "7_EXPORT" "Distribution Files" "Built applications, DMGs, and distribution packages (backups - use github/releases/ for tracked versions)."
 
 echo ""
 
@@ -120,8 +126,7 @@ if [ "$MODE" == "full" ]; then
     create_dir "6_Design/Prototypes" "Interactive prototypes"
     create_readme "6_Design" "Design Assets" "UI/UX design files, mockups, and prototypes."
 
-    create_dir "8_forGitHub" "GitHub-specific files (TRACKED)"
-    create_readme "8_forGitHub" "GitHub Assets" "Files for GitHub repository display (social previews, templates)."
+    # Note: 8_forGitHub is deprecated - using github/ folder instead
 
     create_dir "9_Tests" "Test artifacts (OPTIONAL TRACK)"
     create_dir "9_Tests/TestPlans" "Manual test plans"
@@ -172,6 +177,7 @@ playground.xcworkspace
 5_Marketing/
 6_Design/
 7_EXPORT/
+8_forGitHub/
 9_Tests/
 10_Dependencies/
 EOF
