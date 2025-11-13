@@ -743,52 +743,139 @@ struct DeviceStatusRow: View {
 
     private var detailedView: some View {
         DisclosureGroup {
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 if let connection, connection.connected {
-                    if let address = connection.address {
-                        InfoRow(label: "Address", value: address, isMonospaced: true)
-                    }
-                    if let type = connection.type {
-                        InfoRow(label: "Connection Type", value: type)
-                    }
-                    if let version = connection.clientVersion {
-                        InfoRow(label: "Client Version", value: version)
+                    // Row 1: Address, Connection Type, Client Version (3 columns)
+                    HStack(alignment: .top, spacing: 12) {
+                        // Left: Address
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Address:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if let address = connection.address {
+                                Text(address)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                            } else {
+                                Text("—")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Middle: Connection Type
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Connection Type:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(connection.type ?? "—")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                        // Right: Client Version
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Client Version:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(connection.clientVersion ?? "—")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
                     Divider()
 
-                    InfoRow(label: "Data Received", value: formatBytes(connection.inBytesTotal))
-                    InfoRow(label: "Data Sent", value: formatBytes(connection.outBytesTotal))
+                    // Row 2: Data Received, Data Sent (2 columns)
+                    HStack(alignment: .top, spacing: 12) {
+                        // Left: Data Received
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Data Received:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(connection.inBytesTotal))
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Right: Data Sent
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Data Sent:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(formatBytes(connection.outBytesTotal))
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
 
                     if let rates = transferRates {
                         let remoteDownloadRate = rates.uploadRate
                         let remoteUploadRate = rates.downloadRate
                         if remoteDownloadRate > 0 || remoteUploadRate > 0 {
                             Divider()
-                            if remoteDownloadRate > 0 {
-                                InfoRow(label: "Download Speed", value: formatTransferRate(remoteDownloadRate), isHighlighted: true)
-                            }
-                            if remoteUploadRate > 0 {
-                                InfoRow(label: "Upload Speed", value: formatTransferRate(remoteUploadRate), isHighlighted: true)
+                            HStack(alignment: .top, spacing: 12) {
+                                if remoteDownloadRate > 0 {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Download Speed:")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Text(formatTransferRate(remoteDownloadRate))
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.blue)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                if remoteUploadRate > 0 {
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text("Upload Speed:")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Text(formatTransferRate(remoteUploadRate))
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.blue)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                }
                             }
                         }
                     }
 
                     if let completion {
                         Divider()
-                        InfoRow(label: "Completion", value: String(format: "%.2f%%", completion.completion))
-                        if completion.needBytes > 0 {
-                            InfoRow(label: "Remaining", value: formatBytes(completion.needBytes))
+                        // Row 3: Completion, Remaining (2 columns)
+                        HStack(alignment: .top, spacing: 12) {
+                            // Left: Completion
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Completion:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(String(format: "%.2f%%", completion.completion))
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            // Right: Remaining
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Remaining:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                if completion.needBytes > 0 {
+                                    Text(formatBytes(completion.needBytes))
+                                        .font(.caption)
+                                } else {
+                                    Text("—")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
 
-                    if let history = connectionHistory {
-                        Divider()
-                        if let connectedSince = history.connectedSince {
-                            InfoRow(label: "Connected For", value: formatConnectionDuration(since: connectedSince))
-                        }
-                    }
-                    
                     if let history = syncthingClient.deviceTransferHistory[device.deviceID], hasSignificantActivity(history: history) {
                         Divider()
                         DeviceTransferSpeedChartView(deviceName: device.name, history: history)
@@ -821,6 +908,13 @@ struct DeviceStatusRow: View {
                 Image(systemName: "laptopcomputer")
                     .foregroundColor(.secondary)
                 Text(device.name).font(.headline)
+
+                // Connected For duration
+                if let history = connectionHistory, let connectedSince = history.connectedSince {
+                    Text("•").foregroundColor(.secondary).font(.caption)
+                    Text(formatConnectionDuration(since: connectedSince)).font(.caption).foregroundColor(.secondary)
+                }
+
                 Spacer()
                 if device.paused {
                     Text("Paused").font(.subheadline).foregroundColor(.secondary)
