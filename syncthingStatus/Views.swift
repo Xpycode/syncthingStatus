@@ -111,15 +111,25 @@ struct HeaderView: View {
     let onRefresh: () -> Void
     
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            Spacer(minLength: 0)
-
-            VStack(alignment: .center, spacing: 4) {
+        VStack(spacing: 4) {
+            // Row 1: App title centered
+            HStack {
+                Spacer()
                 Text("syncthingStatus")
                     .font(.headline)
                     .multilineTextAlignment(.center)
-                if isConnected {
-                    HStack(alignment: .center, spacing: 8) {
+                Spacer()
+            }
+
+            // Row 2: Three columns (empty, status/speeds, buttons)
+            HStack(alignment: .center, spacing: 12) {
+                // Left column: Empty (for balance)
+                Spacer()
+                    .frame(maxWidth: .infinity)
+
+                // Middle column: Connection status and speeds (fixed width)
+                HStack(alignment: .center, spacing: 8) {
+                    if isConnected {
                         Text("Connected")
                             .font(.caption)
                             .foregroundColor(.green)
@@ -131,42 +141,43 @@ struct HeaderView: View {
                                 .font(.caption2)
                                 .foregroundColor(.green)
                         }
+                    } else {
+                        Text("Disconnected")
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
-                } else {
-                    Text("Disconnected")
-                        .font(.caption)
-                        .foregroundColor(.red)
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .layoutPriority(1)
+                .frame(width: 200) // Fixed width to prevent shifting
 
-            HStack(alignment: .bottom, spacing: 8) {
-                if syncthingClient.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                if isConnected {
-                    Button(action: {
-                        if syncthingClient.allDevicesPaused {
-                            Task { await syncthingClient.resumeAllDevices() }
-                        } else {
-                            Task { await syncthingClient.pauseAllDevices() }
+                // Right column: Buttons aligned to right
+                HStack(alignment: .center, spacing: 8) {
+                    if syncthingClient.isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    if isConnected {
+                        Button(action: {
+                            if syncthingClient.allDevicesPaused {
+                                Task { await syncthingClient.resumeAllDevices() }
+                            } else {
+                                Task { await syncthingClient.pauseAllDevices() }
+                            }
+                        }) {
+                            Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
                         }
-                    }) {
-                        Image(systemName: syncthingClient.allDevicesPaused ? "play.circle.fill" : "pause.circle.fill")
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+                    }
+
+                    Button(action: onRefresh) {
+                        Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .help(syncthingClient.allDevicesPaused ? "Resume All Devices" : "Pause All Devices")
+                    .disabled(syncthingClient.isRefreshing)
                 }
-                
-                Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(syncthingClient.isRefreshing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
     }
