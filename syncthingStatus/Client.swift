@@ -2,6 +2,11 @@ import Foundation
 import Combine
 import UserNotifications
 
+enum DemoScenario {
+    case mixed        // Mixed syncing states (some idle, some syncing)
+    case allSynced    // Everything 100% synced - perfect for screenshots
+}
+
 enum NotificationCategory: String {
     case folderPaused
     case folderResumed
@@ -134,10 +139,11 @@ class SyncthingClient: ObservableObject {
     @Published var syncthingVersion: String?
     @Published var lastGlobalSyncNotificationSentAt: Date?
 
-    // Debug mode
-    @Published var debugMode = false
-    @Published var debugDeviceCount = 0
-    @Published var debugFolderCount = 0
+    // Demo mode - shows realistic preview data for screenshots and testing
+    @Published var demoMode = false
+    @Published var demoDeviceCount = 0
+    @Published var demoFolderCount = 0
+    @Published var demoScenario: DemoScenario = .mixed  // mixed syncing states or all synced
     private var realDevices: [SyncthingDevice] = []
     private var realFolders: [SyncthingFolder] = []
     private var realConnections: [String: SyncthingConnection] = [:]
@@ -536,7 +542,7 @@ class SyncthingClient: ObservableObject {
             self.realFolders = config.folders
             
             // Only update the published properties if not in debug mode
-            if !debugMode {
+            if !demoMode {
                 self.devices = remoteDevices
                 self.folders = config.folders
             }
@@ -544,7 +550,7 @@ class SyncthingClient: ObservableObject {
             let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
             print(errorMessage)
             // Only update UI-facing properties if not in debug mode
-            if !debugMode {
+            if !demoMode {
                 self.lastErrorMessage = errorMessage
                 if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
                     if code == 401 || code == 403 {
@@ -563,7 +569,7 @@ class SyncthingClient: ObservableObject {
             self.realConnections = connectionsResponse.connections
             
             // Only update the published properties if not in debug mode
-            if !debugMode {
+            if !demoMode {
                 self.updateConnectionHistory(newConnections: connectionsResponse.connections)
                 self.calculateTransferRates(newConnections: connectionsResponse.connections)
                 self.connections = connectionsResponse.connections
@@ -571,7 +577,7 @@ class SyncthingClient: ObservableObject {
         } catch {
             let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
             print(errorMessage)
-            if !debugMode {
+            if !demoMode {
                 self.lastErrorMessage = errorMessage
                 if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
                     if code == 401 || code == 403 {
@@ -679,14 +685,14 @@ class SyncthingClient: ObservableObject {
                 let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
                 self.realFolderStatuses[folder.id] = status // Update the cache
                 
-                if !debugMode {
+                if !demoMode {
                     self.folderStatuses[folder.id] = status
                     self.trackSyncEvent(folder: folder, status: status)
                 }
             } catch {
                 let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
                 print(errorMessage)
-                if !debugMode {
+                if !demoMode {
                     self.lastErrorMessage = errorMessage
                     if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
                         if code == 401 || code == 403 {
@@ -976,13 +982,13 @@ class SyncthingClient: ObservableObject {
                 let completion = try await makeRequest(path: "db/completion", queryItems: [URLQueryItem(name: "device", value: device.deviceID)], responseType: SyncthingDeviceCompletion.self)
                 // No separate cache for completions, as they are keyed by real device IDs.
                 // We can just update the main dictionary.
-                if !debugMode {
+                if !demoMode {
                     self.deviceCompletions[device.deviceID] = completion
                 }
             } catch {
                 let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
                 print(errorMessage)
-                if !debugMode {
+                if !demoMode {
                     self.lastErrorMessage = errorMessage
                     if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
                         if code == 401 || code == 403 {
@@ -997,7 +1003,7 @@ class SyncthingClient: ObservableObject {
     @MainActor
     private func handleDisconnectedState() {
         isConnected = false
-        if !debugMode {
+        if !demoMode {
             devices = []
             folders = []
             connections = [:]
@@ -1207,19 +1213,19 @@ class SyncthingClient: ObservableObject {
         await setFolderPausedState(folderID: folderID, paused: false)
     }
 
-    // MARK: - Debug Mode
-    func enableDebugMode(deviceCount: Int, folderCount: Int) {
-        // If both counts are 0, disable debug mode entirely
+    // MARK: - Demo Mode
+    func enableDemoMode(deviceCount: Int, folderCount: Int, scenario: DemoScenario = .mixed) {
+        // If both counts are 0, disable demo mode entirely
         if deviceCount == 0 && folderCount == 0 {
-            disableDebugMode()
+            disableDemoMode()
             return
         }
 
-        let shouldSaveReal = !debugMode
+        let shouldSaveReal = !demoMode
 
         // Generate dummy data FIRST (before touching any state)
         let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses) =
-            generateDummyData(deviceCount: deviceCount, folderCount: folderCount)
+            generateDummyData(deviceCount: deviceCount, folderCount: folderCount, scenario: scenario)
 
         // Now update ALL state atomically
         if shouldSaveReal {
@@ -1230,9 +1236,10 @@ class SyncthingClient: ObservableObject {
         }
 
         // Update all state together to minimize race condition window
-        debugMode = true
-        debugDeviceCount = deviceCount
-        debugFolderCount = folderCount
+        demoMode = true
+        demoDeviceCount = deviceCount
+        demoFolderCount = folderCount
+        demoScenario = scenario
         devices = dummyDevices
         folders = dummyFolders
         connections = dummyConnections
@@ -1245,7 +1252,7 @@ class SyncthingClient: ObservableObject {
         recentSyncEvents = []
     }
 
-    private func generateDummyData(deviceCount: Int, folderCount: Int)
+    private func generateDummyData(deviceCount: Int, folderCount: Int, scenario: DemoScenario)
         -> (devices: [SyncthingDevice], folders: [SyncthingFolder],
             connections: [String: SyncthingConnection],
             statuses: [String: SyncthingFolderStatus]) {
@@ -1297,6 +1304,42 @@ class SyncthingClient: ObservableObject {
             }
         }
 
+        // Generate transfer history with realistic speeds for connected devices
+        // This will accumulate for total transfer speed display
+        for (deviceID, connection) in dummyConnections where connection.connected {
+            var history = DeviceTransferHistory()
+
+            // Generate some recent transfer data points
+            for j in 0..<30 {  // 30 data points
+                // Generate realistic variable speeds (0 KB/s to 50 MB/s)
+                let downloadSpeed: Double
+                let uploadSpeed: Double
+
+                if scenario == .allSynced {
+                    // All synced scenario: minimal or zero transfer speeds
+                    downloadSpeed = Double.random(in: 0...100_000)  // 0-100 KB/s
+                    uploadSpeed = Double.random(in: 0...100_000)
+                } else {
+                    // Mixed scenario: Some devices actively transferring
+                    if j < 15 {
+                        // Earlier data points: higher activity
+                        downloadSpeed = Double.random(in: 100_000...50_000_000)  // 100 KB/s - 50 MB/s
+                        uploadSpeed = Double.random(in: 50_000...10_000_000)     // 50 KB/s - 10 MB/s
+                    } else {
+                        // Recent data points: tapering off
+                        downloadSpeed = Double.random(in: 0...5_000_000)  // 0-5 MB/s
+                        uploadSpeed = Double.random(in: 0...1_000_000)    // 0-1 MB/s
+                    }
+                }
+
+                history.addDataPoint(downloadRate: downloadSpeed, uploadRate: uploadSpeed)
+                // Small delay to spread data points over time
+                Thread.sleep(forTimeInterval: 0.001)
+            }
+
+            transferHistory[deviceID] = history
+        }
+
         // Generate dummy folders
         var dummyFolders: [SyncthingFolder] = []
         var dummyFolderStatuses: [String: SyncthingFolderStatus] = [:]
@@ -1321,8 +1364,15 @@ class SyncthingClient: ObservableObject {
                 let folderName = folderNames[(i - 1) % folderNames.count]
                 let folderID = folderName.lowercased().replacingOccurrences(of: "-", with: "")
                 let folderPath = folderPaths[(i - 1) % folderPaths.count]
-                let states = ["idle", "syncing", "syncing"]
-                let state = states[i % states.count]
+
+                // Determine state based on scenario
+                let state: String
+                if scenario == .allSynced {
+                    state = "idle"  // All folders are idle/synced
+                } else {
+                    let states = ["idle", "syncing", "syncing"]
+                    state = states[i % states.count]
+                }
 
                 dummyFolders.append(SyncthingFolder(
                     id: folderID,
@@ -1365,11 +1415,12 @@ class SyncthingClient: ObservableObject {
         return (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses)
     }
 
-    func disableDebugMode() {
-        guard debugMode else { return }
-        debugMode = false
-        debugDeviceCount = 0
-        debugFolderCount = 0
+    func disableDemoMode() {
+        guard demoMode else { return }
+        demoMode = false
+        demoDeviceCount = 0
+        demoFolderCount = 0
+        demoScenario = .mixed  // Reset to default
 
         // Restore real data from the cache
         devices = realDevices

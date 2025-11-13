@@ -624,79 +624,96 @@ struct SyncthingStatusApp: App {
                 SettingsCommandBridge(appDelegate: appDelegate)
             }
             CommandGroup(after: .windowArrangement) {
-                Menu("Debug") {
+                Menu("Demo Mode") {
+                    Menu("Quick Scenarios") {
+                        Button("📸 Screenshot Perfect (5 devices, 8 folders, all synced)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: 5,
+                                folderCount: 8,
+                                scenario: .allSynced
+                            )
+                        }
+                        Button("🔄 Active Syncing (10 devices, 10 folders, mixed)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: 10,
+                                folderCount: 10,
+                                scenario: .mixed
+                            )
+                        }
+                        Button("🎲 Random (1-15 devices & folders, mixed)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: Int.random(in: 1...15),
+                                folderCount: Int.random(in: 1...16),
+                                scenario: .mixed
+                            )
+                        }
+                    }
+                    Divider()
                     Menu("Devices") {
                         Button("5 Devices") {
-                            appDelegate.syncthingClient.enableDebugMode(
+                            appDelegate.syncthingClient.enableDemoMode(
                                 deviceCount: 5,
-                                folderCount: appDelegate.syncthingClient.debugFolderCount
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
                         }
                         Button("10 Devices") {
-                            appDelegate.syncthingClient.enableDebugMode(
+                            appDelegate.syncthingClient.enableDemoMode(
                                 deviceCount: 10,
-                                folderCount: appDelegate.syncthingClient.debugFolderCount
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
                         }
                         Button("15 Devices") {
-                            appDelegate.syncthingClient.enableDebugMode(
+                            appDelegate.syncthingClient.enableDemoMode(
                                 deviceCount: 15,
-                                folderCount: appDelegate.syncthingClient.debugFolderCount
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
-                        }
-                        Divider()
-                        Button("No Debug Devices") {
-                            appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: 0,
-                                folderCount: appDelegate.syncthingClient.debugFolderCount
-                            )
-                        }
-                        Button("Disable All Debug Data") {
-                            appDelegate.syncthingClient.disableDebugMode()
                         }
                     }
                     Menu("Folders") {
                         Button("5 Folders") {
-                            appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
-                                folderCount: 5
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: 5,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
                         }
                         Button("10 Folders") {
-                            appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
-                                folderCount: 10
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: 10,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
                         }
                         Button("15 Folders") {
-                            appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
-                                folderCount: 15
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: 15,
+                                scenario: appDelegate.syncthingClient.demoScenario
                             )
                         }
-                        Divider()
-                        Button("No Debug Folders") {
-                            appDelegate.syncthingClient.enableDebugMode(
-                                deviceCount: appDelegate.syncthingClient.debugDeviceCount,
-                                folderCount: 0
+                    }
+                    Menu("Scenario") {
+                        Button("Mixed (Some Syncing)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: .mixed
                             )
                         }
-                        Button("Disable All Debug Data") {
-                            appDelegate.syncthingClient.disableDebugMode()
+                        Button("All Synced (Perfect for Screenshots)") {
+                            appDelegate.syncthingClient.enableDemoMode(
+                                deviceCount: appDelegate.syncthingClient.demoDeviceCount,
+                                folderCount: appDelegate.syncthingClient.demoFolderCount,
+                                scenario: .allSynced
+                            )
                         }
                     }
                     Divider()
-                    Button("Random Devices & Folders") {
-                        let randomDevices = Int.random(in: 1...15)
-                        let randomFolders = Int.random(in: 1...16)
-                        appDelegate.syncthingClient.enableDebugMode(
-                            deviceCount: randomDevices,
-                            folderCount: randomFolders
-                        )
-                    }
-                    Divider()
-                    Button("Disable All Debug Data") {
-                        appDelegate.syncthingClient.disableDebugMode()
+                    Button("Disable Demo Mode") {
+                        appDelegate.syncthingClient.disableDemoMode()
                     }
                 }
             }
