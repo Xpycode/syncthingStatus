@@ -47,7 +47,7 @@
 ## Screenshots
 
 ### Popover - Quick Status Check
-The main interface - quick access from your menu bar. Resizable to fit your needs.
+The main interface - quick access from your menu bar. **Fully resizable** - simply drag the edges to adjust the size to your preference. The popover adapts to show more or less information based on the size you choose.
 
 | Small | Medium | Large |
 |-------|--------|-------|
@@ -67,10 +67,20 @@ Expandable sections showing comprehensive device and folder information.
 
 ![Services Expanded](screenshots/MainWindow-ServicesExpanded.png)
 
-### Settings & Demo Mode
-Configure connection, thresholds, notifications, and test with demo scenarios.
+### Settings
+Comprehensive configuration options for customizing the app to your needs.
 
-![Settings](screenshots/Settings-1.png)
+**Connection Settings** - Configure how the app connects to Syncthing:
+![Settings - Connection](screenshots/Settings-1.png)
+
+**Sync Thresholds** - Customize when devices are considered "synced":
+![Settings - Thresholds](screenshots/Settings-2.png)
+
+**Notifications & Appearance** - Control notifications, popover behavior, and UI preferences:
+![Settings - Notifications](screenshots/Settings-3.png)
+
+### Demo Mode
+Test the app with simulated scenarios without affecting your actual Syncthing setup. Includes quick scenarios like "All Synced", "Syncing", "High-Speed Transfers", and more.
 
 ![Demo Mode](screenshots/DemoMode-QuickScenarios.png)
 
