@@ -47,7 +47,7 @@
 ## Screenshots
 
 ### Popover - Quick Status Check
-The main interface - quick access from your menu bar. The size can be adjusted via Settings (see Notifications & Appearance section) using the popover max height and percentage sliders.
+The main interface - quick access from your menu bar. The size can be adjusted via Settings (General tab) using the popover max height and percentage sliders.
 
 | Small | Medium | Large |
 |-------|--------|-------|
@@ -76,7 +76,7 @@ Comprehensive configuration options for customizing the app to your needs.
 **Sync Thresholds** - Customize when devices are considered "synced":
 ![Settings - Thresholds](screenshots/Settings-2.png)
 
-**Notifications & Appearance** - Control notifications, popover behavior (max height and percentage sliders), and UI preferences:
+**General Settings** - Control popover size (max height and percentage sliders), notifications, and UI preferences:
 ![Settings - Notifications](screenshots/Settings-3.png)
 
 ### Demo Mode
