@@ -8,7 +8,7 @@
   ![License](https://img.shields.io/badge/license-MIT-green)
   ![Version](https://img.shields.io/badge/version-1.2-brightgreen)
   [![Download](https://img.shields.io/badge/Download-v1.2-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
-  [![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases)
+  ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
 ## What's New in Version 1.2
@@ -70,19 +70,29 @@ Expandable sections showing comprehensive device and folder information.
 ### Settings
 Comprehensive configuration options for customizing the app to your needs.
 
-**Connection Settings** - Configure how the app connects to Syncthing:
-![Settings - Connection](github/screenshots/Settings-1.png)
+**General & Connection Mode** - Launch at login settings, popover max height control, and connection mode:
+![Settings - General](github/screenshots/Settings-1.png)
 
-**Sync Thresholds** - Customize when devices are considered "synced":
-![Settings - Thresholds](github/screenshots/Settings-2.png)
+**Manual Configuration & Sync Thresholds** - Manual connection settings and sync completion thresholds:
+![Settings - Manual](github/screenshots/Settings-2.png)
 
-**General** - Launch at login settings and popover max height control (percentage of screen height):
-![Settings - Notifications](github/screenshots/Settings-3.png)
+**Monitoring & Notifications** - Refresh interval and notification preferences:
+![Settings - Monitoring](github/screenshots/Settings-3.png)
 
 ### Demo Mode
 Test the app with simulated scenarios without affecting your actual Syncthing setup. Includes quick scenarios like "All Synced", "Syncing", "High-Speed Transfers", and more.
 
 ![Demo Mode](github/screenshots/DemoMode-QuickScenarios.png)
+
+## Download Statistics
+
+View detailed download statistics for each release:
+
+```bash
+gh api repos/Xpycode/syncthingStatus/releases --jq '.[] | {version: .tag_name, downloads: ([.assets[].download_count] | add)}'
+```
+
+Or visit the [Releases page](https://github.com/Xpycode/syncthingStatus/releases) to see download counts for each version.
 
 ## Requirements
 
