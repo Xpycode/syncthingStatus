@@ -342,25 +342,20 @@ class SyncthingClient: ObservableObject {
         return true
     }
     
-    private func endpointURL(for endpoint: String) -> URL? {
-        guard let baseURL else { return nil }
-        return URL(string: "rest/\(endpoint)", relativeTo: baseURL)
-    }
-
-    /// Creates a properly URL-encoded endpoint with query parameters
-    private func endpointURL(path: String, queryItems: [URLQueryItem]) -> URL? {
-        guard let baseURL else { return nil }
-        var components = URLComponents()
-        components.scheme = baseURL.scheme
-        components.host = baseURL.host
-        components.port = baseURL.port
-        components.path = baseURL.path.appending("/rest/\(path)")
-        components.queryItems = queryItems.isEmpty ? nil : queryItems
+    /// Builds an endpoint URL that preserves any custom base path (e.g., reverse-proxy subpaths).
+    private func endpointURL(path: String, queryItems: [URLQueryItem]? = nil) -> URL? {
+        guard var url = baseURL else { return nil }
+        url.appendPathComponent("rest")
+        for segment in path.split(separator: "/") {
+            url.appendPathComponent(String(segment))
+        }
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return nil }
+        components.queryItems = queryItems
         return components.url
     }
     
     private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
-        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
         #if DEBUG
         print("SyncthingClient: using API key length \(apiKey.count)")
@@ -410,7 +405,7 @@ class SyncthingClient: ObservableObject {
     }
     
     private func postRequest(endpoint: String) async throws {
-        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
@@ -455,7 +450,7 @@ class SyncthingClient: ObservableObject {
     }
 
     private func makeRawRequest(endpoint: String) async throws -> Data {
-        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
@@ -473,7 +468,7 @@ class SyncthingClient: ObservableObject {
     }
 
     private func postRawRequest(endpoint: String, body: Data) async throws {
-        guard let url = endpointURL(for: endpoint) else { throw URLError(.badURL) }
+        guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
@@ -613,11 +608,12 @@ class SyncthingClient: ObservableObject {
 
         var totalDownload: Double = 0
         var totalUpload: Double = 0
+        var updatedRates: [String: TransferRates] = [:]
 
         for (deviceID, newConnection) in newConnections {
             guard let oldConnection = previousConnections[deviceID],
                   newConnection.connected else {
-                transferRates[deviceID] = TransferRates()
+                updatedRates[deviceID] = TransferRates()
                 continue
             }
 
@@ -631,7 +627,7 @@ class SyncthingClient: ObservableObject {
                 downloadRate: max(0, downloadRate),
                 uploadRate: max(0, uploadRate)
             )
-            transferRates[deviceID] = rates
+            updatedRates[deviceID] = rates
 
             // Accumulate totals
             totalDownload += rates.downloadRate
@@ -649,6 +645,7 @@ class SyncthingClient: ObservableObject {
         totalTransferHistory_published = totalTransferHistory
 
         // Share the single dictionary reference instead of duplicating
+        transferRates = updatedRates
         deviceTransferHistory = transferHistory
     }
 
@@ -1196,7 +1193,7 @@ class SyncthingClient: ObservableObject {
         while attempt < maxAttempts {
             do {
                 // Try to fetch system version to check if Syncthing is responding
-                guard let url = endpointURL(for: "system/version"), let apiKey = apiKey else {
+                guard let url = endpointURL(path: "system/version"), let apiKey = apiKey else {
                     break
                 }
 
@@ -1243,7 +1240,7 @@ class SyncthingClient: ObservableObject {
         let shouldSaveReal = !demoMode
 
         // Generate dummy data FIRST (before touching any state)
-        let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses, dummyTransferRates) =
+        let (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses, dummyTransferRates, dummyTransferHistory, dummyTotalHistory) =
             generateDummyData(deviceCount: deviceCount, folderCount: folderCount, scenario: scenario)
 
         // Now update ALL state atomically
@@ -1268,34 +1265,10 @@ class SyncthingClient: ObservableObject {
 
         // Set demo transfer rates and aggregate transfer history for charts
         transferRates = dummyTransferRates
-
-        // Aggregate transfer history from all devices for the total chart
-        // Sum up rates at each time index across all connected devices
-        var aggregateHistory = DeviceTransferHistory()
-        let historyArrays = transferHistory.values.map { $0.dataPoints }
-
-        if let firstHistory = historyArrays.first {
-            for i in 0..<firstHistory.count {
-                var totalDownload: Double = 0
-                var totalUpload: Double = 0
-
-                // Sum rates from all devices at this time index
-                for historyArray in historyArrays {
-                    if i < historyArray.count {
-                        totalDownload += historyArray[i].downloadRate
-                        totalUpload += historyArray[i].uploadRate
-                    }
-                }
-
-                aggregateHistory.addDataPoint(downloadRate: totalDownload, uploadRate: totalUpload)
-            }
-        }
-
-        totalTransferHistory = aggregateHistory
-        totalTransferHistory_published = aggregateHistory
-
-        // Publish device transfer history for per-device charts
-        deviceTransferHistory = transferHistory
+        transferHistory = dummyTransferHistory
+        deviceTransferHistory = dummyTransferHistory
+        totalTransferHistory = dummyTotalHistory
+        totalTransferHistory_published = dummyTotalHistory
 
         // Clear other states
         deviceCompletions = [:]
@@ -1303,11 +1276,19 @@ class SyncthingClient: ObservableObject {
         recentSyncEvents = []
     }
 
-    private func generateDummyData(deviceCount: Int, folderCount: Int, scenario: DemoScenario)
-        -> (devices: [SyncthingDevice], folders: [SyncthingFolder],
-            connections: [String: SyncthingConnection],
-            statuses: [String: SyncthingFolderStatus],
-            transferRates: [String: TransferRates]) {
+    private func generateDummyData(
+        deviceCount: Int,
+        folderCount: Int,
+        scenario: DemoScenario
+    ) -> (
+        devices: [SyncthingDevice],
+        folders: [SyncthingFolder],
+        connections: [String: SyncthingConnection],
+        statuses: [String: SyncthingFolderStatus],
+        transferRates: [String: TransferRates],
+        histories: [String: DeviceTransferHistory],
+        totalHistory: DeviceTransferHistory
+    ) {
 
         // Generate dummy devices
         var dummyDevices: [SyncthingDevice] = []
@@ -1356,77 +1337,46 @@ class SyncthingClient: ObservableObject {
             }
         }
 
-        // Generate transfer history with realistic speeds for connected devices
-        // This will accumulate for total transfer speed display
-        for (deviceID, connection) in dummyConnections where connection.connected {
-            var history = DeviceTransferHistory()
+        let historyPointCount = min(30, AppConstants.UI.maxTransferDataPoints)
+        var dummyTransferRates: [String: TransferRates] = [:]
+        var dummyHistories: [String: DeviceTransferHistory] = [:]
 
-            // Generate some recent transfer data points
-            for j in 0..<30 {  // 30 data points
-                // Generate realistic variable speeds (0 KB/s to 50 MB/s)
-                let downloadSpeed: Double
-                let uploadSpeed: Double
-
-                if scenario == .allSynced {
-                    // All synced scenario: zero transfer speeds (nothing to sync)
-                    downloadSpeed = 0
-                    uploadSpeed = 0
-                } else if scenario == .highSpeed {
-                    // High speed scenario: Very high and varying speeds to test layout stability
-                    downloadSpeed = Double.random(in: 50_000_000...500_000_000)  // 50 MB/s - 500 MB/s
-                    uploadSpeed = Double.random(in: 10_000_000...200_000_000)    // 10 MB/s - 200 MB/s
-                } else {
-                    // Mixed scenario: Some devices actively transferring
-                    if j < 15 {
-                        // Earlier data points: higher activity
-                        downloadSpeed = Double.random(in: 100_000...50_000_000)  // 100 KB/s - 50 MB/s
-                        uploadSpeed = Double.random(in: 50_000...10_000_000)     // 50 KB/s - 10 MB/s
-                    } else {
-                        // Recent data points: tapering off
-                        downloadSpeed = Double.random(in: 0...5_000_000)  // 0-5 MB/s
-                        uploadSpeed = Double.random(in: 0...1_000_000)    // 0-1 MB/s
-                    }
-                }
-
-                history.addDataPoint(downloadRate: downloadSpeed, uploadRate: uploadSpeed)
-                // Small delay to spread data points over time
-                Thread.sleep(forTimeInterval: 0.001)
+        for (index, device) in dummyDevices.enumerated() {
+            guard dummyConnections[device.deviceID]?.connected == true else {
+                dummyHistories[device.deviceID] = DeviceTransferHistory()
+                dummyTransferRates[device.deviceID] = TransferRates()
+                continue
             }
 
-            transferHistory[deviceID] = history
+            var history = DeviceTransferHistory()
+            for point in 0..<historyPointCount {
+                let profile = deterministicTransferProfile(for: scenario, deviceIndex: index, pointIndex: point)
+                history.addDataPoint(downloadRate: profile.download, uploadRate: profile.upload)
+            }
+            dummyHistories[device.deviceID] = history
+
+            if let lastPoint = history.dataPoints.last {
+                dummyTransferRates[device.deviceID] = TransferRates(
+                    downloadRate: lastPoint.downloadRate,
+                    uploadRate: lastPoint.uploadRate
+                )
+            } else {
+                dummyTransferRates[device.deviceID] = TransferRates()
+            }
         }
 
-        // Generate current transfer rates (what shows in header)
-        var dummyTransferRates: [String: TransferRates] = [:]
-        for (deviceID, connection) in dummyConnections where connection.connected {
-            let downloadRate: Double
-            let uploadRate: Double
-
-            if scenario == .allSynced {
-                // All synced: zero speeds (nothing to sync)
-                downloadRate = 0
-                uploadRate = 0
-            } else if scenario == .highSpeed {
-                // High speed: Very high speeds to test layout (e.g., 999.9 MB/s)
-                downloadRate = Double.random(in: 50_000_000...999_900_000)  // 50 MB/s - 999.9 MB/s
-                uploadRate = Double.random(in: 10_000_000...500_000_000)    // 10 MB/s - 500 MB/s
-            } else {
-                // Mixed: realistic varied speeds
-                // Some devices transferring actively, others idle
-                let isActive = Bool.random()
-                if isActive {
-                    downloadRate = Double.random(in: 500_000...25_000_000)  // 500 KB/s - 25 MB/s
-                    uploadRate = Double.random(in: 100_000...5_000_000)     // 100 KB/s - 5 MB/s
-                } else {
-                    downloadRate = Double.random(in: 0...100_000)  // 0-100 KB/s
-                    uploadRate = Double.random(in: 0...50_000)     // 0-50 KB/s
+        var aggregateHistory = DeviceTransferHistory()
+        let maxHistoryCount = dummyHistories.values.map { $0.dataPoints.count }.max() ?? 0
+        for pointIndex in 0..<maxHistoryCount {
+            var totalDownload: Double = 0
+            var totalUpload: Double = 0
+            for history in dummyHistories.values {
+                if pointIndex < history.dataPoints.count {
+                    totalDownload += history.dataPoints[pointIndex].downloadRate
+                    totalUpload += history.dataPoints[pointIndex].uploadRate
                 }
             }
-
-            dummyTransferRates[deviceID] = TransferRates(
-                downloadRate: downloadRate,
-                uploadRate: uploadRate
-            )
+            aggregateHistory.addDataPoint(downloadRate: totalDownload, uploadRate: totalUpload)
         }
 
         // Generate dummy folders
@@ -1503,7 +1453,41 @@ class SyncthingClient: ObservableObject {
             }
         }
 
-        return (dummyDevices, dummyFolders, dummyConnections, dummyFolderStatuses, dummyTransferRates)
+        return (
+            dummyDevices,
+            dummyFolders,
+            dummyConnections,
+            dummyFolderStatuses,
+            dummyTransferRates,
+            dummyHistories,
+            aggregateHistory
+        )
+    }
+
+    private func deterministicTransferProfile(for scenario: DemoScenario, deviceIndex: Int, pointIndex: Int) -> (download: Double, upload: Double) {
+        switch scenario {
+        case .allSynced:
+            return (0, 0)
+        case .highSpeed:
+            let multiplier = 1.0 + Double(deviceIndex % 4) * 0.15
+            let basePhase = Double(deviceIndex % 5) * 0.6
+            let download = wave(base: 250_000_000 * multiplier, amplitude: 150_000_000, point: pointIndex, phase: basePhase)
+            let upload = wave(base: 120_000_000 * multiplier, amplitude: 80_000_000, point: pointIndex, phase: basePhase + .pi / 3)
+            return (download, upload)
+        case .mixed:
+            let idle = (deviceIndex + pointIndex) % 9 == 0
+            guard !idle else { return (0, 0) }
+            let multiplier = 1.0 + Double(deviceIndex % 3) * 0.2
+            let basePhase = Double((deviceIndex * 3) % 7) * 0.45
+            let download = wave(base: 6_000_000 * multiplier, amplitude: 5_000_000, point: pointIndex, phase: basePhase)
+            let upload = wave(base: 2_000_000 * multiplier, amplitude: 1_500_000, point: pointIndex, phase: basePhase + .pi / 2)
+            return (download, upload)
+        }
+    }
+
+    private func wave(base: Double, amplitude: Double, point: Int, phase: Double) -> Double {
+        let angle = (Double(point) / 4.0) + phase
+        return max(0, base + sin(angle) * amplitude)
     }
 
     func disableDemoMode() {

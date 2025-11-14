@@ -28,7 +28,9 @@ final class SyncthingSettings: ObservableObject {
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
     private var cancellables = Set<AnyCancellable>()
-    private var saveWorkItem: DispatchWorkItem?
+    private var defaultsSaveWorkItem: DispatchWorkItem?
+    private var keychainSaveWorkItem: DispatchWorkItem?
+    private var bookmarkSaveWorkItem: DispatchWorkItem?
     private let keychainQueue = DispatchQueue(
         label: "com.syncthingstatus.keychain",
         qos: .userInitiated
@@ -158,13 +160,13 @@ final class SyncthingSettings: ObservableObject {
 
     private func scheduleSave() {
         // Cancel pending save
-        saveWorkItem?.cancel()
+        defaultsSaveWorkItem?.cancel()
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
             self?.persistAllDefaults()
         }
-        saveWorkItem = workItem
+        defaultsSaveWorkItem = workItem
 
         // Debounce: wait after last change
         DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
@@ -172,13 +174,13 @@ final class SyncthingSettings: ObservableObject {
 
     private func scheduleKeychainSave() {
         // Cancel pending save
-        saveWorkItem?.cancel()
+        keychainSaveWorkItem?.cancel()
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
             self?.persistKeychainIfNeeded()
         }
-        saveWorkItem = workItem
+        keychainSaveWorkItem = workItem
 
         // Debounce: wait after last change
         DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
@@ -186,13 +188,13 @@ final class SyncthingSettings: ObservableObject {
 
     private func scheduleBookmarkSave() {
         // Cancel pending save
-        saveWorkItem?.cancel()
+        bookmarkSaveWorkItem?.cancel()
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
             self?.persistBookmarkIfNeeded()
         }
-        saveWorkItem = workItem
+        bookmarkSaveWorkItem = workItem
 
         // Debounce: wait after last change
         DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.Debounce.settingsSaveDelaySeconds, execute: workItem)
