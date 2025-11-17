@@ -13,7 +13,7 @@
 
 ## What's New in Version 1.2
 
-### Major Improvements
+### Improvements
 - **Redesigned UI Layout** - Ultra-compact multi-column layouts for better space utilization
 - **Collapsible Sections** - Expandable device and folder details with disclosure groups
 - **Enhanced Activity Charts** - Collapsible transfer speed charts with improved visualization
