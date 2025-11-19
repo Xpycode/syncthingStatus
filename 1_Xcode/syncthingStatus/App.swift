@@ -474,11 +474,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     private func revertToAccessoryIfAppropriate(excluding closingWindow: NSWindow? = nil) {
-        DispatchQueue.main.async {
-            let visibleWindows = NSApp.windows.filter { $0 !== closingWindow && $0.isVisible }
-            if visibleWindows.isEmpty {
-                NSApp.setActivationPolicy(.accessory)
-            }
+        // Check if we have any user-visible windows remaining
+        // We only care about our main window and settings window
+        let hasMainWindow = windowController?.window != nil &&
+                           windowController?.window !== closingWindow &&
+                           windowController?.window?.isVisible == true
+        let hasSettingsWindow = settingsWindow != nil &&
+                               settingsWindow !== closingWindow &&
+                               settingsWindow?.isVisible == true
+
+        if !hasMainWindow && !hasSettingsWindow {
+            NSApp.setActivationPolicy(.accessory)
         }
     }
     
@@ -498,11 +504,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         if window === windowController?.window {
+            revertToAccessoryIfAppropriate(excluding: window)
             windowController = nil
-            revertToAccessoryIfAppropriate(excluding: window)
         } else if window === settingsWindow {
-            settingsWindow = nil
             revertToAccessoryIfAppropriate(excluding: window)
+            settingsWindow = nil
         }
     }
     
