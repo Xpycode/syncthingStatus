@@ -1030,8 +1030,11 @@ class SyncthingClient: ObservableObject {
     }
     
     func refresh() async {
-        // Cancel any previous refresh task
-        activeRefreshTask?.cancel()
+        // Skip if a refresh is already in progress to avoid cancelling active network requests
+        if isRefreshing {
+            print("Refresh already in progress, skipping overlapping refresh request.")
+            return
+        }
 
         activeRefreshTask = Task {
             await performRefresh()
