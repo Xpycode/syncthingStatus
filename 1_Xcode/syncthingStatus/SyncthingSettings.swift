@@ -24,6 +24,8 @@ final class SyncthingSettings: ObservableObject {
         }
     }
     @Published var popoverMaxHeightPercentage: Double
+    @Published var updateCheckFrequency: UpdateCheckFrequency
+    @Published var lastUpdateCheckDate: Date?
 
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
@@ -52,6 +54,8 @@ final class SyncthingSettings: ObservableObject {
         static let configBookmarkData = "SyncthingSettings.configBookmarkData"
         static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
         static let popoverMaxHeightPercentage = "SyncthingSettings.popoverMaxHeightPercentage"
+        static let updateCheckFrequency = "SyncthingSettings.updateCheckFrequency"
+        static let lastUpdateCheckDate = "SyncthingSettings.lastUpdateCheckDate"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -75,6 +79,15 @@ final class SyncthingSettings: ObservableObject {
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
+
+        // Load update settings
+        if let frequencyString = defaults.string(forKey: Keys.updateCheckFrequency),
+           let frequency = UpdateCheckFrequency(rawValue: frequencyString) {
+            updateCheckFrequency = frequency
+        } else {
+            updateCheckFrequency = .weekly
+        }
+        lastUpdateCheckDate = defaults.object(forKey: Keys.lastUpdateCheckDate) as? Date
 
         // Set up debounced auto-save observers
         setupAutoSave()
@@ -137,6 +150,17 @@ final class SyncthingSettings: ObservableObject {
                 self?.scheduleSave()
             }
             .store(in: &cancellables)
+
+        // Observe update settings
+        Publishers.CombineLatest(
+            $updateCheckFrequency,
+            $lastUpdateCheckDate
+        )
+        .dropFirst()
+        .sink { [weak self] _, _ in
+            self?.scheduleSave()
+        }
+        .store(in: &cancellables)
 
         // Observe keychain-backed property
         $manualAPIKey
@@ -214,6 +238,8 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
         defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
         defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
+        defaults.set(updateCheckFrequency.rawValue, forKey: Keys.updateCheckFrequency)
+        defaults.set(lastUpdateCheckDate, forKey: Keys.lastUpdateCheckDate)
     }
 
     var trimmedBaseURL: String {
@@ -240,6 +266,8 @@ final class SyncthingSettings: ObservableObject {
         stalledSyncTimeoutMinutes = 5.0
         notificationEnabledFolderIDs = []
         popoverMaxHeightPercentage = 70.0
+        updateCheckFrequency = .weekly
+        lastUpdateCheckDate = nil
         clearConfigBookmark()
     }
 

@@ -140,6 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     weak var settingsWindow: NSWindow?
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
+    let updateManager: UpdateManager
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var pendingGlobalSyncNotification = false
@@ -149,6 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let settings = SyncthingSettings()
         self.settings = settings
         self.syncthingClient = SyncthingClient(settings: settings)
+        self.updateManager = UpdateManager(settings: settings)
         super.init()
         bindClient()
     }
@@ -156,6 +158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     init(settings: SyncthingSettings) {
         self.settings = settings
         self.syncthingClient = SyncthingClient(settings: settings)
+        self.updateManager = UpdateManager(settings: settings)
         super.init()
         bindClient()
     }
@@ -623,7 +626,7 @@ struct SyncthingStatusApp: App {
     var body: some Scene {
         // The Settings scene is the source of truth for the settings window.
         Settings {
-            SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient)
+            SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient, updateManager: appDelegate.updateManager)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {

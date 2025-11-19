@@ -81,7 +81,7 @@ struct ContentView: View {
                 }
             }
 
-            FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
+            FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, updateManager: appDelegate.updateManager, isConnected: syncthingClient.isConnected, isPopover: isPopover)
                 .padding()
         }
         .background(
@@ -210,11 +210,33 @@ struct FooterView: View {
     var appDelegate: AppDelegate  // Strong reference
     let settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var updateManager: UpdateManager
     let isConnected: Bool
     let isPopover: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppConstants.UI.spacingM) {
+            if let availableVersion = updateManager.availableVersion {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("Update available: v\(availableVersion)")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Spacer()
+                    Button("Download") {
+                        updateManager.openReleasePage()
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    Button(action: { updateManager.dismissUpdate() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
             if let errorMessage = syncthingClient.lastErrorMessage {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -1388,6 +1410,7 @@ struct FolderStatusRow: View {
 struct SettingsView: View {
     @ObservedObject var settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var updateManager: UpdateManager
     @State private var showResetConfirmation = false
     @State private var remainingMB: Double
     @State private var stalledMinutes: Double
@@ -1398,9 +1421,10 @@ struct SettingsView: View {
         !settings.useAutomaticDiscovery
     }
 
-    init(settings: SyncthingSettings, syncthingClient: SyncthingClient) {
+    init(settings: SyncthingSettings, syncthingClient: SyncthingClient, updateManager: UpdateManager) {
         self.settings = settings
         self.syncthingClient = syncthingClient
+        self.updateManager = updateManager
         _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
         _stalledMinutes = State(initialValue: settings.stalledSyncTimeoutMinutes)
     }
@@ -1561,6 +1585,67 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+
+            Section("Updates") {
+                Picker("Check for updates", selection: $settings.updateCheckFrequency) {
+                    ForEach(UpdateCheckFrequency.allCases, id: \.self) { frequency in
+                        Text(frequency.displayName).tag(frequency)
+                    }
+                }
+
+                Button(action: {
+                    Task {
+                        await updateManager.checkForUpdatesManually()
+                    }
+                }) {
+                    HStack {
+                        Text("Check for Updates Now")
+                        if updateManager.isCheckingForUpdates {
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .frame(width: 16, height: 16)
+                        }
+                    }
+                }
+                .disabled(updateManager.isCheckingForUpdates)
+
+                if let lastCheck = settings.lastUpdateCheckDate {
+                    Text("Last checked: \(lastCheck.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if let availableVersion = updateManager.availableVersion {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundColor(.blue)
+                        Text("Update available: v\(availableVersion)")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        Spacer()
+                        Button("Download") {
+                            updateManager.openReleasePage()
+                        }
+                        .buttonStyle(.link)
+                    }
+                } else if let releaseNotes = updateManager.releaseNotes {
+                    Text(releaseNotes)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if let error = updateManager.checkError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+
+                Text("Automatically checks for new app versions and notifies you when updates are available.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {
