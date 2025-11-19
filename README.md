@@ -6,10 +6,15 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.2-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.2-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.4-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.4-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
+
+## What's New in Version 1.4
+
+### Bug Fixes
+- **Fixed Dock Icon Behavior** - The dock icon now correctly disappears when the main window is closed, maintaining the app's menu bar-only design when no windows are open
 
 ## What's New in Version 1.2
 
