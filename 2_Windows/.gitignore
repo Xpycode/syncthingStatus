@@ -1,0 +1,55 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.vs/
+.vscode/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Visual Studio Code
+.vscode/
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# Others
+*.log
+*.cache
+*.publish
+*.publishproj
+*.pubxml
+*.azurePubxml
