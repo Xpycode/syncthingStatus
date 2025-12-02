@@ -140,6 +140,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     weak var settingsWindow: NSWindow?
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
+    let updateController = UpdateController()
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var pendingGlobalSyncNotification = false
@@ -615,17 +616,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 }
 
+// MARK: - Check for Updates View
+struct CheckForUpdatesView: View {
+    @ObservedObject var updateController: UpdateController
+
+    var body: some View {
+        Button("Check for Updates…") {
+            updateController.checkForUpdates()
+        }
+        .disabled(!updateController.canCheckForUpdates)
+    }
+}
+
 // MARK: - Main App Structure
 @main
 struct SyncthingStatusApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+
     var body: some Scene {
         // The Settings scene is the source of truth for the settings window.
         Settings {
-            SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient)
+            SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient, updateController: appDelegate.updateController)
         }
         .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updateController: appDelegate.updateController)
+            }
             CommandGroup(replacing: .appSettings) {
                 SettingsCommandBridge(appDelegate: appDelegate)
             }

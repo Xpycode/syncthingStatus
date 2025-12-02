@@ -81,7 +81,7 @@ struct ContentView: View {
                 }
             }
 
-            FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, isConnected: syncthingClient.isConnected, isPopover: isPopover)
+            FooterView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient, updateController: appDelegate.updateController, isConnected: syncthingClient.isConnected, isPopover: isPopover)
                 .padding()
         }
         .background(
@@ -210,6 +210,7 @@ struct FooterView: View {
     var appDelegate: AppDelegate  // Strong reference
     let settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var updateController: UpdateController
     let isConnected: Bool
     let isPopover: Bool
 
@@ -227,21 +228,27 @@ struct FooterView: View {
                         .help(errorMessage)
                 }
             }
-            
+
             HStack {
-                Button("Open Web UI") {
+                Button("Web UI") {
                     if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
                 }.disabled(!isConnected)
-                
+
                 Button("Settings") {
                     appDelegate.presentSettings(using: openSettings.callAsFunction)
                 }
                 .buttonStyle(.bordered)
-                
+
+                Button("Update") {
+                    updateController.checkForUpdates()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!updateController.canCheckForUpdates)
+
                 Spacer()
-                
+
                 if isPopover {
-                    Button("Open in Window") {
+                    Button("Window") {
                         appDelegate.openMainWindow()
                     }
                     .buttonStyle(.bordered)
@@ -1388,6 +1395,7 @@ struct FolderStatusRow: View {
 struct SettingsView: View {
     @ObservedObject var settings: SyncthingSettings
     @ObservedObject var syncthingClient: SyncthingClient
+    @ObservedObject var updateController: UpdateController
     @State private var showResetConfirmation = false
     @State private var remainingMB: Double
     @State private var stalledMinutes: Double
@@ -1398,9 +1406,10 @@ struct SettingsView: View {
         !settings.useAutomaticDiscovery
     }
 
-    init(settings: SyncthingSettings, syncthingClient: SyncthingClient) {
+    init(settings: SyncthingSettings, syncthingClient: SyncthingClient, updateController: UpdateController) {
         self.settings = settings
         self.syncthingClient = syncthingClient
+        self.updateController = updateController
         _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
         _stalledMinutes = State(initialValue: settings.stalledSyncTimeoutMinutes)
     }
@@ -1561,6 +1570,21 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+
+            Section("Updates") {
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { updateController.updater.automaticallyChecksForUpdates },
+                    set: { updateController.updater.automaticallyChecksForUpdates = $0 }
+                ))
+                Text("When enabled, the app will periodically check for new versions.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button("Check for Updates…") {
+                    updateController.checkForUpdates()
+                }
+                .disabled(!updateController.canCheckForUpdates)
             }
 
             Section {

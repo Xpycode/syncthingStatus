@@ -6,10 +6,20 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.4-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.4-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.5-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.5-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
+
+## What's New in Version 1.5
+
+### New Features
+- **Auto-Updates via Sparkle** - The app can now check for and install updates automatically
+- **Update Button** - Quick access to check for updates from the footer or Settings
+- **Automatic Update Checking** - Configurable in Settings with toggle to enable/disable
+
+### Bug Fixes
+- **Settings Migration** - Fixed issue where settings were lost when upgrading from v1.2 due to bundle ID change
 
 ## What's New in Version 1.4
 
@@ -83,6 +93,9 @@ Comprehensive configuration options for customizing the app to your needs.
 
 **Monitoring & Notifications** - Refresh interval and notification preferences:
 ![Settings - Monitoring](github/screenshots/Settings-3.png)
+
+**Updates** - Automatic update checking and manual update controls:
+![Settings - Updates](github/screenshots/Settings-4.png)
 
 ### Demo Mode
 Test the app with simulated scenarios without affecting your actual Syncthing setup. Includes quick scenarios like "All Synced", "Syncing", "High-Speed Transfers", and more.

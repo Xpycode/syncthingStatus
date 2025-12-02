@@ -24,6 +24,7 @@ final class SyncthingSettings: ObservableObject {
         }
     }
     @Published var popoverMaxHeightPercentage: Double
+    @Published var automaticallyCheckForUpdates: Bool
 
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
@@ -52,11 +53,15 @@ final class SyncthingSettings: ObservableObject {
         static let configBookmarkData = "SyncthingSettings.configBookmarkData"
         static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
         static let popoverMaxHeightPercentage = "SyncthingSettings.popoverMaxHeightPercentage"
+        static let automaticallyCheckForUpdates = "SyncthingSettings.automaticallyCheckForUpdates"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
         self.defaults = defaults
         self.keychain = KeychainHelper(service: keychainService, account: "ManualAPIKey")
+
+        // Migrate settings from old bundle ID if needed
+        Self.migrateFromOldBundleIDIfNeeded(to: defaults)
 
         // Load all values
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
@@ -75,6 +80,7 @@ final class SyncthingSettings: ObservableObject {
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
+        automaticallyCheckForUpdates = defaults.object(forKey: Keys.automaticallyCheckForUpdates) as? Bool ?? true
 
         // Set up debounced auto-save observers
         setupAutoSave()
@@ -130,6 +136,13 @@ final class SyncthingSettings: ObservableObject {
             self?.scheduleSave()
         }
         .store(in: &cancellables)
+
+        $automaticallyCheckForUpdates
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleSave()
+            }
+            .store(in: &cancellables)
 
         $notificationEnabledFolderIDs
             .dropFirst()
@@ -214,6 +227,7 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
         defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
         defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
+        defaults.set(automaticallyCheckForUpdates, forKey: Keys.automaticallyCheckForUpdates)
     }
 
     var trimmedBaseURL: String {
@@ -240,6 +254,7 @@ final class SyncthingSettings: ObservableObject {
         stalledSyncTimeoutMinutes = 5.0
         notificationEnabledFolderIDs = []
         popoverMaxHeightPercentage = 70.0
+        automaticallyCheckForUpdates = true
         clearConfigBookmark()
     }
 
@@ -295,6 +310,66 @@ final class SyncthingSettings: ObservableObject {
     var configBookmarkDisplayPath: String? {
         guard let path = configBookmarkPath else { return nil }
         return (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    // MARK: - Settings Migration
+    private static let migrationCompletedKey = "SyncthingSettings.migrationFromOldBundleIDCompleted"
+    private static let oldBundleID = "LucesUmbrarum.syncthingStatus"
+
+    /// Migrates settings from the old bundle ID (LucesUmbrarum.syncthingStatus) to the current one.
+    /// This is needed because v1.4 changed the bundle ID to com.lucesumbrarum.syncthingStatus.
+    /// Note: Security-scoped bookmarks cannot be migrated as they're tied to code signing identity.
+    private static func migrateFromOldBundleIDIfNeeded(to currentDefaults: UserDefaults) {
+        // Check if migration was already completed
+        guard !currentDefaults.bool(forKey: migrationCompletedKey) else { return }
+
+        // Try to access the old bundle's UserDefaults
+        guard let oldDefaults = UserDefaults(suiteName: oldBundleID) else {
+            currentDefaults.set(true, forKey: migrationCompletedKey)
+            return
+        }
+
+        // Check if there's any data to migrate by looking for a key that would exist if app was used
+        guard oldDefaults.object(forKey: Keys.useAutomaticDiscovery) != nil ||
+              oldDefaults.object(forKey: Keys.baseURL) != nil else {
+            // No old settings found
+            currentDefaults.set(true, forKey: migrationCompletedKey)
+            return
+        }
+
+        print("SyncthingSettings: Migrating settings from old bundle ID (\(oldBundleID))")
+
+        // Migrate all settings (except bookmarks which won't work with new bundle ID)
+        let keysToMigrate: [String] = [
+            Keys.useAutomaticDiscovery,
+            Keys.baseURL,
+            Keys.syncCompletionThreshold,
+            Keys.syncRemainingBytesThreshold,
+            Keys.showSyncNotifications,
+            Keys.refreshInterval,
+            Keys.showDeviceConnectNotifications,
+            Keys.showDeviceDisconnectNotifications,
+            Keys.showPauseResumeNotifications,
+            Keys.showStalledSyncNotifications,
+            Keys.stalledSyncTimeoutMinutes,
+            Keys.notificationEnabledFolderIDs,
+            Keys.popoverMaxHeightPercentage,
+            // Note: configBookmarkData and configBookmarkPath are NOT migrated
+            // because security-scoped bookmarks are tied to the app's code signing identity
+        ]
+
+        for key in keysToMigrate {
+            if let value = oldDefaults.object(forKey: key) {
+                currentDefaults.set(value, forKey: key)
+            }
+        }
+
+        // Note: We intentionally do NOT migrate configBookmarkData or configBookmarkPath
+        // Security-scoped bookmarks are tied to the app's code signing identity and bundle ID
+        // Users will need to re-select config.xml in Settings after the bundle ID change
+
+        currentDefaults.set(true, forKey: migrationCompletedKey)
+        print("SyncthingSettings: Migration completed. Note: config.xml access needs to be re-granted in Settings.")
     }
 }
 

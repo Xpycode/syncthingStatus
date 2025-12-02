@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>syncthingStatus Updates</title>
+        <link>https://github.com/Xpycode/syncthingStatus/releases</link>
+        <description>Most recent updates to syncthingStatus</description>
+        <language>en</language>
+
+        <!--
+        To add a new release:
+        1. Build the app for release: xcodebuild -scheme syncthingStatus -configuration Release archive
+        2. Export the .app from the archive
+        3. Create a DMG with the app
+        4. Sign the update with: sign_update syncthingStatus-vX.X.dmg
+        5. Copy the signature from the output
+        6. Add a new <item> below with the version, signature, and download URL
+        7. Push this file to the main branch
+        -->
+
+        <item>
+            <title>Version 1.5</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5</h2>
+                <ul>
+                    <li><strong>Auto-Updates</strong> - The app can now check for and install updates automatically via Sparkle</li>
+                    <li>Check for updates manually from the app menu or Settings</li>
+                    <li>Configure automatic update checking in Settings</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 02 Dec 2024 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5/syncthingStatus-v1.5.dmg"
+                sparkle:version="3"
+                sparkle:shortVersionString="1.5"
+                length="0"
+                type="application/octet-stream"
+                sparkle:edSignature="SIGNATURE_HERE"
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.4</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.4</h2>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>Fixed Dock Icon Behavior</strong> - The dock icon now correctly disappears when the main window is closed</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 19 Nov 2024 02:11:59 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.4/syncthingStatus-v1.4.dmg"
+                sparkle:version="2"
+                sparkle:shortVersionString="1.4"
+                length="0"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
