@@ -27,14 +27,14 @@
                     <li>Configure automatic update checking in Settings</li>
                 </ul>
             ]]></description>
-            <pubDate>Mon, 02 Dec 2024 12:00:00 +0000</pubDate>
+            <pubDate>Mon, 02 Dec 2025 12:00:00 +0000</pubDate>
             <enclosure
                 url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5/syncthingStatus-v1.5.dmg"
                 sparkle:version="3"
                 sparkle:shortVersionString="1.5"
-                length="0"
+                length="2238740"
                 type="application/octet-stream"
-                sparkle:edSignature="SIGNATURE_HERE"
+                sparkle:edSignature="m5Kghiqey2grmtyBSTNTIho3q6zdTESj18vQf06wU4v+AzuU3sviwzdsOQ0Qr2rJX/0Zf5jPxzXodZhDByJLDA=="
             />
             <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
         </item>
