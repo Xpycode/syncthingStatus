@@ -6,10 +6,15 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.5-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.5-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.5.1-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.5.1-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
+
+## What's New in Version 1.5.1
+
+### Bug Fixes
+- **Fixed Update Detection** - Resolved an issue where the app incorrectly prompted for updates when already on the latest version
 
 ## What's New in Version 1.5
 
