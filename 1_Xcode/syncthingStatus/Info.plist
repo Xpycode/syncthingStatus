@@ -17,7 +17,7 @@
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/Xpycode/syncthingStatus/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>o388Mk7QoQjHQ7PBDGrTQ13HkqvO1nyzkfcnmfVumUQ=</string>
+	<string>eH6joIk0G+i5Hur25e/9B4hF3jN8q5lBqXzMxuOfcxw=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 </dict>

@@ -18,6 +18,26 @@
         -->
 
         <item>
+            <title>Version 1.5.1</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5.1</h2>
+                <ul>
+                    <li><strong>Bug Fix</strong> - Fixed an issue where the app incorrectly prompted for updates when already on the latest version</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 31 Dec 2025 15:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.1/syncthingStatus-v1.5.1.dmg"
+                sparkle:version="4"
+                sparkle:shortVersionString="1.5.1"
+                length="2238807"
+                type="application/octet-stream"
+                sparkle:edSignature="XcQ1MmLFAKSoPIDkUxzgsKyw6yKX1aex6gDrxNSFiCTb0PYr1IA/N9NbQOrrj1LhxVBEQkCkPSjSEU/T9f8aAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
             <title>Version 1.5</title>
             <description><![CDATA[
                 <h2>What's New in Version 1.5</h2>
