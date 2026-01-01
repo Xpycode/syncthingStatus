@@ -11,7 +11,7 @@
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-
+> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change. Please [download v1.5.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.1/syncthingStatus-v1.5.1.dmg). Future updates will auto-update normally.
 
 ## What's New in Version 1.5
 
