@@ -13,6 +13,11 @@
 
 > ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change. Please [download v1.5.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.1/syncthingStatus-v1.5.1.dmg). Future updates will auto-update normally.
 
+## What's New in Version 1.5.1
+
+### Bug Fixes
+- **Fixed Update Detection** - Resolved an issue where the app incorrectly prompted for updates when already on the latest version
+
 ## What's New in Version 1.5
 
 ### New Features
