@@ -6,12 +6,27 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.5.1-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.5.1-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.5.5-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.5.5-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change. Please [download v1.5.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.1/syncthingStatus-v1.5.1.dmg). Future updates will auto-update normally.
+> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.5.5 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.5/syncthingStatus-v1.5.5.dmg) once. Future updates will auto-update normally.
+
+## What's New in Version 1.5.5
+
+### Bug Fixes
+- **False "Out of sync" indicator fixed** — the menu bar icon used to latch to red when Syncthing was actually fine, especially after routine background scans. The status logic now treats `scanning`, `scan-waiting`, `sync-preparing`, `sync-waiting`, and `cleaning` states as healthy, and only reports out-of-sync when there is meaningful pending data.
+- **Stale-state hygiene** — cached folder status is cleared on fetch failure so a transient hiccup cannot persist as a stuck red icon. Removed devices and folders no longer leave stale entries behind in memory.
+
+### New Features
+- **Brand-new app icon and status bar icons** — fresh visual identity throughout.
+- **Status icon style** setting — choose **Monochrome** (classic single icon for in-sync) or **Traffic-Light** (adds an amber warning state for soft conditions like paused devices). Defaults to Monochrome to preserve the existing look.
+- **Sync notification cooldown** — throttle "Sync Complete" notifications per folder. Default 5 minutes (range 0–60). Stops the notification spam when a folder churns through many small syncs.
+
+### Internal
+- Defensive decoding of Syncthing API responses so future field renames cannot brick the icon.
+- Status-fetch failures now log via OSLog (`com.lucesumbrarum.syncthingStatus` / `FolderStatus`) for easier diagnosis in Console.app.
 
 ## What's New in Version 1.5.1
 
@@ -54,8 +69,10 @@
 - **Menu Bar Integration**: Unobtrusive status indicator that lives in your macOS menu bar
 - **Real-Time Monitoring**: Automatic updates every 10 seconds
 - **Visual Status Indicators**:
-  - ![Synced](github/screenshots/icon-synched.png) **Synced**: When synced to at least one device
-  - ![Disconnected](github/screenshots/icon-disconnected.png) **Disconnected**: When Syncthing is unreachable or needs attention
+  - ![Synced](github/screenshots/icon-synched.png) **In sync** — everything is up to date
+  - ![Syncing](github/screenshots/icon-syncing.png) **Syncing** — files are being transferred
+  - ![Warning](github/screenshots/icon-warning.png) **Attention** _(Traffic-Light mode only)_ — soft warning, e.g. some devices paused
+  - ![Disconnected](github/screenshots/icon-disconnected.png) **Out of sync / Disconnected** — Syncthing is unreachable, in a folder error, or genuinely behind
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
 - **System Information**: Display device name, uptime, and version information

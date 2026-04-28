@@ -18,7 +18,7 @@ LOAD: full
 
 ### Code Quality
 
-- [ ] **No debug print statements** in production code
+- [ ] **No debug print statements** in production code paths (see verification below)
 - [ ] **No `try?` swallowing errors** silently — handle or propagate
 - [ ] **No `@unchecked Sendable`** without documented justification
 - [ ] **No force unwraps (`!`)** without nil guards
@@ -73,10 +73,50 @@ LOAD: full
 | `@unchecked Sendable` | Bypasses thread safety checks | Use proper actor isolation |
 | Force unwrap `!` | Crash on nil | Guard with `if let` or `guard` |
 | 1000+ line file | Unmaintainable | Split into modules |
-| Debug prints in code | Information leak, noise | Use logging framework or `#if DEBUG` |
+| Debug prints in code | Information leak, noise | Use `#if DEBUG`, `Logger`, or remove |
 | Missing Release config | Not optimized, debug symbols exposed | Add Release configuration |
 | `inout` in async | Changes lost silently | Copy, modify, return |
 | Plain Bool across threads | Race condition | Use actor or atomic |
+
+---
+
+## Context-Aware Verification
+
+**Pattern matching finds candidates. Context determines if they're issues.**
+
+### Debug Print Verification
+
+Don't just grep for `print(` — verify each match:
+
+| Context | Verdict |
+|---------|---------|
+| Inside `#if DEBUG ... #endif` | ✅ OK |
+| Inside `#Preview { }` block | ✅ OK |
+| Uses `Logger` or `os_log` | ✅ OK |
+| CLI tool output (intentional) | ✅ OK |
+| Bare `print()` in production path | ❌ Issue |
+| `print()` in View body (not Preview) | ❌ Issue |
+
+### Error Swallowing Verification
+
+Don't just grep for `try?` — check intent:
+
+| Context | Verdict |
+|---------|---------|
+| Intentional ignore with comment | ✅ OK (if justified) |
+| Optional result actually used | ✅ OK |
+| Failure logged/handled elsewhere | ✅ OK |
+| Silent failure, no handling | ❌ Issue |
+| User action fails silently | ❌ Issue |
+
+### Deep Review Option
+
+For thorough contextual analysis, use the `feature-dev:code-reviewer` agent:
+
+```
+Review this code for production readiness using contextual analysis.
+Only report issues you're confident about.
+```
 
 ---
 

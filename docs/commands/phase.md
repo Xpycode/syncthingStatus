@@ -27,6 +27,25 @@ Update the **Phase:** line in `docs/PROJECT_STATE.md` with the new phase.
 
 Add a timestamp comment: `<!-- Phase changed: YYYY-MM-DD -->`
 
+## Step 3b: Review Readiness
+
+When changing phase, prompt to review the Readiness section:
+
+```
+Current Readiness:
+| Dimension    | Status |
+|--------------|--------|
+| Features     | [?]    |
+| UI/Polish    | [?]    |
+| Testing      | [?]    |
+| Docs         | [?]    |
+| Distribution | [?]    |
+
+Update any dimensions? (y/n)
+```
+
+**For transitions to polish/shipping:** Require at least Features to be ✅ or 🔶.
+
 ## Step 4: Suggest Relevant Docs
 
 Based on the new phase, suggest relevant documentation:

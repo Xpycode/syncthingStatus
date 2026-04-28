@@ -50,9 +50,45 @@ Check for common issues:
 | **Deep nesting** | More than 3-4 levels deep? Flatten logic |
 | **Force unwraps** | `!` without good reason? Use optional binding |
 | **Missing error handling** | `try?` silently ignoring errors? Handle them |
-| **Debug code** | `print()` statements left in? Remove them |
+| **Debug code** | Unguarded `print()` in production paths? (see below) |
 | **Commented code** | Dead code commented out? Delete it |
 | **Magic numbers** | Unexplained values? Use named constants |
+
+### Debug Code Verification (Context-Aware)
+
+Don't just grep for `print(` — verify each match with context:
+
+```
+For each print() statement found:
+
+✅ OK (not an issue):
+  - Inside #if DEBUG ... #endif block
+  - Inside #Preview { } block
+  - Uses Logger or os_log (proper logging)
+  - Part of CLI tool output (intentional)
+
+❌ Issue (needs fixing):
+  - Bare print() in production code path
+  - print() in View body (not in #Preview)
+  - print() in async/network code without DEBUG guard
+```
+
+**Quick verification command:**
+```bash
+# Find print statements NOT inside DEBUG or Preview blocks
+# Manual review required - check surrounding context
+grep -n "print(" *.swift | while read line; do
+  file=$(echo $line | cut -d: -f1)
+  linenum=$(echo $line | cut -d: -f2)
+  # Check 5 lines before for #if DEBUG or #Preview
+  context=$(sed -n "$((linenum-5)),$((linenum))p" "$file" 2>/dev/null)
+  if ! echo "$context" | grep -qE "#if DEBUG|#Preview"; then
+    echo "$line"
+  fi
+done
+```
+
+**Or use semantic analysis:** For complex codebases, use the `feature-dev:code-reviewer` agent which performs contextual analysis rather than pattern matching.
 
 ## Step 4: SwiftUI Specific (if applicable)
 
@@ -105,6 +141,38 @@ For small changes, just run through:
 2. Quick security scan (secrets, auth, input validation)
 3. Quick quality scan (obvious issues only)
 4. Approve or flag issues
+
+## Deep Review (Agent-Based)
+
+For thorough contextual analysis, use the specialized code-reviewer agent:
+
+```
+Ask Claude: "Run a deep code review using the code-reviewer agent"
+```
+
+The `feature-dev:code-reviewer` agent provides:
+
+- **Contextual analysis** — understands code structure, not just patterns
+- **Confidence filtering** — only reports high-priority issues
+- **Project conventions** — checks adherence to your codebase patterns
+- **Bug detection** — logic errors, security vulnerabilities, edge cases
+
+**When to use deep review:**
+- Before merging feature branches
+- After significant refactoring
+- When checklist review found suspicious patterns
+- For security-sensitive code changes
+
+**Example prompt:**
+```
+Review the changes in [files/branch] for:
+- Security vulnerabilities
+- Logic errors and edge cases
+- Code quality issues
+- Adherence to project patterns
+
+Use confidence-based filtering — only report issues you're confident about.
+```
 
 ---
 

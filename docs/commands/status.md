@@ -8,6 +8,7 @@ Quick status check. Read and summarize:
 
 Report:
 - What phase we're in
+- Readiness snapshot (Features/UI/Testing/Docs/Distribution status)
 - What we're working on
 - Any blockers
 - What happened last time

@@ -18,6 +18,40 @@
         -->
 
         <item>
+            <title>Version 1.5.5</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5.5</h2>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>False "Out of sync" indicator fixed</strong> &mdash; the menu bar icon used to latch to red when Syncthing was actually fine, especially after routine background scans. The status logic now treats scanning, scan-waiting, sync-preparing/waiting, and cleaning states as healthy, and only reports out-of-sync when there is meaningful pending data.</li>
+                    <li>Cached folder status is cleared on fetch failure so a transient hiccup cannot persist as a stuck red icon.</li>
+                    <li>Removed devices and folders no longer leave stale entries behind in memory.</li>
+                </ul>
+                <h3>New</h3>
+                <ul>
+                    <li><strong>Brand-new app icon and status bar icons.</strong></li>
+                    <li><strong>Status icon style</strong> setting in Preferences &mdash; choose Monochrome (classic) or Traffic-Light (adds an amber warning state for soft conditions like paused devices).</li>
+                    <li><strong>Sync notification cooldown</strong> &mdash; throttle "Sync Complete" notifications per folder (default 5 min, range 0&ndash;60). Stops the notification spam when a folder churns through many small syncs.</li>
+                </ul>
+                <h3>Internal</h3>
+                <ul>
+                    <li>Defensive decoding of Syncthing API responses so future field renames cannot brick the icon.</li>
+                    <li>Status-fetch failures now log via OSLog (subsystem <code>com.lucesumbrarum.syncthingStatus</code>, category <code>FolderStatus</code>) for easier diagnosis.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 28 Apr 2026 04:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.5/syncthingStatus-v1.5.5.dmg"
+                sparkle:version="155"
+                sparkle:shortVersionString="1.5.5"
+                length="3603708"
+                type="application/octet-stream"
+                sparkle:edSignature="jJ8vWSlLZvUtWtWvwkiPcsLLxydCKX7w1zzkOvTDBin1P+A9c9GQFm5BBCELHThk17JpHcQNgj2kBbspaDVJAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
             <title>Version 1.5.1</title>
             <description><![CDATA[
                 <h2>What's New in Version 1.5.1</h2>
