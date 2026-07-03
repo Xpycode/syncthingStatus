@@ -1,5 +1,8 @@
 import Foundation
 import ServiceManagement
+import OSLog
+
+private let launchAtLoginLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "LaunchAtLogin")
 
 struct LaunchAtLoginHelper {
     private static let appIdentifier = "LucesUmbrarum.syncthingStatus"
@@ -21,7 +24,7 @@ struct LaunchAtLoginHelper {
                         try SMAppService.loginItem(identifier: appIdentifier).unregister()
                     }
                 } catch {
-                    print("Failed to update Launch at Login status: \(error)")
+                    launchAtLoginLog.error("Failed to update Launch at Login status: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }

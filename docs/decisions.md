@@ -61,6 +61,46 @@ This file tracks the WHY behind technical and design decisions.
 
 ---
 
+### 2026-04-29 — Latch stuck-delete detection across state transitions
+**Context:** Live testing on M1 Max revealed the stuck-deletes alert row flapping every ~60 s. `updateStuckDeletesSignal()` was using the same fingerprint (`state == idle && needDeletes > 0 && needFiles == 0 && needBytes == 0`) for both initial detection and ongoing persistence. Each periodic rescan briefly transitioned the folder to `scanning`, the fingerprint failed, `firstSeenStuckAt` was wiped, the folder was dropped from `stuckDeleteCounts`, and the 30-s entry debounce restarted. Net effect: the popover's "Resolve…" button was visible roughly 50 % of the time and unusable as an entry point.
+
+**Options Considered:**
+1. **Drop `state == idle` from the fingerprint entirely.** Simplest. But would let initial detection fire mid-scan during startup, producing false positives on a freshly-launched app whose folders are still being inspected.
+2. **Two-stage state machine: idle-required for entry, state-agnostic for persist.** Detection still requires a 30-s idle window (defensive against startup churn). Once the alert publishes, it stays as long as `needDeletes > 0 && needFiles == 0 && needBytes == 0` — i.e., the items remain stuck-eligible regardless of which transient state the folder cycles through.
+3. **Add a separate, longer "exit debounce" timer.** Symmetric with the entry debounce. More moving parts, harder to reason about, and provides no real benefit over the latched approach since rescan transitions are the noise we want to ignore wholesale.
+
+**Decision:** Option 2. `isStuckEligible` (state-agnostic) drives persistence; `isIdleStable` (state-restricted) drives entry. `lastLoggedStuckState[id] == true` is the latch flag — once set, the persistence path keeps republishing the count from each poll's `needDeletes`.
+
+**Rationale:** The user's mental model of "stuck" is about the items, not the folder's instantaneous state. A folder mid-rescan with the same 10 stuck deletions is *just as stuck* as a folder at idle with the same 10. Treating rescans as "maybe it's resolving itself" was wrong — the rescan can't resolve a stuck delete (that's the whole point of the bug).
+
+**Consequences:** Alert is now sticky until something *real* changes (count drops, sync work appears). Side-fix in the same commit: the "log only on transitions" path was re-firing `cleared` every poll because the where-clause checked `newCounts[id] == nil`, true forever after clearing. Gated on the previously-stored `wasDetected == true` so we log exactly once per transition.
+
+---
+
+### 2026-04-29 — Security-scoped bookmark via NSOpenPanel instead of Full Disk Access
+**Context:** End-to-end testing showed the FDA gate firing for `/Users/sim/ProgrammingProjects` even after the user added syncthingStatus to the FDA list and toggled it on. Two compounding issues:
+- The folder root isn't in a TCC-protected location (Documents/Desktop/iCloud), so the user's mental model of "where does FDA matter" doesn't match the OS's actual gate.
+- The app is sandboxed (`com.apple.security.app-sandbox = true` from Xcode's Signing & Capabilities, despite the `.entitlements` file being empty in source). The probe's `contentsOfDirectory(atPath:)` returns `.fileReadNoPermission` because the path is outside the sandbox container, regardless of TCC state.
+- FDA *can* override the sandbox, but only on processes started after the grant. The user has to add the app via `+`, toggle on, fully quit, and relaunch — at which point most users have given up.
+
+**Options Considered:**
+1. **Drop sandbox.** Five-second toggle in Signing & Capabilities, FDA prompt vanishes, full filesystem access. **But** Mac App Store requires sandbox — kills that distribution channel forever.
+2. **Stay sandboxed, swap FDA for security-scoped bookmarks via `NSOpenPanel`.** Proper sandbox pattern. Apple-documented. ~half-day refactor. One folder picker per Syncthing folder root, ever; no FDA prompts; no quit/relaunch dance.
+3. **Stay sandboxed, add a temp-exception entitlement (`com.apple.security.temporary-exception.files.absolute-path.read-write`).** Avoids the bookmark plumbing but pins the app to specific paths at signing time — useless for a tool that operates on user-configured Syncthing folder roots.
+
+**Decision:** Option 2. User explicitly committed to keeping App Store distribution viable, even at the cost of more refactor work.
+
+**Consequences:**
+- New `FolderAccessBookmarks.swift` (bookmark store keyed by Syncthing folder ID, in `UserDefaults` under `FolderAccessBookmark.<id>`, with `refresh(_:for:)` for in-place stale recovery).
+- `StuckDeletesController` rename pass: `fdaBlocked → accessBlocked`, `recheckFDA → recheckAccess`, `openFDASettingsAction → requestAccessAction`. `AccessProbeResult.permissionDenied` removed; `.granted` now carries the resolved `URL`; `.needsBookmark` is the new "user must act" state.
+- `performDeletion` wraps the entire delete loop in `startAccessingSecurityScopedResource()` on the resolved folder root URL. Process-level access covers the detached `Task.detached` per-item operations — no per-item start/stop.
+- `StuckDeletesWindowController` opens `NSOpenPanel` as a sheet on the cleanup window. `directoryURL` set to the *parent* of `folder.path` so the user can pick the folder root in one click. `panel.prompt = "Grant Access"`.
+- Path-validation lives on the controller (`grantAccess(_:)`), not in the AppKit closure — `lastError` is `private(set)` and the closure can't write it.
+- Stale bookmarks refresh transparently inside the probe's access scope. Genuine path issues (`notFound`, `notADirectory`, `other`) still classify correctly — the "actionable error vs. misleading gate" property from the original FDA fix-pass carries forward.
+- Existing FDA grant on the user's machine becomes vestigial after this lands. Worth mentioning in release notes so users can revoke it.
+
+---
+
 ### 2026-04-28 — Animation disabled but machinery retained
 **Context:** New status icons are static (one frame each). User said "disable the animation for now."
 

@@ -66,6 +66,14 @@ struct SyncthingFolderStatus: Codable, Equatable {
     let localBytes: Int64
     let needFiles: Int
     let needBytes: Int64
+    /// Items the local node still needs to *delete* to be in sync. Stays > 0
+    /// when Syncthing refuses to remove a directory containing `.stignore`-matched
+    /// files (the "stuck deletes" failure mode). Defaults to 0 if the daemon
+    /// omits the field, so the icon stays calm on partial responses.
+    let needDeletes: Int
+    /// Sum of all `need*` counters. Preferred over individual fields when present
+    /// because it's the same value the WebUI uses to decide "Out of Sync".
+    let needTotalItems: Int
     let state: String
     let lastScan: String?
 
@@ -76,6 +84,8 @@ struct SyncthingFolderStatus: Codable, Equatable {
         localBytes: Int64,
         needFiles: Int,
         needBytes: Int64,
+        needDeletes: Int,
+        needTotalItems: Int,
         state: String,
         lastScan: String?
     ) {
@@ -85,6 +95,8 @@ struct SyncthingFolderStatus: Codable, Equatable {
         self.localBytes = localBytes
         self.needFiles = needFiles
         self.needBytes = needBytes
+        self.needDeletes = needDeletes
+        self.needTotalItems = needTotalItems
         self.state = state
         self.lastScan = lastScan
     }
@@ -97,6 +109,8 @@ struct SyncthingFolderStatus: Codable, Equatable {
         localBytes = (try? c.decode(Int64.self, forKey: .localBytes)) ?? 0
         needFiles = (try? c.decode(Int.self, forKey: .needFiles)) ?? 0
         needBytes = (try? c.decode(Int64.self, forKey: .needBytes)) ?? 0
+        needDeletes = (try? c.decode(Int.self, forKey: .needDeletes)) ?? 0
+        needTotalItems = (try? c.decode(Int.self, forKey: .needTotalItems)) ?? 0
         state = (try? c.decode(String.self, forKey: .state)) ?? "idle"
         lastScan = try? c.decode(String.self, forKey: .lastScan)
     }
@@ -106,6 +120,87 @@ struct SyncthingDeviceCompletion: Codable, Equatable {
     let completion: Double
     let globalBytes: Int64
     let needBytes: Int64
+    let needDeletes: Int
+
+    init(completion: Double, globalBytes: Int64, needBytes: Int64, needDeletes: Int = 0) {
+        self.completion = completion
+        self.globalBytes = globalBytes
+        self.needBytes = needBytes
+        self.needDeletes = needDeletes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        completion = (try? c.decode(Double.self, forKey: .completion)) ?? 0
+        globalBytes = (try? c.decode(Int64.self, forKey: .globalBytes)) ?? 0
+        needBytes = (try? c.decode(Int64.self, forKey: .needBytes)) ?? 0
+        needDeletes = (try? c.decode(Int.self, forKey: .needDeletes)) ?? 0
+    }
+}
+
+// MARK: - /rest/db/need response
+/// One item in Syncthing's `db/need` response — a file or directory the local
+/// node still needs to act on to be in sync. Stuck deletes show up here as
+/// `deleted: true` directory entries.
+///
+/// The official REST docs don't list `deleted` or `type` in the file objects,
+/// but live diagnostics against real daemons confirm both are present (the
+/// design doc author observed them). We decode defensively: a missing `deleted`
+/// flag defaults to `false` and a missing `type` to `""`, both of which fail
+/// the cleanup filter — so a future field rename in Syncthing v3 degrades to
+/// "no candidates found" rather than offering up the wrong items for deletion.
+struct RemoteNeedItem: Decodable, Identifiable, Equatable {
+    let name: String
+    let deleted: Bool
+    let type: String
+    let size: Int64
+
+    var id: String { name }
+    /// Syncthing reports `FILE_INFO_TYPE_DIRECTORY` for directories. The suffix
+    /// match is robust to enum-prefix changes between API versions.
+    var isDirectory: Bool { type.hasSuffix("DIRECTORY") }
+
+    /// Explicit because Swift only synthesizes `CodingKeys` when it's also
+    /// synthesizing one of `init(from:)` / `encode(to:)`. We provide our own
+    /// `init(from:)` *and* the type is `Decodable`-only, so no synthesis runs.
+    private enum CodingKeys: String, CodingKey {
+        case name, deleted, type, size
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        deleted = (try? c.decode(Bool.self, forKey: .deleted)) ?? false
+        type = (try? c.decode(String.self, forKey: .type)) ?? ""
+        size = (try? c.decode(Int64.self, forKey: .size)) ?? 0
+    }
+}
+
+/// Response shape for `GET /rest/db/need`. Three buckets:
+/// - `progress`: items currently being processed
+/// - `queued`: items committed for next processing
+/// - `rest`: everything else still needed
+///
+/// Stuck deletes typically appear in `rest` (Syncthing isn't actively trying
+/// them), but we merge all three buckets so a delete that briefly cycles
+/// through `progress`/`queued` isn't missed.
+struct DbNeedResponse: Decodable {
+    let progress: [RemoteNeedItem]
+    let queued: [RemoteNeedItem]
+    let rest: [RemoteNeedItem]
+
+    var allItems: [RemoteNeedItem] { progress + queued + rest }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        progress = (try? c.decode([RemoteNeedItem].self, forKey: .progress)) ?? []
+        queued = (try? c.decode([RemoteNeedItem].self, forKey: .queued)) ?? []
+        rest = (try? c.decode([RemoteNeedItem].self, forKey: .rest)) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case progress, queued, rest
+    }
 }
 
 // MARK: - Transfer Rate Tracking

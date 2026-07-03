@@ -27,6 +27,11 @@ enum AppConstants {
 
         /// Default stalled sync timeout in minutes
         static let defaultStalledTimeoutMinutes: Double = 5.0
+
+        /// How long the stuck-delete fingerprint must persist before the
+        /// popover badge fires. Avoids flapping during routine
+        /// `cleaning → idle` transitions on a normal sync.
+        static let stuckDeletesDebounceSeconds: TimeInterval = 30.0
     }
 
     // MARK: - UI Configuration

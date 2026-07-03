@@ -4,6 +4,9 @@ import Foundation
 import Combine
 import UserNotifications
 import QuartzCore
+import OSLog
+
+private let appLifecycleLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "AppLifecycle")
 
 // MARK: - Status Icon State Resolver
 @MainActor
@@ -84,12 +87,19 @@ struct StatusIconStateResolver {
         // Rule 6: Truly out of sync — folder at rest with non-trivial pending
         // work. Anything still in a healthy/transient state (scanning,
         // scan-waiting, etc.) is *not* counted as out-of-sync; only an idle
-        // folder whose remaining bytes exceed the user-configured threshold
-        // qualifies. This is the rule that previously fired falsely on
-        // routine scans.
+        // folder qualifies. Two qualifying conditions:
+        //   a) remaining bytes exceed the user-configured threshold (the
+        //      original 2026-04-28 rule for byte-pending desyncs);
+        //   b) any pending deletes — covers the "stuck deletes" case where
+        //      Syncthing refuses to remove a directory containing ignored
+        //      files (.git, .build, etc.). `needDeletes > 0` produces zero
+        //      remaining bytes but still leaves the folder out of sync, which
+        //      is exactly what the WebUI shows.
         let trulyOutOfSync = client.folderStatuses.values.contains { status in
-            status.state == "idle"
-                && status.needBytes > settings.syncRemainingBytesThreshold
+            guard status.state == "idle" else { return false }
+            if status.needBytes > settings.syncRemainingBytesThreshold { return true }
+            if status.needDeletes > 0 { return true }
+            return false
         }
         if trulyOutOfSync {
             return .outOfSync
@@ -129,6 +139,77 @@ class MainWindowController: NSWindowController {
 
         self.init(window: window)
     }
+}
+
+// MARK: - Stuck Deletes Window Controller
+/// Hosts the per-folder stuck-deletes cleanup view in its own NSWindow. We use
+/// a dedicated window (not an NSPopover sheet or SwiftUI .sheet) because:
+///   1. NSPopover-attached sheets have well-known z-order bugs.
+///   2. The user may want to keep this window open while they Reveal items in
+///      Finder — popover-attached sheets get dismissed by app deactivation.
+///   3. It mirrors the established `MainWindowController` pattern and reuses
+///      the existing `windowWillClose` / `revertToAccessoryIfAppropriate`
+///      activation-policy machinery.
+final class StuckDeletesWindowController: NSWindowController {
+    let stuckController: StuckDeletesController
+
+    init(folder: SyncthingFolder, syncthingClient: SyncthingClient) {
+        let stuckController = StuckDeletesController(folder: folder, client: syncthingClient)
+        self.stuckController = stuckController
+
+        let view = StuckDeletesView(controller: stuckController)
+        let hostingView = NSHostingView(rootView: view)
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: NSSize(width: 640, height: 480)),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        let label = folder.label.isEmpty ? folder.id : folder.label
+        window.title = "Stuck Deletions — \(label)"
+        window.center()
+        window.minSize = NSSize(width: 480, height: 320)
+
+        super.init(window: window)
+        // Wire AppKit-touching closures *after* super.init so the SwiftUI
+        // layer can drive them without `Client.swift` importing AppKit. Weak
+        // capture on the window avoids a retain cycle.
+        stuckController.dismissAction = { [weak window] in
+            window?.close()
+        }
+        stuckController.requestAccessAction = { [weak window, weak stuckController] in
+            guard let stuckController else { return }
+            let folder = stuckController.folder
+            let folderURL = URL(fileURLWithPath: folder.path, isDirectory: true)
+
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.canCreateDirectories = false
+            panel.resolvesAliases = true
+            panel.directoryURL = folderURL.deletingLastPathComponent()
+            panel.message = "Grant syncthingStatus access to \"\(folder.label.isEmpty ? folder.id : folder.label)\" so it can remove the stuck deletions. You only need to do this once per folder."
+            panel.prompt = "Grant Access"
+            panel.title = "Grant Folder Access"
+
+            let handle: (NSApplication.ModalResponse) -> Void = { response in
+                guard response == .OK, let chosen = panel.url else { return }
+                stuckController.grantAccess(chosen)
+            }
+
+            if let window {
+                panel.beginSheetModal(for: window, completionHandler: handle)
+            } else {
+                handle(panel.runModal())
+            }
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 }
 
 // MARK: - Hosting Controller Helpers
@@ -176,6 +257,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var popover: NSPopover?
     var windowController: MainWindowController?
     weak var settingsWindow: NSWindow?
+    /// One stuck-deletes window per affected folder, keyed by folder ID. Lets
+    /// repeated "Resolve…" clicks focus the existing window instead of stacking
+    /// duplicates.
+    private var stuckDeletesWindowControllers: [String: StuckDeletesWindowController] = [:]
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
     let updateController = UpdateController()
@@ -200,6 +285,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let info = Bundle.main.infoDictionary
+        let marketing = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        appLifecycleLog.notice("App launched: \(marketing, privacy: .public) (\(build, privacy: .public))")
+
         statusIcon = SyncthingStatusIcon()
         if let statusButton = statusIcon?.statusItem.button {
             statusButton.target = self
@@ -218,7 +308,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private func requestNotificationPermissions() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
-                print("Notification permission error: \(error)")
+                appLifecycleLog.error("Notification permission error: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -347,7 +437,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let finalHeight = min(totalContentHeight, maxHeight)
         let newSize = NSSize(width: 400, height: finalHeight)
 
-        print("📊 Popover sizing: screenHeight=\(screenHeight), percentage=\(Int(settings.popoverMaxHeightPercentage))%, maxHeight=\(maxHeight), contentHeight=\(contentHeight), totalContent=\(totalContentHeight), finalHeight=\(finalHeight)")
+        #if DEBUG
+        appLifecycleLog.debug("Popover sizing: screenHeight=\(screenHeight, privacy: .public), percentage=\(Int(self.settings.popoverMaxHeightPercentage), privacy: .public)%, maxHeight=\(maxHeight, privacy: .public), contentHeight=\(contentHeight, privacy: .public), totalContent=\(totalContentHeight, privacy: .public), finalHeight=\(finalHeight, privacy: .public)")
+        #endif
 
         if popover.contentSize != newSize {
             popover.contentSize = newSize
@@ -472,6 +564,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         windowController?.window?.makeKeyAndOrderFront(nil)
     }
 
+    /// Opens the per-folder stuck-deletes cleanup window (Phase 3). Repeated
+    /// invocations for the same folder focus the existing window rather than
+    /// stacking new copies. Multiple folders → multiple independent windows.
+    func openStuckDeletesResolution(for folder: SyncthingFolder) {
+        closePopover()
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existing = stuckDeletesWindowControllers[folder.id], existing.window != nil {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let controller = StuckDeletesWindowController(folder: folder, syncthingClient: syncthingClient)
+        controller.window?.delegate = self
+        stuckDeletesWindowControllers[folder.id] = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+    }
+
+    func showAboutPanel() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let stversion = syncthingClient.syncthingVersion
+        let creditsString = stversion.map { "Syncthing \($0)" } ?? "Syncthing: not connected"
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let credits = NSAttributedString(string: creditsString, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraph
+        ])
+
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: credits
+        ])
+    }
+
     func presentSettings(using openSettingsAction: @escaping () -> Void) {
         closePopover()
         NSApp.setActivationPolicy(.regular)
@@ -528,16 +660,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     private func revertToAccessoryIfAppropriate(excluding closingWindow: NSWindow? = nil) {
-        // Check if we have any user-visible windows remaining
-        // We only care about our main window and settings window
+        // Check if we have any user-visible windows remaining: main, settings,
+        // or any stuck-deletes cleanup window. A stuck-deletes window is just
+        // as "user-facing" as settings — closing it while another is open
+        // shouldn't drop the app back to accessory mode.
         let hasMainWindow = windowController?.window != nil &&
                            windowController?.window !== closingWindow &&
                            windowController?.window?.isVisible == true
         let hasSettingsWindow = settingsWindow != nil &&
                                settingsWindow !== closingWindow &&
                                settingsWindow?.isVisible == true
+        let hasStuckDeletesWindow = stuckDeletesWindowControllers.values.contains { wc in
+            guard let w = wc.window else { return false }
+            return w !== closingWindow && w.isVisible
+        }
 
-        if !hasMainWindow && !hasSettingsWindow {
+        if !hasMainWindow && !hasSettingsWindow && !hasStuckDeletesWindow {
             NSApp.setActivationPolicy(.accessory)
         }
     }
@@ -563,6 +701,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         } else if window === settingsWindow {
             revertToAccessoryIfAppropriate(excluding: window)
             settingsWindow = nil
+        } else if let entry = stuckDeletesWindowControllers.first(where: { $0.value.window === window }) {
+            revertToAccessoryIfAppropriate(excluding: window)
+            stuckDeletesWindowControllers.removeValue(forKey: entry.key)
         }
     }
     
@@ -697,6 +838,11 @@ struct SyncthingStatusApp: App {
             SettingsView(settings: appDelegate.settings, syncthingClient: appDelegate.syncthingClient, updateController: appDelegate.updateController)
         }
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About syncthingStatus") {
+                    appDelegate.showAboutPanel()
+                }
+            }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updateController: appDelegate.updateController)
             }

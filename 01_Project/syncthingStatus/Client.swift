@@ -4,6 +4,10 @@ import UserNotifications
 import OSLog
 
 private let folderStatusLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "FolderStatus")
+private let stuckDeletesLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "StuckDeletes")
+private let networkLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Network")
+private let notificationsLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Notifications")
+private let configLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Config")
 
 enum DemoScenario {
     case mixed        // Mixed syncing states (some idle, some syncing)
@@ -144,6 +148,16 @@ class SyncthingClient: ObservableObject {
     @Published var syncthingVersion: String?
     @Published var lastGlobalSyncNotificationSentAt: Date?
 
+    /// Per-folder stuck-delete count. Populated when an idle folder has
+    /// `needDeletes > 0` and no other pending work, sustained past the debounce
+    /// window. Empty otherwise. Drives the popover alert row in Phase 2.
+    @Published var stuckDeleteCounts: [String: Int] = [:]
+    /// First-seen timestamp per folder for the stuck-delete debounce. Cleared
+    /// when the fingerprint disappears.
+    private var firstSeenStuckAt: [String: Date] = [:]
+    /// Tracks the last announced state per folder so we only log on transitions.
+    private var lastLoggedStuckState: [String: Bool] = [:]
+
     // Demo mode - shows realistic preview data for screenshots and testing
     @Published var demoMode = false
     @Published var demoDeviceCount = 0
@@ -268,7 +282,11 @@ class SyncthingClient: ObservableObject {
                 let url = try URL(resolvingBookmarkData: bookmarkData, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
 
                 if stale {
-                    try? settings.updateConfigBookmark(with: url)
+                    do {
+                        try settings.updateConfigBookmark(with: url)
+                    } catch {
+                        configLog.error("Failed to refresh stale config.xml bookmark: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
 
                 let hasAccess = url.startAccessingSecurityScopedResource()
@@ -358,7 +376,7 @@ class SyncthingClient: ObservableObject {
         return components.url
     }
     
-    private func makeRequest<T: Codable>(endpoint: String, responseType: T.Type) async throws -> T {
+    private func makeRequest<T: Decodable>(endpoint: String, responseType: T.Type) async throws -> T {
         guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
         #if DEBUG
@@ -376,7 +394,7 @@ class SyncthingClient: ObservableObject {
         }
 
         guard httpResponse.statusCode == 200 else {
-            print("Syncthing request to \(endpoint) failed with HTTP \(httpResponse.statusCode)")
+            networkLog.error("GET \(endpoint, privacy: .public) failed with HTTP \(httpResponse.statusCode, privacy: .public)")
             throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: endpoint)
         }
 
@@ -385,7 +403,7 @@ class SyncthingClient: ObservableObject {
     }
 
     /// Makes a GET request with properly URL-encoded query parameters
-    private func makeRequest<T: Codable>(path: String, queryItems: [URLQueryItem], responseType: T.Type) async throws -> T {
+    private func makeRequest<T: Decodable>(path: String, queryItems: [URLQueryItem], responseType: T.Type) async throws -> T {
         guard let url = endpointURL(path: path, queryItems: queryItems) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
@@ -400,7 +418,7 @@ class SyncthingClient: ObservableObject {
         }
 
         guard httpResponse.statusCode == 200 else {
-            print("Syncthing request to \(path) failed with HTTP \(httpResponse.statusCode)")
+            networkLog.error("GET \(path, privacy: .public) failed with HTTP \(httpResponse.statusCode, privacy: .public)")
             throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: path)
         }
 
@@ -425,7 +443,7 @@ class SyncthingClient: ObservableObject {
 
         // Accept 200 OK, 201 Created, and 204 No Content as successful responses
         guard (200...204).contains(httpResponse.statusCode) else {
-            print("Syncthing POST request to \(endpoint) failed with HTTP \(httpResponse.statusCode).")
+            networkLog.error("POST \(endpoint, privacy: .public) failed with HTTP \(httpResponse.statusCode, privacy: .public)")
             throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: endpoint)
         }
     }
@@ -448,7 +466,7 @@ class SyncthingClient: ObservableObject {
 
         // Accept 200 OK, 201 Created, and 204 No Content as successful responses
         guard (200...204).contains(httpResponse.statusCode) else {
-            print("Syncthing POST request to \(path) failed with HTTP \(httpResponse.statusCode).")
+            networkLog.error("POST \(path, privacy: .public) failed with HTTP \(httpResponse.statusCode, privacy: .public)")
             throw SyncthingClientError.httpStatus(code: httpResponse.statusCode, endpoint: path)
         }
     }
@@ -485,7 +503,7 @@ class SyncthingClient: ObservableObject {
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            print("Syncthing raw POST request to \(endpoint) failed with HTTP \(code).")
+            networkLog.error("Raw POST \(endpoint, privacy: .public) failed with HTTP \(code, privacy: .public)")
             throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
         }
     }
@@ -525,7 +543,7 @@ class SyncthingClient: ObservableObject {
             let versionInfo = try await makeRequest(endpoint: "system/version", responseType: SyncthingVersion.self)
             self.syncthingVersion = versionInfo.version
         } catch {
-            print("Failed to fetch system/version: \(error)")
+            networkLog.error("Failed to fetch system/version: \(error.localizedDescription, privacy: .public)")
             self.syncthingVersion = nil
         }
     }
@@ -563,7 +581,7 @@ class SyncthingClient: ObservableObject {
             guard !errorDescription.contains("cancelled") else { return }
 
             let errorMessage = "Failed to fetch config: \(errorDescription)"
-            print(errorMessage)
+            networkLog.error("\(errorMessage, privacy: .public)")
             // Only update UI-facing properties if not in demo mode
             if !demoMode {
                 self.lastErrorMessage = errorMessage
@@ -595,7 +613,7 @@ class SyncthingClient: ObservableObject {
             guard !errorDescription.contains("cancelled") else { return }
 
             let errorMessage = "Failed to fetch connections: \(errorDescription)"
-            print(errorMessage)
+            networkLog.error("\(errorMessage, privacy: .public)")
             if !demoMode {
                 self.lastErrorMessage = errorMessage
                 if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
@@ -705,7 +723,7 @@ class SyncthingClient: ObservableObject {
             do {
                 let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
                 self.realFolderStatuses[folder.id] = status // Update the cache
-                
+
                 if !demoMode {
                     self.folderStatuses[folder.id] = status
                     self.trackSyncEvent(folder: folder, status: status)
@@ -731,6 +749,92 @@ class SyncthingClient: ObservableObject {
                 }
             }
         }
+
+        if !demoMode {
+            updateStuckDeletesSignal()
+        }
+    }
+
+    /// Computes the per-folder stuck-delete count and publishes it to
+    /// `stuckDeleteCounts`. See Syncthing issue #7046 and
+    /// `FEATURE-stuck-deletes-cleanup.md` for the full rationale.
+    ///
+    /// Two-stage state machine to avoid flapping during periodic rescans:
+    /// - **Entry (debounced):** `state == idle && needDeletes > 0 && no other
+    ///   pending work`, sustained for `stuckDeletesDebounceSeconds`. The idle
+    ///   requirement keeps us from latching during a startup scan.
+    /// - **Persist (latched):** once detected, stay detected as long as
+    ///   `needDeletes > 0 && needFiles == 0 && needBytes == 0`. Transient state
+    ///   churn (scanning / sync-waiting) without progress keeps the latch.
+    /// - **Clear:** `needDeletes` drops to 0, real sync work appears, the
+    ///   folder pauses, or the alert toggle flips off.
+    ///
+    /// Paused folders are excluded from both stages.
+    private func updateStuckDeletesSignal() {
+        guard settings.stuckDeletesAlertsEnabled else {
+            if !stuckDeleteCounts.isEmpty {
+                stuckDeleteCounts = [:]
+                firstSeenStuckAt.removeAll()
+                lastLoggedStuckState.removeAll()
+            }
+            return
+        }
+
+        let now = Date()
+        var newCounts: [String: Int] = [:]
+        let debounce = AppConstants.Sync.stuckDeletesDebounceSeconds
+
+        for folder in folders where !folder.paused {
+            guard let s = folderStatuses[folder.id] else {
+                firstSeenStuckAt.removeValue(forKey: folder.id)
+                continue
+            }
+
+            // Items are stuck-eligible whenever needDeletes is outstanding and
+            // no real sync work is in flight. State (idle vs scanning vs
+            // sync-waiting) is intentionally NOT in this check — rescan
+            // transitions don't make the items un-stuck.
+            let isStuckEligible =
+                s.needDeletes > 0 &&
+                s.needFiles == 0 &&
+                s.needBytes == 0
+
+            // For initial detection we additionally require state == idle so
+            // the entry debounce only ticks during quiet windows.
+            let isIdleStable = isStuckEligible && s.state == "idle"
+
+            let alreadyDetected = lastLoggedStuckState[folder.id] == true
+
+            if alreadyDetected, isStuckEligible {
+                // Latched: keep the alert alive through state churn.
+                newCounts[folder.id] = s.needDeletes
+            } else if isIdleStable {
+                // Entry debounce: tick only when idle.
+                let firstSeen = firstSeenStuckAt[folder.id] ?? now
+                if firstSeenStuckAt[folder.id] == nil { firstSeenStuckAt[folder.id] = now }
+                if now.timeIntervalSince(firstSeen) >= debounce {
+                    newCounts[folder.id] = s.needDeletes
+                }
+            } else {
+                // Real work in flight, needDeletes resolved, or transient
+                // pre-detection state — reset the entry debounce.
+                firstSeenStuckAt.removeValue(forKey: folder.id)
+            }
+        }
+
+        // Log only on actual transitions. Gate on the prior boolean so
+        // "cleared" doesn't re-fire on every subsequent poll.
+        for (folderID, count) in newCounts where lastLoggedStuckState[folderID] != true {
+            stuckDeletesLog.notice("Stuck deletes detected on folder \(folderID, privacy: .public): \(count) item(s)")
+            lastLoggedStuckState[folderID] = true
+        }
+        for (folderID, wasDetected) in lastLoggedStuckState
+            where wasDetected && newCounts[folderID] == nil {
+            stuckDeletesLog.notice("Stuck deletes cleared on folder \(folderID, privacy: .public)")
+            lastLoggedStuckState[folderID] = false
+        }
+
+        stuckDeleteCounts = newCounts
     }
 
     private func trackSyncEvent(folder: SyncthingFolder, status: SyncthingFolderStatus) {
@@ -927,7 +1031,7 @@ class SyncthingClient: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to send pause/resume notification: \(error)")
+                notificationsLog.error("Failed to send pause/resume notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -953,7 +1057,7 @@ class SyncthingClient: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to send stalled sync notification: \(error)")
+                notificationsLog.error("Failed to send stalled sync notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -972,7 +1076,7 @@ class SyncthingClient: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to send notification: \(error)")
+                notificationsLog.error("Failed to send sync-completion notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -991,7 +1095,7 @@ class SyncthingClient: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to send global sync notification: \(error)")
+                notificationsLog.error("Failed to send global sync notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -1010,7 +1114,7 @@ class SyncthingClient: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to send connection notification: \(error)")
+                notificationsLog.error("Failed to send connection notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -1031,7 +1135,7 @@ class SyncthingClient: ObservableObject {
                 guard !errorDescription.contains("cancelled") else { continue }
 
                 let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(errorDescription)"
-                print(errorMessage)
+                networkLog.error("\(errorMessage, privacy: .public)")
                 if !demoMode {
                     self.lastErrorMessage = errorMessage
                     if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
@@ -1055,6 +1159,9 @@ class SyncthingClient: ObservableObject {
         }
         systemStatus = nil
         deviceCompletions = [:]
+        stuckDeleteCounts = [:]
+        firstSeenStuckAt.removeAll()
+        lastLoggedStuckState.removeAll()
     }
     
     func refresh() async {
@@ -1069,7 +1176,7 @@ class SyncthingClient: ObservableObject {
 
     private func performRefresh() async {
         guard !isRefreshing else {
-            print("Refresh already in progress.")
+            networkLog.debug("Refresh already in progress")
             return
         }
         isRefreshing = true
@@ -1111,7 +1218,7 @@ class SyncthingClient: ObservableObject {
             sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: true)
             await refresh()
         } catch {
-            print("Failed to pause device \(deviceID): \(error)")
+            networkLog.error("Failed to pause device \(deviceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1122,8 +1229,34 @@ class SyncthingClient: ObservableObject {
             sendPauseResumeNotification(target: .device(id: deviceID, name: deviceName), paused: false)
             await refresh()
         } catch {
-            print("Failed to resume device \(deviceID): \(error)")
+            networkLog.error("Failed to resume device \(deviceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// Fetches the items the local node still needs to process for a folder.
+    /// Used by the stuck-deletes window to enumerate which directories
+    /// Syncthing wants gone but can't remove. **Not** called from the poll loop:
+    /// the Syncthing docs explicitly warn this endpoint is expensive
+    /// ("increasing CPU and RAM usage on the device. Use sparingly.").
+    func fetchDbNeed(folder: String) async throws -> DbNeedResponse {
+        return try await makeRequest(
+            path: "db/need",
+            queryItems: [
+                URLQueryItem(name: "folder", value: folder),
+                URLQueryItem(name: "perpage", value: "1000")
+            ],
+            responseType: DbNeedResponse.self
+        )
+    }
+
+    /// Triggers a full rescan of a folder via `POST /rest/db/scan?folder=X`.
+    /// Used by the stuck-deletes window to nudge Syncthing to reconcile after
+    /// the user manually clears the offending directories.
+    func rescan(folder: String) async throws {
+        try await postRequest(
+            path: "db/scan",
+            queryItems: [URLQueryItem(name: "folder", value: folder)]
+        )
     }
 
     func rescanFolder(folderID: String) async {
@@ -1131,7 +1264,7 @@ class SyncthingClient: ObservableObject {
             try await postRequest(path: "db/scan", queryItems: [URLQueryItem(name: "folder", value: folderID)])
             // No immediate refresh needed as scanning is a background task
         } catch {
-            print("Failed to rescan folder \(folderID): \(error)")
+            folderStatusLog.error("Failed to rescan folder \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1141,7 +1274,7 @@ class SyncthingClient: ObservableObject {
             sendPauseResumeNotification(target: .allDevices, paused: true)
             await refresh()
         } catch {
-            print("Failed to pause all devices: \(error)")
+            networkLog.error("Failed to pause all devices: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1151,7 +1284,7 @@ class SyncthingClient: ObservableObject {
             sendPauseResumeNotification(target: .allDevices, paused: false)
             await refresh()
         } catch {
-            print("Failed to resume all devices: \(error)")
+            networkLog.error("Failed to resume all devices: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1177,14 +1310,14 @@ class SyncthingClient: ObservableObject {
 
             // 2. Deserialize to a dictionary
             guard var configJSON = try JSONSerialization.jsonObject(with: configData, options: []) as? [String: Any] else {
-                print("Failed to deserialize config JSON.")
+                configLog.error("Failed to deserialize config JSON")
                 return
             }
 
             // 3. Find and modify the folder
             guard var folders = configJSON["folders"] as? [[String: Any]],
                   let folderIndex = folders.firstIndex(where: { ($0["id"] as? String) == folderID }) else {
-                print("Folder with ID \(folderID) not found in config JSON.")
+                configLog.error("Folder with ID \(folderID, privacy: .public) not found in config JSON")
                 return
             }
             folders[folderIndex]["paused"] = paused
@@ -1209,7 +1342,7 @@ class SyncthingClient: ObservableObject {
             await waitForSyncthingAvailability()
 
         } catch {
-            print("Failed to set folder paused state for \(folderID): \(error)")
+            configLog.error("Failed to set folder paused state for \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1454,13 +1587,16 @@ class SyncthingClient: ObservableObject {
                 if state == "syncing" {
                     let globalBytes = Int64.random(in: 10_000_000...1_000_000_000)
                     let globalFiles = Int.random(in: 100...1000)
+                    let needFiles = Int.random(in: 1...100)
                     dummyFolderStatuses[folderID] = SyncthingFolderStatus(
                         globalFiles: globalFiles,
                         globalBytes: globalBytes,
                         localFiles: globalFiles,
                         localBytes: globalBytes,
-                        needFiles: Int.random(in: 1...100),
+                        needFiles: needFiles,
                         needBytes: Int64.random(in: 1_000_000...100_000_000),
+                        needDeletes: 0,
+                        needTotalItems: needFiles,
                         state: state,
                         lastScan: nil
                     )
@@ -1474,6 +1610,8 @@ class SyncthingClient: ObservableObject {
                         localBytes: globalBytes,
                         needFiles: 0,
                         needBytes: 0,
+                        needDeletes: 0,
+                        needTotalItems: 0,
                         state: state,
                         lastScan: nil
                     )
@@ -1543,3 +1681,420 @@ class SyncthingClient: ObservableObject {
         Task { await refresh() }
     }
 }
+
+// MARK: - Stuck Deletes — Deletion Pipeline Types
+/// Failure modes reported by `StuckDeletesController.deleteOne`. Each maps to
+/// a one-line user-facing reason in the outcome banner.
+enum DeletionError: Error, Equatable {
+    /// Path failed the safety check (`..`, absolute, null bytes, escapes folder root).
+    /// The most paranoid case — we never reached `removeItem`.
+    case invalidPath
+    /// Filesystem returned EACCES / NSFileWriteNoPermissionError. Usually means
+    /// the user hasn't granted Full Disk Access for a TCC-protected path.
+    case permissionDenied
+    /// Anything else — generally a transient or niche I/O error. Carries the
+    /// localized description so the user has something to act on.
+    case osError(String)
+
+    var humanReadable: String {
+        switch self {
+        case .invalidPath: return "Path rejected by safety check"
+        case .permissionDenied: return "Permission denied — grant Full Disk Access"
+        case .osError(let msg): return msg
+        }
+    }
+}
+
+/// Aggregate result of `StuckDeletesController.performDeletion`. The view
+/// shows the outcome banner above the candidate list; failures stay in the
+/// list (they weren't deleted) so the user can retry.
+struct DeletionOutcome: Equatable {
+    let succeededCount: Int
+    let failed: [FailedItem]
+    var hasFailures: Bool { !failed.isEmpty }
+
+    struct FailedItem: Equatable {
+        let name: String
+        let reason: String
+    }
+}
+
+// MARK: - Stuck Deletes Controller
+/// Per-window controller for the stuck-deletes cleanup view. One instance is
+/// constructed when the user clicks "Resolve…" on a folder; it owns the fetch
+/// state, the candidate list, the deletion pipeline, and an FDA gate flag.
+///
+/// Threading: marked `@MainActor` for SwiftUI binding safety; FS-mutating work
+/// runs on a detached background task using a fresh `FileManager()` instance
+/// (the documented thread-safe choice — `FileManager.default` is per-thread).
+@MainActor
+final class StuckDeletesController: ObservableObject {
+    @Published private(set) var candidates: [RemoteNeedItem] = []
+    @Published private(set) var loading = false
+    @Published private(set) var lastError: String?
+
+    /// True while a deletion pass is in flight — disables UI interactions.
+    @Published private(set) var deleting = false
+    /// Result of the most recent `performDeletion` call. Cleared when a new
+    /// one starts. Drives the outcome banner shown above the candidate list.
+    @Published private(set) var lastOutcome: DeletionOutcome?
+    /// True when the access pre-flight failed and we don't yet have a usable
+    /// security-scoped bookmark for this folder root. Drives the grant-access
+    /// gate view that replaces the candidate list. Reset by `recheckAccess()`
+    /// once a bookmark resolves successfully.
+    @Published private(set) var accessBlocked = false
+
+    let folder: SyncthingFolder
+    private let client: SyncthingClient
+    private let bookmarks = FolderAccessBookmarks()
+    /// Set by `StuckDeletesWindowController` after init so the SwiftUI Close
+    /// button can dismiss the window without `Client.swift` needing AppKit.
+    /// Captured weakly inside the closure to avoid retaining the window.
+    var dismissAction: (() -> Void)?
+    /// Set by `StuckDeletesWindowController`. Presents an `NSOpenPanel` so the
+    /// user can grant the sandboxed app a security-scoped bookmark for the
+    /// folder root. Behind a closure so the controller stays AppKit-free.
+    var requestAccessAction: (() -> Void)?
+
+    init(folder: SyncthingFolder, client: SyncthingClient) {
+        self.folder = folder
+        self.client = client
+    }
+
+    /// Fetches candidates from `db/need`, filters to deleted directory entries,
+    /// sorts by name. Cancellation-safe: if the SwiftUI `.task` modifier
+    /// cancels us (window closed mid-fetch), we silently return.
+    func loadCandidates() async {
+        loading = true
+        defer { loading = false }
+        lastError = nil
+
+        do {
+            let response = try await client.fetchDbNeed(folder: folder.id)
+            try Task.checkCancellation()
+            let dirs = response.allItems
+                .filter { $0.deleted && $0.isDirectory && !$0.name.isEmpty }
+                .sorted { $0.name < $1.name }
+            candidates = dirs
+            stuckDeletesLog.info("Loaded \(dirs.count, privacy: .public) stuck-delete candidate(s) for folder \(self.folder.id, privacy: .public)")
+        } catch is CancellationError {
+            return
+        } catch {
+            let desc = error.localizedDescription
+            if (error as? URLError)?.code == .cancelled || desc.contains("cancelled") {
+                return
+            }
+            lastError = desc
+            stuckDeletesLog.error("Failed db/need for folder \(self.folder.id, privacy: .public): \(desc, privacy: .public)")
+        }
+    }
+
+    func close() {
+        dismissAction?()
+    }
+
+    func requestAccess() {
+        requestAccessAction?()
+    }
+
+    /// Validates a user-picked URL from `NSOpenPanel`, persists the resulting
+    /// security-scoped bookmark, and re-runs the access probe. The picked URL
+    /// must be the folder root itself or an ancestor — narrower selections
+    /// don't grant access to the items we need to remove. Called by
+    /// `StuckDeletesWindowController` from the panel completion handler;
+    /// triggers an automatic candidate reload on success so the user lands
+    /// directly in the cleanup view.
+    func grantAccess(_ url: URL) {
+        let chosenPath = url.standardizedFileURL.path
+        let expectedPath = (folder.path as NSString).standardizingPath
+        let isAtOrAbove = chosenPath == expectedPath
+            || expectedPath.hasPrefix(chosenPath + "/")
+        guard isAtOrAbove else {
+            stuckDeletesLog.error("Bookmark grant rejected: \(chosenPath, privacy: .public) is not the folder root or an ancestor of \(expectedPath, privacy: .public)")
+            lastError = "The selected folder doesn't grant access to \"\(expectedPath)\". Pick the folder root itself, or a parent of it."
+            return
+        }
+        do {
+            try bookmarks.save(url, for: folder.id)
+            stuckDeletesLog.notice("Bookmark granted for folder \(self.folder.id, privacy: .public)")
+            recheckAccess()
+            if !accessBlocked {
+                Task { await loadCandidates() }
+            }
+        } catch {
+            stuckDeletesLog.error("Failed to save bookmark for folder \(self.folder.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            lastError = "Couldn't store the access grant: \(error.localizedDescription)"
+        }
+    }
+
+    /// Result of probing the folder root for accessibility. Each case maps to
+    /// a distinct UI state, so the user gets an actionable message instead of
+    /// being dead-ended in an access gate when the real issue is elsewhere.
+    enum AccessProbeResult {
+        /// Bookmark resolved and the folder is readable. Carries the
+        /// security-scoped URL the caller should wrap subsequent work in via
+        /// `startAccessingSecurityScopedResource()`.
+        case granted(URL)
+        /// No bookmark yet, or the bookmark resolved but the URL was
+        /// unreadable (revoked, deleted, etc.). User must grant access via
+        /// `NSOpenPanel`.
+        case needsBookmark
+        /// Folder root doesn't exist on this Mac. Common when one peer's
+        /// Syncthing config points to a path the other peer hasn't created.
+        case notFound(path: String)
+        /// Path exists but isn't a directory (extremely unusual).
+        case notADirectory(path: String)
+        /// Anything else: I/O error, dead symlink, etc. Carries the localized
+        /// description for the user.
+        case other(message: String)
+    }
+
+    /// Re-runs the access probe. Called from the View when the user clicks
+    /// "Try Again" after granting access. With security-scoped bookmarks the
+    /// freshly-granted access is honored immediately — no quit-and-relaunch
+    /// dance required (which is the whole point of this approach).
+    func recheckAccess() {
+        let result = probeFolderAccess()
+        applyProbeResult(result)
+        if case .granted = result {
+            stuckDeletesLog.info("Access recheck: folder \(self.folder.id, privacy: .public) now readable")
+        }
+    }
+
+    /// Resolves the stored security-scoped bookmark and verifies the folder
+    /// root is readable. Distinguishes missing/stale bookmarks (need a fresh
+    /// grant via `NSOpenPanel`) from genuine path problems (missing folder,
+    /// non-directory, I/O errors) so the UI can show an actionable message.
+    /// Stale-but-functional bookmarks are silently refreshed.
+    private func probeFolderAccess() -> AccessProbeResult {
+        let fm = FileManager()
+        let path = folder.path
+
+        // Cheap existence check first — if the path is gone there's no point
+        // prompting the user for a bookmark.
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: path, isDirectory: &isDir) {
+            if !isDir.boolValue {
+                stuckDeletesLog.error("Probe: path exists but is not a directory: \(path, privacy: .public)")
+                return .notADirectory(path: path)
+            }
+        }
+        // (We don't return .notFound here yet — under sandbox, fileExists may
+        // return false on inaccessible paths even though they exist. We try
+        // the bookmark first, and only fall back to .notFound if the bookmark
+        // is missing AND fileExists agrees.)
+
+        switch bookmarks.resolve(for: folder.id) {
+        case .missing:
+            if !fm.fileExists(atPath: path) {
+                stuckDeletesLog.error("Probe: folder root not found at \(path, privacy: .public)")
+                return .notFound(path: path)
+            }
+            stuckDeletesLog.info("Probe: no bookmark for folder \(self.folder.id, privacy: .public) — needs grant")
+            return .needsBookmark
+
+        case .failed(let error):
+            stuckDeletesLog.error("Probe: bookmark resolution failed for \(self.folder.id, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            return .needsBookmark
+
+        case .resolved(let url, let isStale):
+            let started = url.startAccessingSecurityScopedResource()
+            defer {
+                if started { url.stopAccessingSecurityScopedResource() }
+            }
+            do {
+                _ = try fm.contentsOfDirectory(atPath: url.path)
+                if isStale {
+                    bookmarks.refresh(url, for: folder.id)
+                    stuckDeletesLog.info("Probe: bookmark refreshed for folder \(self.folder.id, privacy: .public)")
+                }
+                return .granted(url)
+            } catch let e as CocoaError where
+                e.code == .fileReadNoPermission || e.code == .fileReadNoSuchFile {
+                stuckDeletesLog.error("Probe: bookmark unusable for \(self.folder.id, privacy: .public) — \(e.localizedDescription, privacy: .public)")
+                return .needsBookmark
+            } catch {
+                let nsError = error as NSError
+                stuckDeletesLog.error("Probe: unexpected error on \(url.path, privacy: .public) — domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) desc=\(nsError.localizedDescription, privacy: .public)")
+                return .other(message: nsError.localizedDescription)
+            }
+        }
+    }
+
+    /// Translates a probe result into the controller's published state. Only
+    /// `.needsBookmark` flips `accessBlocked = true`; other failures surface
+    /// through `lastError` so the user gets an actionable message instead of
+    /// a misleading grant-access gate.
+    private func applyProbeResult(_ result: AccessProbeResult) {
+        switch result {
+        case .granted:
+            accessBlocked = false
+            // Clear any previous access error from a prior failed probe.
+            if let err = lastError,
+               err.hasPrefix("Folder root") || err.hasPrefix("Couldn't access") || err.hasPrefix("Path exists") {
+                lastError = nil
+            }
+        case .needsBookmark:
+            accessBlocked = true
+        case .notFound(let path):
+            accessBlocked = false
+            lastError = "Folder root not found on this Mac: \(path). Check Syncthing's folder configuration — the path may differ between peers."
+        case .notADirectory(let path):
+            accessBlocked = false
+            lastError = "Path exists but isn't a directory: \(path)."
+        case .other(let msg):
+            accessBlocked = false
+            lastError = "Couldn't access folder root: \(msg)"
+        }
+    }
+
+    /// Deletes the user-selected candidates. Steps:
+    ///   1. Per-item: validate path, then `removeItem` on a detached task.
+    ///   2. Trigger Syncthing rescan (`POST /rest/db/scan`).
+    ///   3. Wait briefly for the daemon to ingest the FS change.
+    ///   4. Reload candidates so the UI reflects the new state — failed items
+    ///      stay in the list (they weren't deleted), succeeded items disappear.
+    ///
+    /// Access pre-flight runs first; if it fails (no bookmark / stale / I/O
+    /// error), we surface the gate UI instead of attempting any deletes. The
+    /// security-scoped URL from a successful probe wraps the whole delete
+    /// loop so each per-item operation runs inside the granted access.
+    /// Idempotent on ENOENT (treat already-gone as success, so concurrent
+    /// windows / concurrent Finder cleanups don't produce spurious "failed"
+    /// entries).
+    func performDeletion(selected: Set<String>) async {
+        guard !deleting else { return }
+        let toDelete = candidates.filter { selected.contains($0.id) }
+        guard !toDelete.isEmpty else { return }
+
+        // Pre-flight: only block when there's no usable bookmark. Other errors
+        // (path missing, etc.) get surfaced through `lastError` so the user
+        // sees the real problem instead of a misleading grant-access gate.
+        let probe = probeFolderAccess()
+        applyProbeResult(probe)
+        guard case .granted(let folderRoot) = probe else { return }
+
+        deleting = true
+        defer { deleting = false }
+        lastOutcome = nil
+
+        stuckDeletesLog.notice("Deletion start: \(toDelete.count, privacy: .public) candidate(s) on folder \(self.folder.id, privacy: .public)")
+
+        // Security-scoped access spans the whole delete loop. Sub-paths
+        // constructed via appendingPathComponent inherit the parent scope, so
+        // detached per-item tasks work without re-acquiring access.
+        let started = folderRoot.startAccessingSecurityScopedResource()
+        defer {
+            if started { folderRoot.stopAccessingSecurityScopedResource() }
+        }
+
+        var succeededCount = 0
+        var failed: [DeletionOutcome.FailedItem] = []
+
+        for item in toDelete {
+            switch await deleteOne(item: item, folderRoot: folderRoot) {
+            case .success:
+                succeededCount += 1
+                stuckDeletesLog.notice("Deleted: \(item.name, privacy: .public)")
+            case .failure(let err):
+                failed.append(.init(name: item.name, reason: err.humanReadable))
+                stuckDeletesLog.error("Deletion failed for \(item.name, privacy: .public): \(err.humanReadable, privacy: .public)")
+            }
+        }
+
+        lastOutcome = DeletionOutcome(succeededCount: succeededCount, failed: failed)
+        stuckDeletesLog.info("Deletion complete: \(succeededCount, privacy: .public) ok, \(failed.count, privacy: .public) failed")
+
+        // Nudge Syncthing to reconcile; rescan is fire-and-forget.
+        do {
+            try await client.rescan(folder: folder.id)
+            stuckDeletesLog.info("Rescan triggered for folder \(self.folder.id, privacy: .public)")
+        } catch {
+            stuckDeletesLog.error("Rescan request failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        // Give Syncthing 2 s to ingest filesystem changes, then refresh the
+        // candidate list. Successful deletions disappear; failed items remain
+        // and the user can retry without reopening the window.
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        await loadCandidates()
+    }
+
+    private func deleteOne(item: RemoteNeedItem, folderRoot: URL) async -> Result<Void, DeletionError> {
+        guard let target = Self.validatePath(item.name, folderRoot: folderRoot) else {
+            return .failure(.invalidPath)
+        }
+
+        return await Task.detached(priority: .userInitiated) {
+            let fm = FileManager()  // fresh instance: thread-safe per Apple guidance
+
+            // Probe attributes without following symlinks. `attributesOfItem`
+            // queries the symlink itself, not its target — important for the
+            // "directory containing a symlink to /" defense. We don't actually
+            // *use* the type here; the call is a sanity probe whose error path
+            // tells us whether the file is missing/permission-denied.
+            do {
+                _ = try fm.attributesOfItem(atPath: target.path)
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                // Already gone — treat as success (idempotent).
+                return .success(())
+            } catch let error as CocoaError where error.code == .fileReadNoPermission {
+                return .failure(.permissionDenied)
+            } catch {
+                return .failure(.osError(error.localizedDescription))
+            }
+
+            // Recursive removal. Foundation's removeItem unlinks symlinks for
+            // the *top-level* item without following, and unlinks (not follows)
+            // any nested symlinks during recursion. Documented POSIX behavior.
+            do {
+                try fm.removeItem(at: target)
+                return .success(())
+            } catch let error as CocoaError where
+                error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+                return .success(())  // Race: deleted between probe and removal.
+            } catch let error as CocoaError where
+                error.code == .fileWriteNoPermission || error.code == .fileReadNoPermission {
+                return .failure(.permissionDenied)
+            } catch {
+                return .failure(.osError(error.localizedDescription))
+            }
+        }.value
+    }
+
+    /// Validates a Syncthing-reported relative path against the folder root.
+    /// `nonisolated static` so the detached deletion task can call it without
+    /// awaiting the main actor (the function only reads its arguments, no
+    /// shared state).
+    ///
+    /// Rejects:
+    ///   - empty / null-byte-containing names
+    ///   - leading `/` (absolute path)
+    ///   - any `..` or `.` path component (not just leading)
+    ///   - paths whose resolved-symlinks form is not a strict descendant of
+    ///     the folder root
+    ///
+    /// Returns the *unresolved* candidate URL on success, so deletion targets
+    /// the literal path Syncthing reported — the resolved form is used only
+    /// for the safety check.
+    nonisolated static func validatePath(_ name: String, folderRoot: URL) -> URL? {
+        guard !name.isEmpty else { return nil }
+        guard !name.contains("\0") else { return nil }
+        guard !name.hasPrefix("/") else { return nil }
+
+        let components = name.split(separator: "/")
+        guard !components.contains(".."), !components.contains(".") else { return nil }
+
+        let candidate = folderRoot.appendingPathComponent(name, isDirectory: true)
+        let resolvedTarget = candidate.standardizedFileURL.resolvingSymlinksInPath()
+        let resolvedRoot = folderRoot.standardizedFileURL.resolvingSymlinksInPath()
+
+        let targetPath = resolvedTarget.path
+        let rootPath = resolvedRoot.path
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard targetPath.hasPrefix(rootPrefix) else { return nil }
+
+        return candidate
+    }
+}
+

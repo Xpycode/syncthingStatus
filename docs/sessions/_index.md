@@ -1,3 +1,6 @@
 # Session Index
 
+- [2026-06-03](2026-06-03.md) — Diagnosed a real ProPro stuck-delete (shared `.git` over Syncthing + unmerged `feature/aloft-icons` branch flip); recovered icons, fixed infra (`.git`/`.stversions` ignored on both Macs, M1max→staggered versioning). **Added inline Rescan button to the out-of-sync folder row** (verified via temp DEBUG injection, reverted). Clean build green. **⚠️ Discovered this project's local `.git` is GONE on both Macs; GitHub remote stale since 2026-04-28 — repo recovery deferred to next session (plan in log).**
+- [2026-05-01](review-2026-05-01.md) — Production review for v1.6.0 (build 162). Bookmark lifecycle, path validator, destructive path, diagnostic export all pass. **High: 30+ bare `print()` calls in production paths defeat the new diagnostic export** — convert to OSLog before Release cut.
+- [2026-04-29](2026-04-29.md) — v1.6.0 stuck-deletes feature end-to-end (Phases 0–4 + bookmark refactor for sandbox); evening pass added `DiagnosticLogger` export, About-panel Syncthing version, popover dual-version display, and ⌘A select-all in the cleanup window.
 - [2026-04-28](2026-04-28.md) — Fix false-red status icon, add traffic-light mode, integrate new app + status icon assets, add notification cooldown

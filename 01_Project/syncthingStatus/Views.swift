@@ -51,6 +51,10 @@ struct ContentView: View {
                 // Breaking this structure will cause popover to collapse to minimal height.
                 // See commits 4ddba8e and cd9695f for context.
                 let statusContent = VStack(spacing: AppConstants.UI.spacingXL) {
+                    StuckDeletesAlertRow(syncthingClient: syncthingClient) { folder in
+                        appDelegate.openStuckDeletesResolution(for: folder)
+                    }
+
                     if let status = syncthingClient.systemStatus {
                         SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, version: syncthingClient.syncthingVersion, isPopover: isPopover)
                     }
@@ -260,6 +264,73 @@ struct FooterView: View {
     }
 }
 
+/// Top-of-popover alert surface. Renders one orange card per folder where
+/// Syncthing has reported "stuck deletes" — directories the local node needs
+/// to delete to be in sync, but can't because they contain `.stignore`-matched
+/// files (the classic ".git inside a deleted parent dir" failure).
+///
+/// Returns an empty view (zero height) when nothing is affected, so the
+/// popover's `ContentHeightKey` measurement (see comment at top of file) stays
+/// stable across the on/off transition.
+struct StuckDeletesAlertRow: View {
+    @ObservedObject var syncthingClient: SyncthingClient
+    let onResolve: (SyncthingFolder) -> Void
+
+    private var affectedFolders: [SyncthingFolder] {
+        syncthingClient.folders.filter {
+            (syncthingClient.stuckDeleteCounts[$0.id] ?? 0) > 0
+        }
+    }
+
+    var body: some View {
+        if !affectedFolders.isEmpty {
+            VStack(spacing: AppConstants.UI.spacingS) {
+                ForEach(affectedFolders) { folder in
+                    HStack(alignment: .center, spacing: AppConstants.UI.spacingM) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.title3)
+
+                        VStack(alignment: .leading, spacing: AppConstants.UI.spacingXS) {
+                            Text(folder.label.isEmpty ? folder.id : folder.label)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text(stuckSummary(for: folder))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+
+                        Spacer()
+
+                        Button("Resolve…") {
+                            onResolve(folder)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
+                    }
+                    .padding(AppConstants.UI.paddingS)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.orange.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    private func stuckSummary(for folder: SyncthingFolder) -> String {
+        let count = syncthingClient.stuckDeleteCounts[folder.id] ?? 0
+        let plural = count == 1 ? "" : "s"
+        return "\(count) stuck deletion\(plural). Syncthing can't remove \(count == 1 ? "a folder" : "folders") that contain ignored files (.git, .build, …)."
+    }
+}
+
 struct SystemStatusView: View {
     let status: SyncthingSystemStatus
     let deviceName: String
@@ -272,11 +343,14 @@ struct SystemStatusView: View {
                 Text(deviceName)
                     .fontWeight(.medium)
                 Spacer()
-                if let version = version {
-                    Text(version)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                VStack(alignment: .center, spacing: 1) {
+                    Text("syncthingStatus \(Self.appVersionString)")
+                    if let version = version {
+                        Text("Syncthing \(version)")
+                    }
                 }
+                .font(.caption2)
+                .foregroundColor(.secondary)
                 Spacer()
                 Text(formatUptime(status.uptime))
                     .font(.caption)
@@ -285,6 +359,13 @@ struct SystemStatusView: View {
             .padding(.vertical, AppConstants.UI.paddingXS)
         }
     }
+
+    private static let appVersionString: String = {
+        let info = Bundle.main.infoDictionary
+        let marketing = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(marketing) (\(build))"
+    }()
 }
 
 struct SystemStatisticsView: View {
@@ -1256,8 +1337,8 @@ struct FolderStatusRow: View {
                             statusIcon
                             Text(status.state.capitalized).font(.caption).foregroundColor(statusColor)
                         }
-                        if status.needFiles > 0 {
-                            Text("\(status.needFiles) items, \(formatBytes(status.needBytes))").font(.caption2).foregroundColor(.orange)
+                        if status.hasPendingWork {
+                            Text(status.pendingSummary).font(.caption2).foregroundColor(.orange)
                         } else {
                             Text("Up to date").font(.caption2).foregroundColor(.green)
                         }
@@ -1355,10 +1436,19 @@ struct FolderStatusRow: View {
     @ViewBuilder
     private var folderStatusLabel: some View {
         if let status {
-            if status.state == "syncing" && status.needFiles > 0 {
+            if status.state == "syncing" && status.hasPendingWork {
                 Text("Syncing").font(.subheadline).foregroundColor(.blue)
-            } else if status.needFiles > 0 {
-                Text("Idle").font(.subheadline).foregroundColor(.green)
+            } else if status.hasPendingWork {
+                HStack(spacing: AppConstants.UI.spacingXS) {
+                    Text("Out of sync").font(.subheadline).foregroundColor(.orange)
+                    Button {
+                        Task { await syncthingClient.rescanFolder(folderID: folder.id) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise").font(.subheadline).foregroundColor(.orange)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Rescan this folder to repair out-of-sync items")
+                }
             } else {
                 Text("Up to date").font(.subheadline).foregroundColor(.green)
             }
@@ -1369,7 +1459,7 @@ struct FolderStatusRow: View {
         Group {
             if let status {
                 switch status.state {
-                case "idle" where status.needFiles > 0: Image(systemName: "pause.circle.fill").foregroundColor(.orange)
+                case "idle" where status.hasPendingWork: Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
                 case "idle": Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                 case "syncing": Image(systemName: "arrow.triangle.2.circlepath").foregroundColor(.blue)
                 case "scanning": Image(systemName: "magnifyingglass").foregroundColor(.blue)
@@ -1380,14 +1470,383 @@ struct FolderStatusRow: View {
             }
         }
     }
-    
+
     private var statusColor: Color {
         guard let status else { return .red }
         switch status.state {
-        case "idle" where status.needFiles > 0: return .orange
+        case "idle" where status.hasPendingWork: return .orange
         case "idle": return .green
         case "syncing", "scanning": return .blue
         default: return .gray
+        }
+    }
+}
+
+// MARK: - Stuck Deletes Cleanup Window
+/// Per-folder cleanup UI for stuck deletions. Phase 4 adds destructive action:
+///   - Per-row checkboxes (default off — eyes on every row before delete)
+///   - "Delete N selected" with a destructive `confirmationDialog`
+///   - Full Disk Access pre-flight + gate UI
+///   - Outcome banner showing per-failure detail when partial-failures occur
+///
+/// State that lives in the view rather than the controller:
+///   - `selection: Set<String>` — which RemoteNeedItem.ids are checked
+///   - `confirmingDeletion: Bool` — drives the confirmationDialog presentation
+///
+/// `selection` is intersected with the candidate list on every change so
+/// stale IDs (after a successful deletion drops items) don't accumulate.
+struct StuckDeletesView: View {
+    @ObservedObject var controller: StuckDeletesController
+    @State private var selection: Set<String> = []
+    @State private var confirmingDeletion = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppConstants.UI.spacingL) {
+            header
+            Divider()
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
+            footer
+        }
+        .padding(AppConstants.UI.paddingM)
+        .frame(minWidth: 560, idealWidth: 640, minHeight: 380, idealHeight: 480)
+        .task { await controller.loadCandidates() }
+        .onChange(of: controller.candidates) { _, newCandidates in
+            // Drop selections for items that are no longer in the list — they
+            // were either successfully deleted or (rare) removed by Syncthing.
+            let valid = Set(newCandidates.map(\.id))
+            selection = selection.intersection(valid)
+        }
+        .confirmationDialog(
+            "Permanently delete \(selection.count) folder\(selection.count == 1 ? "" : "s")?",
+            isPresented: $confirmingDeletion,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    await controller.performDeletion(selected: selection)
+                    selection.removeAll()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes the selected folders and everything inside them — including any ignored files (.git, .build, etc.). This cannot be undone.")
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
+            HStack(spacing: AppConstants.UI.spacingS) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .font(.title3)
+                Text("Stuck deletions on \(controller.folder.label.isEmpty ? controller.folder.id : controller.folder.label)")
+                    .font(.headline)
+            }
+            Text("Syncthing wants to remove these folders on this Mac, but can't because they contain ignored files (.git, .build, etc.). This usually happens after you reorganized folders on another Mac.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: AppConstants.UI.spacingS) {
+                Text("Folder root:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(controller.folder.path)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+                Button {
+                    let url = URL(fileURLWithPath: controller.folder.path, isDirectory: true)
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } label: {
+                    Label("Open root", systemImage: "folder")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if controller.accessBlocked {
+            accessGate
+        } else if controller.loading && controller.candidates.isEmpty {
+            VStack(spacing: AppConstants.UI.spacingM) {
+                ProgressView()
+                Text("Loading candidates from Syncthing…")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let error = controller.lastError {
+            VStack(spacing: AppConstants.UI.spacingM) {
+                Image(systemName: "xmark.octagon.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.red)
+                Text("Couldn't load candidates")
+                    .font(.headline)
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                Button("Retry") {
+                    Task { await controller.loadCandidates() }
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else if controller.candidates.isEmpty {
+            VStack(spacing: AppConstants.UI.spacingM) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.green)
+                Text("No stuck deletions found")
+                    .font(.headline)
+                Text(emptyStateSubtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else {
+            candidatesContent
+        }
+    }
+
+    /// Shown when all candidates have been deleted. If we have an outcome with
+    /// successes, we frame the empty state as confirmation. Otherwise it's the
+    /// "race / already-resolved" case.
+    private var emptyStateSubtitle: String {
+        if let outcome = controller.lastOutcome, outcome.succeededCount > 0 {
+            return "Cleaned up \(outcome.succeededCount) folder\(outcome.succeededCount == 1 ? "" : "s"). Syncthing has been asked to rescan; the popover will clear shortly."
+        }
+        return "Syncthing may have resolved the situation, or the folder finished a sync cycle. You can close this window — the popover will stay in sync."
+    }
+
+    private var candidatesContent: some View {
+        VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
+            outcomeBanner
+
+            HStack {
+                Text("\(controller.candidates.count) folder\(controller.candidates.count == 1 ? "" : "s") need to be removed:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Button(allSelected ? "Deselect All" : "Select All") {
+                    toggleSelectAll()
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .keyboardShortcut("a", modifiers: [.command])
+                .disabled(controller.deleting || controller.candidates.isEmpty)
+
+                Spacer()
+                if controller.deleting {
+                    HStack(spacing: AppConstants.UI.spacingS) {
+                        ProgressView().controlSize(.small)
+                        Text("Deleting…").font(.caption).foregroundColor(.secondary)
+                    }
+                } else if controller.loading {
+                    ProgressView().controlSize(.small)
+                }
+            }
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(controller.candidates.enumerated()), id: \.element.id) { index, item in
+                        CandidateRow(
+                            item: item,
+                            folderPath: controller.folder.path,
+                            isSelected: Binding(
+                                get: { selection.contains(item.id) },
+                                set: { newValue in
+                                    if newValue { selection.insert(item.id) }
+                                    else { selection.remove(item.id) }
+                                }
+                            ),
+                            disabled: controller.deleting
+                        )
+                        .padding(.vertical, AppConstants.UI.paddingXS)
+                        .padding(.horizontal, AppConstants.UI.paddingS)
+                        .background(index.isMultiple(of: 2) ? Color.clear : Color.secondary.opacity(0.06))
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var outcomeBanner: some View {
+        if let outcome = controller.lastOutcome, outcome.hasFailures {
+            VStack(alignment: .leading, spacing: AppConstants.UI.spacingXS) {
+                HStack(spacing: AppConstants.UI.spacingS) {
+                    Image(systemName: "exclamationmark.octagon.fill")
+                        .foregroundColor(.red)
+                    Text("\(outcome.succeededCount) deleted, \(outcome.failed.count) failed")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                ForEach(outcome.failed, id: \.name) { item in
+                    HStack(alignment: .top, spacing: AppConstants.UI.spacingS) {
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.system(.caption, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(item.reason)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(AppConstants.UI.paddingS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6).strokeBorder(Color.red.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+
+    private var accessGate: some View {
+        VStack(spacing: AppConstants.UI.spacingM) {
+            Image(systemName: "lock.shield.fill")
+                .font(.largeTitle)
+                .foregroundColor(.orange)
+            Text("Folder Access Required")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
+                Text("syncthingStatus runs in a sandbox and needs your permission to read this folder root before it can remove the stuck deletions. You'll only be asked once per folder.")
+                Text("Folder root:")
+                    .fontWeight(.medium)
+                    .padding(.top, AppConstants.UI.spacingXS)
+                Text(controller.folder.path)
+                    .font(.system(.callout, design: .monospaced))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                Text("Click Grant Access to open a folder picker pre-set to the folder root, then click Open. The grant is stored as a security-scoped bookmark — no Full Disk Access required.")
+                    .padding(.top, AppConstants.UI.spacingXS)
+            }
+            .font(.callout)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 540)
+
+            HStack(spacing: AppConstants.UI.spacingM) {
+                Button("Grant Access") { controller.requestAccess() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                Button("Try Again") { controller.recheckAccess() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private var footer: some View {
+        HStack(alignment: .center, spacing: AppConstants.UI.spacingM) {
+            // Keep some breathing room and a hint about what Delete will do.
+            Text(footerHint)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !controller.accessBlocked && !controller.candidates.isEmpty {
+                Button(deleteButtonLabel) {
+                    confirmingDeletion = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .disabled(selection.isEmpty || controller.deleting)
+                .keyboardShortcut(.delete, modifiers: [.command])
+            }
+
+            Button("Close") { controller.close() }
+                .keyboardShortcut(.cancelAction)
+                .disabled(controller.deleting)
+        }
+    }
+
+    private var deleteButtonLabel: String {
+        selection.isEmpty
+            ? "Delete selected"
+            : "Delete \(selection.count) selected"
+    }
+
+    private var footerHint: String {
+        if controller.accessBlocked {
+            return "Grant access to the folder root to enable deletion."
+        }
+        if selection.isEmpty {
+            return "Tick the boxes for the folders you want to delete. Each row's “Reveal” opens it in Finder for inspection first."
+        }
+        return "Delete will remove the selected folders and everything inside them. Cannot be undone."
+    }
+
+    private var allSelected: Bool {
+        !controller.candidates.isEmpty && selection.count == controller.candidates.count
+    }
+
+    private func toggleSelectAll() {
+        if allSelected {
+            selection.removeAll()
+        } else {
+            selection = Set(controller.candidates.map(\.id))
+        }
+    }
+}
+
+struct CandidateRow: View {
+    let item: RemoteNeedItem
+    let folderPath: String
+    @Binding var isSelected: Bool
+    var disabled: Bool = false
+
+    var body: some View {
+        HStack(spacing: AppConstants.UI.spacingM) {
+            Toggle("", isOn: $isSelected)
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .disabled(disabled)
+
+            Image(systemName: "folder.badge.minus")
+                .foregroundColor(.orange)
+            Text(item.name)
+                .font(.system(.callout, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Reveal") {
+                let url = URL(fileURLWithPath: folderPath, isDirectory: true)
+                    .appendingPathComponent(item.name, isDirectory: true)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(disabled)
         }
     }
 }
@@ -1402,6 +1861,7 @@ struct SettingsView: View {
     @State private var notificationCooldownMinutes: Double
     @State private var configSelectionError: String?
     @State private var isSelectingConfig = false
+    @State private var diagnosticExportError: String?
 
     private var isManualMode: Bool {
         !settings.useAutomaticDiscovery
@@ -1539,6 +1999,12 @@ struct SettingsView: View {
                     Text("1 minute").tag(60.0)
                     Text("5 minutes").tag(300.0)
                 }
+
+                Toggle("Detect stuck deletions", isOn: $settings.stuckDeletesAlertsEnabled)
+                Text("Surface an alert when Syncthing can't remove folders that contain ignored files (.git, .build, etc.). Click \"Resolve…\" in the popover to inspect and clean up.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section("Notifications") {
@@ -1606,6 +2072,24 @@ struct SettingsView: View {
                             ))
                         }
                     }
+                }
+            }
+
+            Section("Diagnostics") {
+                Text("Export recent log entries to a file you can attach to a bug report. Only this app session is captured — reproduce the issue first, then export. The file contains folder paths and folder IDs from your Syncthing setup.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button("Export Diagnostic Log…") {
+                    exportDiagnosticLog()
+                }
+
+                if let diagnosticExportError {
+                    Text(diagnosticExportError)
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -1729,6 +2213,16 @@ struct SettingsView: View {
         if fileManager.fileExists(atPath: alternate.path) { return alternate }
         return nil
     }
+
+    private func exportDiagnosticLog() {
+        do {
+            let url = try DiagnosticLogger.export()
+            diagnosticExportError = nil
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            diagnosticExportError = error.localizedDescription
+        }
+    }
 }
 
 // MARK: - SwiftUI Preview
@@ -1765,8 +2259,8 @@ struct ContentView_Previews: PreviewProvider {
             "DEVICE1-ID": .init(completion: 99.5, globalBytes: 1000, needBytes: 5)
         ]
         client.folderStatuses = [
-            "folder1": .init(globalFiles: 10, globalBytes: 10000, localFiles: 10, localBytes: 10000, needFiles: 0, needBytes: 0, state: "idle", lastScan: "2023-01-01T12:00:00Z"),
-            "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, state: "syncing", lastScan: "2023-01-01T12:00:00Z")
+            "folder1": .init(globalFiles: 10, globalBytes: 10000, localFiles: 10, localBytes: 10000, needFiles: 0, needBytes: 0, needDeletes: 0, needTotalItems: 0, state: "idle", lastScan: "2023-01-01T12:00:00Z"),
+            "folder2": .init(globalFiles: 20, globalBytes: 20000, localFiles: 15, localBytes: 15000, needFiles: 5, needBytes: 5000, needDeletes: 0, needTotalItems: 5, state: "syncing", lastScan: "2023-01-01T12:00:00Z")
         ]
         
         return ContentView(appDelegate: appDelegate, syncthingClient: client, settings: settings, isPopover: true)

@@ -1,6 +1,10 @@
 import Foundation
 import Security
 import Combine
+import OSLog
+
+private let settingsLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Settings")
+private let keychainLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Keychain")
 
 /// Visual mode for the menu-bar status icon.
 /// - `monochrome`: ship-as-was — only the existing Normal/Error/animation icons.
@@ -47,6 +51,10 @@ final class SyncthingSettings: ObservableObject {
     @Published var popoverMaxHeightPercentage: Double
     @Published var automaticallyCheckForUpdates: Bool
     @Published var iconColorMode: IconColorMode
+    /// When true, the popover surfaces an alert row for folders with stuck
+    /// deletions (idle folders where Syncthing has pending deletes it can't
+    /// apply because of `.stignore`-matched files). Power-user opt-out only.
+    @Published var stuckDeletesAlertsEnabled: Bool
 
     private let defaults: UserDefaults
     private let keychain: KeychainHelper
@@ -78,6 +86,7 @@ final class SyncthingSettings: ObservableObject {
         static let popoverMaxHeightPercentage = "SyncthingSettings.popoverMaxHeightPercentage"
         static let automaticallyCheckForUpdates = "SyncthingSettings.automaticallyCheckForUpdates"
         static let iconColorMode = "SyncthingSettings.iconColorMode"
+        static let stuckDeletesAlertsEnabled = "SyncthingSettings.stuckDeletesAlertsEnabled"
     }
 
     init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
@@ -107,6 +116,7 @@ final class SyncthingSettings: ObservableObject {
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
         automaticallyCheckForUpdates = defaults.object(forKey: Keys.automaticallyCheckForUpdates) as? Bool ?? true
         iconColorMode = (defaults.string(forKey: Keys.iconColorMode).flatMap(IconColorMode.init(rawValue:))) ?? .monochrome
+        stuckDeletesAlertsEnabled = defaults.object(forKey: Keys.stuckDeletesAlertsEnabled) as? Bool ?? true
 
         // Set up debounced auto-save observers
         setupAutoSave()
@@ -171,6 +181,13 @@ final class SyncthingSettings: ObservableObject {
             .store(in: &cancellables)
 
         $iconColorMode
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.scheduleSave()
+            }
+            .store(in: &cancellables)
+
+        $stuckDeletesAlertsEnabled
             .dropFirst()
             .sink { [weak self] _ in
                 self?.scheduleSave()
@@ -270,6 +287,7 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
         defaults.set(automaticallyCheckForUpdates, forKey: Keys.automaticallyCheckForUpdates)
         defaults.set(iconColorMode.rawValue, forKey: Keys.iconColorMode)
+        defaults.set(stuckDeletesAlertsEnabled, forKey: Keys.stuckDeletesAlertsEnabled)
     }
 
     var trimmedBaseURL: String {
@@ -299,6 +317,7 @@ final class SyncthingSettings: ObservableObject {
         popoverMaxHeightPercentage = 70.0
         automaticallyCheckForUpdates = true
         iconColorMode = .monochrome
+        stuckDeletesAlertsEnabled = true
         clearConfigBookmark()
     }
 
@@ -311,12 +330,12 @@ final class SyncthingSettings: ObservableObject {
             if key.isEmpty {
                 let success = self.keychain.delete()
                 if !success {
-                    print("SyncthingSettings: Warning - Failed to delete API key from keychain")
+                    settingsLog.error("Failed to delete API key from keychain")
                 }
             } else {
                 let success = self.keychain.save(key)
                 if !success {
-                    print("SyncthingSettings: Warning - Failed to save API key to keychain")
+                    settingsLog.error("Failed to save API key to keychain")
                 }
             }
         }
@@ -381,7 +400,7 @@ final class SyncthingSettings: ObservableObject {
             return
         }
 
-        print("SyncthingSettings: Migrating settings from old bundle ID (\(oldBundleID))")
+        settingsLog.notice("Migrating settings from old bundle ID (\(oldBundleID, privacy: .public))")
 
         // Migrate all settings (except bookmarks which won't work with new bundle ID)
         let keysToMigrate: [String] = [
@@ -400,6 +419,7 @@ final class SyncthingSettings: ObservableObject {
             Keys.notificationEnabledFolderIDs,
             Keys.popoverMaxHeightPercentage,
             Keys.iconColorMode,
+            Keys.stuckDeletesAlertsEnabled,
             // Note: configBookmarkData and configBookmarkPath are NOT migrated
             // because security-scoped bookmarks are tied to the app's code signing identity
         ]
@@ -415,7 +435,7 @@ final class SyncthingSettings: ObservableObject {
         // Users will need to re-select config.xml in Settings after the bundle ID change
 
         currentDefaults.set(true, forKey: migrationCompletedKey)
-        print("SyncthingSettings: Migration completed. Note: config.xml access needs to be re-granted in Settings.")
+        settingsLog.notice("Migration completed. config.xml access needs to be re-granted in Settings.")
     }
 }
 
@@ -432,7 +452,7 @@ private struct KeychainHelper {
     @discardableResult
     func save(_ value: String) -> Bool {
         guard let data = value.data(using: .utf8) else {
-            print("KeychainHelper: Failed to encode API key as UTF-8")
+            keychainLog.error("Failed to encode API key as UTF-8")
             return false
         }
         let query: [String: Any] = [
@@ -451,12 +471,12 @@ private struct KeychainHelper {
             newQuery[kSecValueData as String] = data
             let addStatus = SecItemAdd(newQuery as CFDictionary, nil)
             if addStatus != errSecSuccess {
-                print("KeychainHelper: Failed to add item to keychain (status: \(addStatus))")
+                keychainLog.error("Failed to add item to keychain (status: \(addStatus, privacy: .public))")
                 return false
             }
             return true
         } else if status != errSecSuccess {
-            print("KeychainHelper: Failed to update keychain item (status: \(status))")
+            keychainLog.error("Failed to update keychain item (status: \(status, privacy: .public))")
             return false
         }
         return true
@@ -486,7 +506,7 @@ private struct KeychainHelper {
         ]
         let status = SecItemDelete(query as CFDictionary)
         if status != errSecSuccess && status != errSecItemNotFound {
-            print("KeychainHelper: Failed to delete keychain item (status: \(status))")
+            keychainLog.error("Failed to delete keychain item (status: \(status, privacy: .public))")
             return false
         }
         return true

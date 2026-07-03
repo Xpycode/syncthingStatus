@@ -73,3 +73,22 @@ func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: Syncth
            (completion.completion >= settings.syncCompletionThreshold &&
             completion.needBytes < settings.syncRemainingBytesThreshold)
 }
+
+extension SyncthingFolderStatus {
+    /// True when the folder has any pending work — additions, deletes, or
+    /// directory changes. Mirrors the WebUI's "Out of Sync" criterion. Falls
+    /// back to a sum of the legacy fields when `needTotalItems` is absent.
+    var hasPendingWork: Bool {
+        needTotalItems > 0 || needFiles > 0 || needDeletes > 0 || needBytes > 0
+    }
+
+    /// Compact summary line for the popover row when work is pending.
+    /// Examples: "5 files, 2 MB" / "10 deletes" / "3 files, 7 deletes, 1 MB".
+    var pendingSummary: String {
+        var parts: [String] = []
+        if needFiles > 0 { parts.append("\(needFiles) file\(needFiles == 1 ? "" : "s")") }
+        if needDeletes > 0 { parts.append("\(needDeletes) delete\(needDeletes == 1 ? "" : "s")") }
+        if needBytes > 0 { parts.append(formatBytes(needBytes)) }
+        return parts.joined(separator: ", ")
+    }
+}

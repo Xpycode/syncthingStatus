@@ -127,4 +127,7 @@ SPARKLE-SIGNING.md
 appstore-screenshots/
 old-docs/
 syncthingStatus-v*.dmg
+*.dmg
+!github/releases/*.dmg
+*.app/
 session-log-*.md
