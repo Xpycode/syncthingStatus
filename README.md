@@ -6,12 +6,29 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.5.5-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.5.5-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.6.0-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.5.5 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.5/syncthingStatus-v1.5.5.dmg) once. Future updates will auto-update normally.
+> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.6.0 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.0/syncthingStatus-v1.6.0.dmg) once. Future updates will auto-update normally.
+
+## What's New in Version 1.6.0
+
+### New Features
+- **Stuck-deletion detection & cleanup** — Syncthing can get wedged when it can't finish deleting a file: the folder shows "Out of sync" indefinitely with pending deletions that never clear. syncthingStatus now detects this specific condition, flags it with an amber alert row in the popover, and gives you a dedicated **cleanup window** that lists every stuck item, lets you **Reveal** each one in Finder, and — once you grant folder access — safely removes the leftovers and triggers a rescan so the folder goes green again.
+- **Sandbox-safe folder access** — the cleanup flow requests access to only the affected folder through the standard macOS open panel and remembers it with a security-scoped bookmark. No Full Disk Access required; the app stays sandboxed.
+- **Inline Rescan button** — the "Out of sync" folder row now has a one-click rescan button (with tooltip) right where you need it, instead of digging through the context menu.
+- **Diagnostic export** — one-click export of the app's recent logs from Settings, for when you want to file a bug or see what the app has been doing. Sandbox-clean; nothing is written to disk during normal use.
+- **Versions at a glance** — the popover's Local Device row now shows both the app version and the running Syncthing version, and the About panel reports the connected Syncthing version.
+
+### Bug Fixes
+- **No more false "Disconnected" flash** — refreshing while another refresh was already in flight (e.g. right after changing a setting) could briefly flip the menu bar icon to red. A superseded refresh is now ignored instead of being reported as a disconnection.
+- **Reliable on non-English systems** — internal cancellation checks no longer depend on matching English error text, so transient errors no longer leak to the UI on localized macOS installs.
+
+### Internal
+- All production logging goes through OSLog (subsystem `com.lucesumbrarum.syncthingStatus`; categories `FolderStatus`, `StuckDeletes`, `FolderAccess`), which is exactly what the diagnostic export captures — no stray `print()` in release paths.
+- Destructive cleanup is guarded by strict path validation (rejects `..`, absolute paths, and symlink escapes) plus an explicit confirmation step.
 
 ## What's New in Version 1.5.5
 
@@ -75,6 +92,9 @@
   - ![Disconnected](github/screenshots/icon-disconnected.png) **Out of sync / Disconnected** — Syncthing is unreachable, in a folder error, or genuinely behind
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
+- **Stuck-Deletion Detection & Cleanup**: Spot deletions Syncthing can't finish and clear them safely from a dedicated cleanup window — with per-item Reveal, sandbox-safe folder access, and an automatic rescan
+- **Inline Rescan**: One-click rescan on any out-of-sync folder row
+- **Diagnostic Export**: Export the app's recent logs from Settings for troubleshooting or bug reports
 - **System Information**: Display device name, uptime, and version information
 - **System Statistics**: View total folders, connected devices, data sizes, and current transfer speeds
 - **Sync Completion Notifications**: Get macOS notifications when folders finish syncing
@@ -204,6 +224,8 @@ The app queries the following Syncthing REST API endpoints:
 - `/rest/system/connections` - Connection status for devices
 - `/rest/db/status` - Per-folder synchronization status
 - `/rest/db/completion` - Per-device completion percentage
+- `/rest/db/need` - Pending items per folder (used to list stuck deletions)
+- `/rest/db/scan` - Trigger a folder rescan (inline Rescan + post-cleanup rescan)
 
 ## Privacy
 

@@ -10,9 +10,9 @@
 
 ## Current Position
 - **Phase:** v1.6.0 release prep — feature complete; cross-peer stuck-delete now verified end-to-end
-- **Focus:** Code-quality pass done (2026-07-03): OSLog release blocker closed (last `print()` removed), cancellation-handling bugs fixed (typed check replaces locale-fragile string matching; `fetchStatus` no longer flashes false-Disconnected on cancelled refresh), dead `automaticallyCheckForUpdates` setting removed. Remaining for release: README + release notes, then notarized build.
+- **Focus:** Code-quality pass done (2026-07-03): OSLog release blocker closed (last `print()` removed), cancellation-handling bugs fixed (typed check replaces locale-fragile string matching; `fetchStatus` no longer flashes false-Disconnected on cancelled refresh), dead `automaticallyCheckForUpdates` setting removed. README + v1.6.0 release notes now drafted (README "What's New" + appcast `<item>`, signature/length/pubDate left as `REPLACE_ME_*` for the release cut). Remaining for release: live eyeball on M1 Max, then notarized build + fill appcast placeholders.
 - **Status:** v1.6.0 build 162. Debug build green (compile-verified unsigned on the non-cert Mac; run/eyeball still pending on M1 Max). Release build not yet cut.
-- **Last updated:** 2026-07-03
+- **Last updated:** 2026-07-03 (release-notes/README draft)
 
 ## Progress
 ```
@@ -66,7 +66,7 @@
 ## Next Actions
 1. **Eyeball the Rescan button live** — was killed at end of session; confirm rendering/click next session (demo mode can't produce idle+pending, so force a real out-of-sync or use the `DEMO_OOS` pattern from the 2026-06-03 log). Also smoke-test the 2026-07-03 cancellation fixes (refresh during settings change shouldn't flash Disconnected).
 2. **Live-verify cleanup ⌘A:** next time a stuck-delete repro is available, confirm Select All / Deselect All + ⌘A in the cleanup window (2026-06-03's repro was fixed via git, not the app's Resolve flow).
-3. **Release notes + README:** draft v1.6.0 release notes (Stuck Deletions + cleanup window + grant-access flow + diagnostic export + inline Rescan button). Update README. Appcast copy.
+3. **Release notes + README:** ✅ drafted (2026-07-03) — README `## What's New in Version 1.6.0` + badges/manual-download link/Features/API lists updated; `appcast.xml` 1.6.0 `<item>` added. **Still open (release-cut only):** fill the appcast `REPLACE_ME_*` placeholders (`edSignature`, `length`, `pubDate`) after the signed DMG exists. Optionally re-word the marquee stuck-deletion blurb (keep README + appcast CDATA in lockstep).
 4. **Release prep:** switch to Release config, `xcrun notarytool` submit, build DMG, Sparkle EdDSA sign, update `appcast.xml`, push to GitHub.
 5. **User-side cleanup (optional):** revoke the FDA grant for `syncthingStatus.app` in System Settings — superseded by bookmarks. Leave `syncthing` (the daemon) alone.
 
