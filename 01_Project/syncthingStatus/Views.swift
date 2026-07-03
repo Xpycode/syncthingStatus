@@ -1311,9 +1311,12 @@ struct FolderStatusRow: View {
                     .foregroundColor(.secondary)
 
                 VStack(alignment: .leading, spacing: AppConstants.UI.spacingXS) {
-                    Text(folder.label.isEmpty ? folder.id : folder.label).fontWeight(.medium)
+                    Text(folder.label.isEmpty ? folder.id : folder.label)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
                     Text(folder.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 

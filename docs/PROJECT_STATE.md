@@ -11,8 +11,8 @@
 ## Current Position
 - **Phase:** v1.6.0 release prep — feature complete; cross-peer stuck-delete now verified end-to-end
 - **Focus:** Code-quality pass done (2026-07-03): OSLog release blocker closed (last `print()` removed), cancellation-handling bugs fixed (typed check replaces locale-fragile string matching; `fetchStatus` no longer flashes false-Disconnected on cancelled refresh), dead `automaticallyCheckForUpdates` setting removed. README + v1.6.0 release notes now drafted (README "What's New" + appcast `<item>`, signature/length/pubDate left as `REPLACE_ME_*` for the release cut). Remaining for release: live eyeball on M1 Max, then notarized build + fill appcast placeholders.
-- **Status:** v1.6.0 build 162. Debug build green (compile-verified unsigned on the non-cert Mac; run/eyeball still pending on M1 Max). Release build not yet cut.
-- **Last updated:** 2026-07-03 (release-notes/README draft)
+- **Status:** v1.6.0 build 162. Now **runs on the M1 Max** — but via **ad-hoc signing** (`CODE_SIGN_IDENTITY="-"`): neither Mac has a dev-signing cert, only Developer ID (release). App launches + connects; popover folder-name line-wrap fixed. Rescan/cleanup eyeball still blocked (daemon all-idle → no out-of-sync row to see). Release build not yet cut.
+- **Last updated:** 2026-07-03 (M1 Max live run + popover fix)
 
 ## Progress
 ```
@@ -64,7 +64,7 @@
 - **✅ Local git repo re-established (2026-07-03):** `.git` was gone on both Macs and origin was stale at `a28caa8` (2026-04-28, v1.5.5 era). Bootstrapped via `git-bootstrap` skill (init → fetch → `reset --mixed origin/main` → verify → catch-up commit → push); non-destructive to files. All v1.6.0 work + docs now committed as `6318080` and pushed; local `main` == `origin/main`, tree clean. Root cause was the ProPro Syncthing folder syncing/losing `.git` in branch-flip churn — now mitigated by `.git`/`.stversions` being ignored on both Macs (see memory `project-syncthing-propro-setup`).
 
 ## Next Actions
-1. **Eyeball the Rescan button live** — was killed at end of session; confirm rendering/click next session (demo mode can't produce idle+pending, so force a real out-of-sync or use the `DEMO_OOS` pattern from the 2026-06-03 log). Also smoke-test the 2026-07-03 cancellation fixes (refresh during settings change shouldn't flash Disconnected).
+1. **Eyeball the Rescan button live** — still pending: on the 2026-07-03 M1 Max run all 4 folders were `idle`/in-sync, so the out-of-sync row never rendered. Needs a real out-of-sync or the `DEMO_OOS` injection from the 2026-06-03 log. Same for cleanup ⌘A (needs a stuck-delete repro). Also smoke-test the cancellation fixes (refresh during settings change shouldn't flash Disconnected). **NB:** to run Debug on the M1 Max, either build ad-hoc (`CODE_SIGN_IDENTITY="-"`) or add an *Apple Development* cert (Xcode → Settings → Accounts) — no dev cert on either Mac.
 2. **Live-verify cleanup ⌘A:** next time a stuck-delete repro is available, confirm Select All / Deselect All + ⌘A in the cleanup window (2026-06-03's repro was fixed via git, not the app's Resolve flow).
 3. **Release notes + README:** ✅ drafted (2026-07-03) — README `## What's New in Version 1.6.0` + badges/manual-download link/Features/API lists updated; `appcast.xml` 1.6.0 `<item>` added. **Still open (release-cut only):** fill the appcast `REPLACE_ME_*` placeholders (`edSignature`, `length`, `pubDate`) after the signed DMG exists. Optionally re-word the marquee stuck-deletion blurb (keep README + appcast CDATA in lockstep).
 4. **Release prep:** switch to Release config, `xcrun notarytool` submit, build DMG, Sparkle EdDSA sign, update `appcast.xml`, push to GitHub.
