@@ -9,6 +9,15 @@ private let networkLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", 
 private let notificationsLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Notifications")
 private let configLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Config")
 
+/// True for task/URL-session cancellations. Checked by type and code, never by
+/// matching `localizedDescription` substrings — those are locale-dependent and
+/// silently stop matching on non-English systems.
+func isCancellationError(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    if (error as? URLError)?.code == .cancelled { return true }
+    return false
+}
+
 enum DemoScenario {
     case mixed        // Mixed syncing states (some idle, some syncing)
     case allSynced    // Everything 100% synced - perfect for screenshots
@@ -379,9 +388,6 @@ class SyncthingClient: ObservableObject {
     private func makeRequest<T: Decodable>(endpoint: String, responseType: T.Type) async throws -> T {
         guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
-        #if DEBUG
-        print("SyncthingClient: using API key length \(apiKey.count)")
-        #endif
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -512,9 +518,14 @@ class SyncthingClient: ObservableObject {
         do {
             let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
             self.systemStatus = status
-                self.isConnected = true
-                self.lastErrorMessage = nil
+            self.isConnected = true
+            self.lastErrorMessage = nil
         } catch {
+            // A cancelled refresh is not a lost connection — a newer refresh
+            // superseded this one. Mutating state here would flash a false
+            // "Disconnected" icon between the cancel and the fresh result.
+            guard !isCancellationError(error) else { return }
+
             self.isConnected = false
             self.systemStatus = nil
 
@@ -577,10 +588,9 @@ class SyncthingClient: ObservableObject {
             }
         } catch {
             // Skip cancelled errors - these are transient and happen during refresh
-            let errorDescription = error.localizedDescription
-            guard !errorDescription.contains("cancelled") else { return }
+            guard !isCancellationError(error) else { return }
 
-            let errorMessage = "Failed to fetch config: \(errorDescription)"
+            let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
             networkLog.error("\(errorMessage, privacy: .public)")
             // Only update UI-facing properties if not in demo mode
             if !demoMode {
@@ -609,10 +619,9 @@ class SyncthingClient: ObservableObject {
             }
         } catch {
             // Skip cancelled errors - these are transient and happen during refresh
-            let errorDescription = error.localizedDescription
-            guard !errorDescription.contains("cancelled") else { return }
+            guard !isCancellationError(error) else { return }
 
-            let errorMessage = "Failed to fetch connections: \(errorDescription)"
+            let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
             networkLog.error("\(errorMessage, privacy: .public)")
             if !demoMode {
                 self.lastErrorMessage = errorMessage
@@ -730,10 +739,9 @@ class SyncthingClient: ObservableObject {
                 }
             } catch {
                 // Skip cancelled errors - these are transient and happen during refresh
-                let errorDescription = error.localizedDescription
-                guard !errorDescription.contains("cancelled") else { continue }
+                guard !isCancellationError(error) else { continue }
 
-                let errorMessage = "Failed to fetch folder status for \(folder.id): \(errorDescription)"
+                let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
                 folderStatusLog.error("\(errorMessage, privacy: .public)")
                 if !demoMode {
                     self.lastErrorMessage = errorMessage
@@ -1131,10 +1139,9 @@ class SyncthingClient: ObservableObject {
                 }
             } catch {
                 // Skip cancelled errors - these are transient and happen during refresh
-                let errorDescription = error.localizedDescription
-                guard !errorDescription.contains("cancelled") else { continue }
+                guard !isCancellationError(error) else { continue }
 
-                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(errorDescription)"
+                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
                 networkLog.error("\(errorMessage, privacy: .public)")
                 if !demoMode {
                     self.lastErrorMessage = errorMessage
@@ -1349,7 +1356,7 @@ class SyncthingClient: ObservableObject {
     private func waitForSyncthingAvailability() async {
         var attempt = 0
         let maxAttempts = AppConstants.Polling.maxPollingAttempts
-        var delay: UInt64 = AppConstants.Polling.initialPollingDelayMs
+        var delay: UInt64 = AppConstants.Polling.initialPollingDelayNs
 
         while attempt < maxAttempts {
             do {
@@ -1374,7 +1381,7 @@ class SyncthingClient: ObservableObject {
 
             // Wait before next attempt with exponential backoff
             try? await Task.sleep(nanoseconds: delay)
-            delay = min(delay * 2, AppConstants.Polling.maxPollingDelayMs)
+            delay = min(delay * 2, AppConstants.Polling.maxPollingDelayNs)
             attempt += 1
         }
 
@@ -1777,13 +1784,9 @@ final class StuckDeletesController: ObservableObject {
                 .sorted { $0.name < $1.name }
             candidates = dirs
             stuckDeletesLog.info("Loaded \(dirs.count, privacy: .public) stuck-delete candidate(s) for folder \(self.folder.id, privacy: .public)")
-        } catch is CancellationError {
-            return
         } catch {
+            if isCancellationError(error) { return }
             let desc = error.localizedDescription
-            if (error as? URLError)?.code == .cancelled || desc.contains("cancelled") {
-                return
-            }
             lastError = desc
             stuckDeletesLog.error("Failed db/need for folder \(self.folder.id, privacy: .public): \(desc, privacy: .public)")
         }

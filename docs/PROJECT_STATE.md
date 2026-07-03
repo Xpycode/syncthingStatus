@@ -10,8 +10,8 @@
 
 ## Current Position
 - **Phase:** v1.6.0 release prep — feature complete; cross-peer stuck-delete now verified end-to-end
-- **Focus:** Shipped an inline **Rescan button** on the out-of-sync folder row (repair no longer hidden in the right-click menu). Cross-peer verification done opportunistically via a real ProPro stuck-delete (root cause: shared `.git` over Syncthing — fixed at infra level). Remaining for release: convert bare `print()` → OSLog (2026-05-01 review High), README + release notes, then notarized build.
-- **Status:** v1.6.0 build 162 on M1 Max. Debug build green with the Rescan-button change; Release build not yet cut.
+- **Focus:** Code-quality pass done (2026-07-03): OSLog release blocker closed (last `print()` removed), cancellation-handling bugs fixed (typed check replaces locale-fragile string matching; `fetchStatus` no longer flashes false-Disconnected on cancelled refresh), dead `automaticallyCheckForUpdates` setting removed. Remaining for release: README + release notes, then notarized build.
+- **Status:** v1.6.0 build 162. Debug build green (compile-verified unsigned on the non-cert Mac; run/eyeball still pending on M1 Max). Release build not yet cut.
 - **Last updated:** 2026-07-03
 
 ## Progress
@@ -57,18 +57,18 @@
 - **About panel uses `orderFrontStandardAboutPanel(options:)` with `.credits`** for the Syncthing version — reuses Apple's standard panel rather than building a custom window.
 
 ## Blockers
-- **Release gate (High, from 2026-05-01 review):** 30+ bare `print()` calls in production paths defeat the new diagnostic export — convert to OSLog before cutting the Release build.
+- None.
 
 ## Resolved
+- **✅ OSLog release gate (2026-07-03):** the 30+ bare `print()` calls flagged in the 2026-05-01 review had already been converted in the v1.6.0 catch-up work; the last remaining one (DEBUG-only API-key-length print in `makeRequest`) is now removed. Diagnostic export captures all production logging.
 - **✅ Local git repo re-established (2026-07-03):** `.git` was gone on both Macs and origin was stale at `a28caa8` (2026-04-28, v1.5.5 era). Bootstrapped via `git-bootstrap` skill (init → fetch → `reset --mixed origin/main` → verify → catch-up commit → push); non-destructive to files. All v1.6.0 work + docs now committed as `6318080` and pushed; local `main` == `origin/main`, tree clean. Root cause was the ProPro Syncthing folder syncing/losing `.git` in branch-flip churn — now mitigated by `.git`/`.stversions` being ignored on both Macs (see memory `project-syncthing-propro-setup`).
 
 ## Next Actions
-1. **Eyeball the Rescan button live** — was killed at end of session; confirm rendering/click next session (demo mode can't produce idle+pending, so force a real out-of-sync or use the `DEMO_OOS` pattern from the 2026-06-03 log).
-2. **OSLog conversion:** replace the 30+ bare `print()` calls in production paths with categorized OSLog calls (the release blocker above).
-3. **Live-verify cleanup ⌘A:** next time a stuck-delete repro is available, confirm Select All / Deselect All + ⌘A in the cleanup window (2026-06-03's repro was fixed via git, not the app's Resolve flow).
-4. **Release notes + README:** draft v1.6.0 release notes (Stuck Deletions + cleanup window + grant-access flow + diagnostic export + inline Rescan button). Update README. Appcast copy.
-5. **Release prep:** switch to Release config, `xcrun notarytool` submit, build DMG, Sparkle EdDSA sign, update `appcast.xml`, push to GitHub.
-6. **User-side cleanup (optional):** revoke the FDA grant for `syncthingStatus.app` in System Settings — superseded by bookmarks. Leave `syncthing` (the daemon) alone.
+1. **Eyeball the Rescan button live** — was killed at end of session; confirm rendering/click next session (demo mode can't produce idle+pending, so force a real out-of-sync or use the `DEMO_OOS` pattern from the 2026-06-03 log). Also smoke-test the 2026-07-03 cancellation fixes (refresh during settings change shouldn't flash Disconnected).
+2. **Live-verify cleanup ⌘A:** next time a stuck-delete repro is available, confirm Select All / Deselect All + ⌘A in the cleanup window (2026-06-03's repro was fixed via git, not the app's Resolve flow).
+3. **Release notes + README:** draft v1.6.0 release notes (Stuck Deletions + cleanup window + grant-access flow + diagnostic export + inline Rescan button). Update README. Appcast copy.
+4. **Release prep:** switch to Release config, `xcrun notarytool` submit, build DMG, Sparkle EdDSA sign, update `appcast.xml`, push to GitHub.
+5. **User-side cleanup (optional):** revoke the FDA grant for `syncthingStatus.app` in System Settings — superseded by bookmarks. Leave `syncthing` (the daemon) alone.
 
 ## References
 - Implementation plan: `docs/IMPLEMENTATION-PLAN-stuck-deletes.md`

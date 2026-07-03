@@ -49,7 +49,6 @@ final class SyncthingSettings: ObservableObject {
         }
     }
     @Published var popoverMaxHeightPercentage: Double
-    @Published var automaticallyCheckForUpdates: Bool
     @Published var iconColorMode: IconColorMode
     /// When true, the popover surfaces an alert row for folders with stuck
     /// deletions (idle folders where Syncthing has pending deletes it can't
@@ -84,7 +83,6 @@ final class SyncthingSettings: ObservableObject {
         static let configBookmarkData = "SyncthingSettings.configBookmarkData"
         static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
         static let popoverMaxHeightPercentage = "SyncthingSettings.popoverMaxHeightPercentage"
-        static let automaticallyCheckForUpdates = "SyncthingSettings.automaticallyCheckForUpdates"
         static let iconColorMode = "SyncthingSettings.iconColorMode"
         static let stuckDeletesAlertsEnabled = "SyncthingSettings.stuckDeletesAlertsEnabled"
     }
@@ -114,7 +112,6 @@ final class SyncthingSettings: ObservableObject {
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
-        automaticallyCheckForUpdates = defaults.object(forKey: Keys.automaticallyCheckForUpdates) as? Bool ?? true
         iconColorMode = (defaults.string(forKey: Keys.iconColorMode).flatMap(IconColorMode.init(rawValue:))) ?? .monochrome
         stuckDeletesAlertsEnabled = defaults.object(forKey: Keys.stuckDeletesAlertsEnabled) as? Bool ?? true
 
@@ -172,13 +169,6 @@ final class SyncthingSettings: ObservableObject {
             self?.scheduleSave()
         }
         .store(in: &cancellables)
-
-        $automaticallyCheckForUpdates
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.scheduleSave()
-            }
-            .store(in: &cancellables)
 
         $iconColorMode
             .dropFirst()
@@ -285,7 +275,6 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(syncNotificationCooldownMinutes, forKey: Keys.syncNotificationCooldownMinutes)
         defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
         defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
-        defaults.set(automaticallyCheckForUpdates, forKey: Keys.automaticallyCheckForUpdates)
         defaults.set(iconColorMode.rawValue, forKey: Keys.iconColorMode)
         defaults.set(stuckDeletesAlertsEnabled, forKey: Keys.stuckDeletesAlertsEnabled)
     }
@@ -315,7 +304,6 @@ final class SyncthingSettings: ObservableObject {
         syncNotificationCooldownMinutes = 5.0
         notificationEnabledFolderIDs = []
         popoverMaxHeightPercentage = 70.0
-        automaticallyCheckForUpdates = true
         iconColorMode = .monochrome
         stuckDeletesAlertsEnabled = true
         clearConfigBookmark()

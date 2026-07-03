@@ -106,11 +106,11 @@ enum AppConstants {
 
     // MARK: - Polling & Retry
     enum Polling {
-        /// Initial polling delay for Syncthing availability (milliseconds)
-        static let initialPollingDelayMs: UInt64 = 250_000_000
+        /// Initial polling delay for Syncthing availability (nanoseconds, 250 ms)
+        static let initialPollingDelayNs: UInt64 = 250_000_000
 
-        /// Maximum polling delay (milliseconds)
-        static let maxPollingDelayMs: UInt64 = 2_000_000_000
+        /// Maximum polling delay (nanoseconds, 2 s)
+        static let maxPollingDelayNs: UInt64 = 2_000_000_000
 
         /// Maximum number of polling attempts
         static let maxPollingAttempts = 10
