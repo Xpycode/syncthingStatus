@@ -109,4 +109,15 @@ This file tracks the WHY behind technical and design decisions.
 **Rationale:** Re-enabling later is a one-block revert in `set(state:)`. Deleting and re-adding would lose the existing tuning (frame interval = 0.5s, runloop in `.common` mode). Sometimes the most valuable thing dead code preserves is the *decisions baked into it*.
 
 ---
+
+### 2026-07-03 — Cancellation detection is typed, never string-matched
+**Context:** `SyncthingClient.refresh()` cancels the previous in-flight refresh by design, so every fetcher must treat cancellation as "superseded, do nothing" rather than a failure. Five call sites did this by checking `error.localizedDescription.contains("cancelled")`; `fetchStatus()` didn't check at all and flipped `isConnected = false` on a cancelled request (false "Disconnected"/red-icon flash — same family as the v1.5.5 false-red bug).
+
+**Decision:** One shared helper, `isCancellationError(_:)` in `Client.swift`, checking `error is CancellationError || (error as? URLError)?.code == .cancelled`. All fetchers (including `fetchStatus` and `StuckDeletesController.loadCandidates`) guard on it before mutating any published state.
+
+**Alternatives considered:** Keep per-site string matching — rejected: `localizedDescription` is localized by definition, so on a non-English macOS the substring never matches, the guards silently die, and transient cancellations leak into the error banner. Catch `CancellationError` only — rejected: URLSession surfaces cancellation as `URLError(.cancelled)`, not `CancellationError`, so both must be covered.
+
+**Consequences:** Cancelled refreshes are invisible to the UI on every locale. Any future fetcher must call `isCancellationError` first in its `catch` — string-matching error descriptions is off the table as a pattern.
+
+---
 *Add decisions as they are made. Future-you will thank present-you.*
