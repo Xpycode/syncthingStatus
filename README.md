@@ -25,6 +25,8 @@
 ### Bug Fixes
 - **No more false "Disconnected" flash** — refreshing while another refresh was already in flight (e.g. right after changing a setting) could briefly flip the menu bar icon to red. A superseded refresh is now ignored instead of being reported as a disconnection.
 - **Reliable on non-English systems** — internal cancellation checks no longer depend on matching English error text, so transient errors no longer leak to the UI on localized macOS installs.
+- **Launch at Login actually works** — the Settings toggle had never registered the app with macOS (it was using the wrong system API since an old bundle-ID change). Flipping it on now really adds syncthingStatus to System Settings → General → Login Items.
+- **Pause/Resume no longer fails silently** — if pausing or resuming a device or folder doesn't reach Syncthing (busy daemon, connection hiccup), the app now shows the error instead of leaving you guessing.
 
 ### Internal
 - All production logging goes through OSLog (subsystem `com.lucesumbrarum.syncthingStatus`; categories `FolderStatus`, `StuckDeletes`, `FolderAccess`), which is exactly what the diagnostic export captures — no stray `print()` in release paths.

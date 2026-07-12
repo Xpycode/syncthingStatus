@@ -25,6 +25,8 @@
         <ul>
             <li><strong>No more false "Disconnected" flash</strong> &mdash; refreshing while another refresh was in flight (e.g. right after changing a setting) could briefly flip the icon to red. A superseded refresh is now ignored instead of being reported as a disconnection.</li>
             <li><strong>Reliable on non-English systems</strong> &mdash; internal cancellation checks no longer depend on English error text, so transient errors no longer leak to the UI on localized macOS installs.</li>
+            <li><strong>Launch at Login actually works</strong> &mdash; the Settings toggle had never registered the app with macOS. Flipping it on now really adds syncthingStatus to System Settings &rarr; Login Items.</li>
+            <li><strong>Pause/Resume no longer fails silently</strong> &mdash; if pausing or resuming a device or folder doesn't reach Syncthing, the app now shows the error instead of doing nothing.</li>
         </ul>
     ]]></description>
     <pubDate>REPLACE_ME_PUBDATE</pubDate>
