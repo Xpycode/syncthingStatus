@@ -17,42 +17,9 @@
         7. Push this file to the main branch
         -->
 
-        <!-- ⚠️ RELEASE-TIME TODO before pushing this file:
-             1. Build + export the Release .app, create syncthingStatus-v1.6.0.dmg
-             2. sign_update syncthingStatus-v1.6.0.dmg  → paste output into sparkle:edSignature
-             3. Set length="" to the DMG's byte size (stat -f%z syncthingStatus-v1.6.0.dmg)
-             4. Set pubDate to the actual release date/time
-             5. Create the v1.6.0 GitHub release + upload the DMG so the enclosure URL resolves
-             Do NOT push with the REPLACE_ME placeholders below — Sparkle will reject the update. -->
-        <item>
-            <title>Version 1.6.0</title>
-            <description><![CDATA[
-                <h2>What's New in Version 1.6.0</h2>
-                <h3>New</h3>
-                <ul>
-                    <li><strong>Stuck-deletion detection &amp; cleanup</strong> &mdash; when Syncthing can't finish deleting a file, the folder stays "Out of sync" indefinitely. syncthingStatus now detects this, flags it with an amber alert row in the popover, and opens a dedicated cleanup window that lists every stuck item, lets you <strong>Reveal</strong> each one in Finder, and &mdash; once you grant folder access &mdash; safely removes the leftovers and rescans so the folder goes green again.</li>
-                    <li><strong>Sandbox-safe folder access</strong> &mdash; the cleanup flow requests access to only the affected folder via the standard macOS open panel and remembers it with a security-scoped bookmark. No Full Disk Access required.</li>
-                    <li><strong>Inline Rescan button</strong> on the out-of-sync folder row &mdash; one-click rescan without opening the context menu.</li>
-                    <li><strong>Diagnostic export</strong> &mdash; one-click export of the app's recent logs from Settings for bug reports. Sandbox-clean; nothing is written to disk during normal use.</li>
-                    <li><strong>Versions at a glance</strong> &mdash; the popover's Local Device row shows the app and running Syncthing versions, and the About panel reports the connected Syncthing version.</li>
-                </ul>
-                <h3>Bug Fixes</h3>
-                <ul>
-                    <li><strong>No more false "Disconnected" flash</strong> &mdash; refreshing while another refresh was in flight (e.g. right after changing a setting) could briefly flip the icon to red. A superseded refresh is now ignored instead of being reported as a disconnection.</li>
-                    <li><strong>Reliable on non-English systems</strong> &mdash; internal cancellation checks no longer depend on English error text, so transient errors no longer leak to the UI on localized macOS installs.</li>
-                </ul>
-            ]]></description>
-            <pubDate>REPLACE_ME_PUBDATE</pubDate>
-            <enclosure
-                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.0/syncthingStatus-v1.6.0.dmg"
-                sparkle:version="162"
-                sparkle:shortVersionString="1.6.0"
-                length="REPLACE_ME_LENGTH"
-                type="application/octet-stream"
-                sparkle:edSignature="REPLACE_ME_EDSIGNATURE"
-            />
-            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
-        </item>
+        <!-- ⚠️ This file on `main` IS the live Sparkle feed (SUFeedURL = raw.githubusercontent…/main/appcast.xml).
+             Never push a draft <item> here — installed apps will offer it immediately.
+             The v1.6.0 draft item is parked in docs/appcast-v1.6.0-draft.xml until the release cut. -->
 
         <item>
             <title>Version 1.5.5</title>
