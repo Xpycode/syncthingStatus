@@ -554,6 +554,10 @@ class SyncthingClient: ObservableObject {
             let versionInfo = try await makeRequest(endpoint: "system/version", responseType: SyncthingVersion.self)
             self.syncthingVersion = versionInfo.version
         } catch {
+            // A superseded refresh cancels in-flight requests every cycle when the
+            // group overruns the refresh interval (e.g. offline-device completion
+            // fetches) — keep the last-known version, like the folder-status path.
+            guard !isCancellationError(error) else { return }
             networkLog.error("Failed to fetch system/version: \(error.localizedDescription, privacy: .public)")
             self.syncthingVersion = nil
         }

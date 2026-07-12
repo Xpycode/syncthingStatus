@@ -9,10 +9,10 @@
 - **Bundle ID:** `com.lucesumbrarum.syncthingStatus`
 
 ## Current Position
-- **Phase:** v1.6.0 release **UNPAUSED (2026-07-12)** — the sandbox/tilde blocker is fixed and verified end-to-end (grant → bookmark → scoped delete → rescan, via DEMO_OOS on a sandboxed build). Remaining: inline-Rescan eyeball, `/check ship`, notarized release cut.
-- **Focus:** 2026-07-12: appcast incident hotfixed (drafted 1.6.0 item had gone live and 404'd for every 1.5.5 user — parked in `docs/appcast-v1.6.0-draft.xml`); real-home `~` expansion (`getpwuid`) applied at probe/grantAccess/panel/reveals; probe rewritten on `stat(2)`+errno (ENOENT=absent, EPERM=needs grant); panel-pick compare robust via `fileResourceIdentifier`; cleanup window now probes access at open (gate-first).
-- **Status:** v1.6.0 build 162, Debug ad-hoc build green and live-verified on M1 Max. Bookmark persistence across relaunch confirmed. Release build not yet cut.
-- **Last updated:** 2026-07-12 (blocker fixed — release prep resumes)
+- **Phase:** **v1.6.0 RELEASED (2026-07-12 evening).** Notarized+stapled DMG on GitHub release v1.6.0, Sparkle appcast live (1.5.x installs get offered the update), website deployed + verified (page, feature card, DMG all serving). Release scripts now in `tools/` (notarize.sh + make-dmg.sh, adapted from Magpie).
+- **Focus:** post-release. `/check ship` passed same day (0 blockers); its two should-fixes (dead Launch-at-Login toggle → `SMAppService.mainApp`; silent pause/resume → error banner) shipped IN 1.6.0.
+- **Known issue (fixed on main, rides next release):** About panel could show "Syncthing: not connected" while fully connected — `fetchVersion()`'s catch nilled `syncthingVersion` on *cancelled* refreshes (the one site the July cancellation fix missed). Guard added; cosmetic only; exists in 1.5.5 too.
+- **Last updated:** 2026-07-12 (v1.6.0 shipped)
 
 ## Progress
 ```
@@ -78,15 +78,13 @@
 - [x] Sandbox `~` folders grantable; bookmarks survive relaunch (verified 2026-07-12)
 - [x] Inline Rescan ↻ fires `db/scan` (verified 2026-07-12 evening)
 - [x] Popover/out-of-sync counts match WebUI; no false-red icon
-- [ ] Notarized, stapled, Sparkle-signed DMG; appcast item live only after the DMG exists
+- [x] Notarized, stapled, Sparkle-signed DMG; appcast item live only after the DMG exists (✅ shipped 2026-07-12)
 
 ## Next Actions
-1. ~~Eyeball the inline Rescan ↻ button~~ ✅ **done 2026-07-12 evening** via DEMO_OOS injection (needFiles-based, stuck-latch untouched). Two observations, both non-blocking: repeat clicks while the daemon is mid-scan time out (`db/scan` blocks until scan completes; failure only logs, no UI noise); tooltip appears at the system-default delay (felt slow — `NSInitialToolTipDelay` default could shorten it app-wide if wanted).
-2. **Run `/check ship`** before the release cut.
-3. **Release notes + README:** ✅ drafted (2026-07-03) — README `## What's New in Version 1.6.0` + badges/manual-download link/Features/API lists updated. **⚠️ Incident (2026-07-12):** the drafted 1.6.0 appcast `<item>` had gone live when pushed (appcast.xml on `main` IS the Sparkle feed) — every 1.5.5 install offered a broken update (DMG 404). Hotfixed: item parked in `docs/appcast-v1.6.0-draft.xml`. **At release cut:** fill its `REPLACE_ME_*` placeholders (`edSignature`, `length`, `pubDate`), move it back to the top of `appcast.xml`, push only after the GitHub release + DMG exist.
-4. **Release prep (once blocker fixed):** reuse the **`conjoyn-notary`** keychain profile (creds are account-wide, not per-app — no new password); adapt Conjoyn/Magpie `make-dmg.sh`+`notarize.sh` (syncthingStatus has no release scripts); Release build → notarytool → staple → DMG → Sparkle EdDSA sign → fill appcast → git tag + `gh release create` + upload DMG.
-5. **Website (once released):** already catalogued at `3-Websites/App-Websites/APPS/apps.lucesumbrarum.com` — bump `apps-data.md` (line 102: version/size/features) + `public/apps/syncthingstatus.html`, copy the new DMG to the site's `downloads/` (dl.php self-hosts it), then `deploy.sh` (lftp → Strato).
-6. **User-side cleanup (optional):** revoke the FDA grant for `syncthingStatus.app` in System Settings — superseded by bookmarks. Leave `syncthing` (the daemon) alone.
+1. **Cookbook promotions** (both proven this release): sandbox-tilde + `stat(2)`/errno probe (memory `sandbox-tilde-real-home`, → `22_macos-platform.md`); `SMAppService.mainApp` vs `.loginItem(identifier:)` (silent no-op toggle, survived 3 releases).
+2. **v1.7 investigation — refresh overrun:** with offline devices, some fetch in the refresh group is still in flight at the next 10-s tick, so every cycle cancels its predecessor (`system/version: cancelled` every 10 s in logs). Suspect: `db/completion` for disconnected devices holding until the 30-s resource timeout. The About-version flap this caused is already guarded; find and bound the slow fetch itself.
+3. **v1.7 polish backlog (bucket 3 from `/check ship`):** app-citizenship packages (Feedback/Donate/Help), window frame autosave, CHANGELOG file, split Views/Client (2.3k/2.1k lines), About credits could refresh on reconnect.
+4. **User-side cleanup (optional):** revoke the FDA grant for `syncthingStatus.app` in System Settings — superseded by bookmarks (and the new Developer-ID signature doesn't match the old grant anyway). Leave `syncthing` (the daemon) alone.
 
 ## References
 - Implementation plan: `docs/IMPLEMENTATION-PLAN-stuck-deletes.md`
