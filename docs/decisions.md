@@ -120,4 +120,27 @@ This file tracks the WHY behind technical and design decisions.
 **Consequences:** Cancelled refreshes are invisible to the UI on every locale. Any future fetcher must call `isCancellationError` first in its `catch` — string-matching error descriptions is off the table as a pattern.
 
 ---
+
+### 2026-07-12 — Syncthing's `~/` paths resolve against the *real* home; probes trust errno, not `fileExists`
+**Context:** The 2026-07-03 release blocker. Under App Sandbox, *every* Foundation home API resolves `~` to the app container — `NSHomeDirectory()`, `homeDirectoryForCurrentUser`, `expandingTildeInPath`, `standardizingPath`, and (empirically, via a sandboxed test binary built during research) even `NSHomeDirectoryForUser` and the `HOME` env var. Syncthing's config paths (`~/SYNCsim`) mean the real home. `probeFolderAccess` checked the literal string (`fileExists` never expands `~` → always false) → `.notFound` → grant prompt blocked for every folder; `grantAccess` compared the panel pick against a container-expanded path → would have rejected every valid pick.
+
+**Decision:**
+- `realHomeDirectoryPath()` via `getpwuid(getuid())→pw_dir` (Apple-DTS-recommended, sandbox- and App-Store-safe) plus `expandingTildeToRealHome(_:)` in `Helpers.swift`; `SyncthingFolder.realPath`/`.realURL` used by every filesystem consumer — probe, `grantAccess`, panel `directoryURL`, both Finder reveals, config-discovery default. Display sites keep Syncthing's literal `~/…` spelling.
+- The probe uses `stat(2)` + errno, not `fileExists`. The sandbox broadly allows metadata reads (`application.sb` has a blanket `(allow file-read-metadata)`), so `ENOENT` is *provable* absence → honest `.notFound`; `EPERM` means "not allowed to know" → `.needsBookmark`, never a dead end. `fileExists` conflates both as `false` — the exact conflation behind the original bug.
+- `grantAccess` equality additionally matches `fileResourceIdentifier` on canonicalized URLs (standardized + symlink-resolved; metadata-only, so it works pre-grant) — survives APFS case-insensitive picks and firmlink aliases.
+
+**Alternatives considered:** `NSHomeDirectoryForUser(NSUserName())` / `HOME` — empirically also container-redirected under sandbox, rejected. Normalizing `folder.path` once at config-decode — rejected: the UI should keep showing the user's configured spelling, and the pre-release blast radius is bigger.
+
+**Consequences:** grant→bookmark→scoped delete→rescan verified end-to-end on a sandboxed build (2026-07-12 DEMO_OOS eyeball + OSLog trace); bookmark persistence across app relaunch confirmed. The cross-peer "path may differ between peers" message now appears only on provable absence.
+
+---
+
+### 2026-07-12 — Cleanup window probes access at open (gate-first)
+**Context:** Live eyeball: the window showed the candidate list immediately but only probed access inside the delete pre-flight — so the grant panel interrupted mid-action and the post-grant reload dropped the selection, forcing a second select+delete.
+
+**Decision:** The window's opening `.task` runs `recheckAccess()` before `loadCandidates()`; with no bookmark the grant gate shows *first*, and `grantAccess` already reloads the list on success. Chosen over "keep lazy but preserve selection" (user pick via question — accepting that you grant access before seeing the candidate list).
+
+**Consequences:** First use per folder is grant → list → one select → one delete. Probe errors at open surface immediately instead of being wiped by the subsequent load's `lastError = nil`.
+
+---
 *Add decisions as they are made. Future-you will thank present-you.*

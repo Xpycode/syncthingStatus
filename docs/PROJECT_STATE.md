@@ -9,10 +9,10 @@
 - **Bundle ID:** `com.lucesumbrarum.syncthingStatus`
 
 ## Current Position
-- **Phase:** v1.6.0 release **PAUSED (2026-07-03)** — DEMO_OOS eyeball caught a release-blocking bug: the stuck-deletes access flow can't complete for `~/`-configured folders under sandbox (see Blockers). Notes/website/notarization all ready; blocked on the fix.
-- **Focus:** Code-quality pass done (2026-07-03): OSLog release blocker closed (last `print()` removed), cancellation-handling bugs fixed (typed check replaces locale-fragile string matching; `fetchStatus` no longer flashes false-Disconnected on cancelled refresh), dead `automaticallyCheckForUpdates` setting removed. README + v1.6.0 release notes now drafted (README "What's New" + appcast `<item>`, signature/length/pubDate left as `REPLACE_ME_*` for the release cut). Remaining for release: live eyeball on M1 Max, then notarized build + fill appcast placeholders.
-- **Status:** v1.6.0 build 162. Runs on the M1 Max via ad-hoc signing. DEMO_OOS eyeball confirmed the popover alert row, out-of-sync state, cleanup window + ⌘A/Select-All, and that the destructive action fails closed — but **exposed the `~/`-folder sandbox access blocker** (see Blockers). **Release paused.** Release build not cut.
-- **Last updated:** 2026-07-03 (release paused — sandbox/tilde blocker found)
+- **Phase:** v1.6.0 release **UNPAUSED (2026-07-12)** — the sandbox/tilde blocker is fixed and verified end-to-end (grant → bookmark → scoped delete → rescan, via DEMO_OOS on a sandboxed build). Remaining: inline-Rescan eyeball, `/check ship`, notarized release cut.
+- **Focus:** 2026-07-12: appcast incident hotfixed (drafted 1.6.0 item had gone live and 404'd for every 1.5.5 user — parked in `docs/appcast-v1.6.0-draft.xml`); real-home `~` expansion (`getpwuid`) applied at probe/grantAccess/panel/reveals; probe rewritten on `stat(2)`+errno (ENOENT=absent, EPERM=needs grant); panel-pick compare robust via `fileResourceIdentifier`; cleanup window now probes access at open (gate-first).
+- **Status:** v1.6.0 build 162, Debug ad-hoc build green and live-verified on M1 Max. Bookmark persistence across relaunch confirmed. Release build not yet cut.
+- **Last updated:** 2026-07-12 (blocker fixed — release prep resumes)
 
 ## Progress
 ```
@@ -57,25 +57,25 @@
 - **About panel uses `orderFrontStandardAboutPanel(options:)` with `.credits`** for the Syncthing version — reuses Apple's standard panel rather than building a custom window.
 
 ## Blockers
-- **🔴 Stuck-deletes access flow broken for `~/` folders under sandbox (2026-07-03).**
-  **What:** every Syncthing folder path is literal `~/…`. `probeFolderAccess` (Client.swift:1909)
-  calls `fileExists(atPath: "~/…")` — `fileExists` never expands `~` → always `.notFound` → the
-  misleading "path may differ between peers" error, blocking the grant prompt. Confirmed via DEMO_OOS.
-  **Suspected companion:** app is sandboxed, so `~`→container home; `grantAccess` (1847) compares the
-  user's real NSOpenPanel pick against `standardizingPath("~/…")` (container) → would reject a valid
-  selection. **Tried:** DEMO_OOS eyeball surfaced it; confirmed folder paths carry literal `~` via the
-  config API. **Unblock:** real-home `~` expander (`getpwuid(getuid())→pw_dir`) at probe + grantAccess;
-  probe defaults to `.needsBookmark` when it can't stat; re-verify grant→delete end-to-end. Next
-  session confirms the grantAccess half first. Root cause it survived: 2026-06-03 "verified" was
-  git-resolved, never ran the app's grant→delete path.
+- none
 
 ## Resolved
+- **✅ Sandbox/tilde access blocker (2026-07-12):** real-home `~` expansion via `getpwuid`
+  (`SyncthingFolder.realPath`/`.realURL`) at probe, grantAccess, grant panel, Finder reveals, and
+  config discovery; probe on `stat(2)`+errno (ENOENT → `.notFound`, EPERM → `.needsBookmark` — the
+  sandbox *allows* metadata reads, `fileExists` just conflates the errors); `fileResourceIdentifier`
+  equality in grantAccess. Verified end-to-end via DEMO_OOS (grant accepted, bookmark at real path,
+  2 ok/0 failed, rescan, persistence across relaunch). Also: cleanup window probes at open now
+  (gate-first — the grant panel no longer interrupts mid-delete). See decisions.md 2026-07-12.
+- **✅ Live-appcast incident (2026-07-12):** the drafted 1.6.0 `<item>` had shipped to production in
+  `c92b947` (appcast.xml on `main` IS the Sparkle feed) — 1.5.5 users got a 404ing update prompt.
+  Parked in `docs/appcast-v1.6.0-draft.xml`; feed verified back at 1.5.5-latest (`88305d9`).
 - **✅ OSLog release gate (2026-07-03):** the 30+ bare `print()` calls flagged in the 2026-05-01 review had already been converted in the v1.6.0 catch-up work; the last remaining one (DEBUG-only API-key-length print in `makeRequest`) is now removed. Diagnostic export captures all production logging.
 - **✅ Local git repo re-established (2026-07-03):** `.git` was gone on both Macs and origin was stale at `a28caa8` (2026-04-28, v1.5.5 era). Bootstrapped via `git-bootstrap` skill (init → fetch → `reset --mixed origin/main` → verify → catch-up commit → push); non-destructive to files. All v1.6.0 work + docs now committed as `6318080` and pushed; local `main` == `origin/main`, tree clean. Root cause was the ProPro Syncthing folder syncing/losing `.git` in branch-flip churn — now mitigated by `.git`/`.stversions` being ignored on both Macs (see memory `project-syncthing-propro-setup`).
 
 ## Next Actions
-1. **🔴 FIRST: confirm + fix the sandbox/tilde blocker** (see Blockers; full recipe in the 2026-07-03 Session 4 **Resume** block). Confirm the `grantAccess` container-mismatch via a temporary path-logging diagnostic, then apply the real-home `~` expander at probe + grantAccess and re-verify grant→delete end-to-end via DEMO_OOS. **This gates the release.**
-2. **Eyeball the inline Rescan ↻ button** — still pending; note it lives in the *detailed* row (main Window `folderStatusLabel`), NOT the popover compact row (which shows "N deletes" but no ↻). Cleanup ⌘A / Select-All **was confirmed working** via DEMO_OOS 2026-07-03. **NB:** run Debug via ad-hoc (`CODE_SIGN_IDENTITY="-"`, memory `dev-signing-cert-gap`) — no dev cert on either Mac.
+1. **Eyeball the inline Rescan ↻ button** — the last unverified UI; it lives in the *detailed* row (main Window `folderStatusLabel`), NOT the popover compact row. Needs a real out-of-sync folder or a small DEMO injection. **NB:** run Debug via ad-hoc (`CODE_SIGN_IDENTITY="-"`, memory `dev-signing-cert-gap`) — no dev cert on either Mac.
+2. **Run `/check ship`** before the release cut.
 3. **Release notes + README:** ✅ drafted (2026-07-03) — README `## What's New in Version 1.6.0` + badges/manual-download link/Features/API lists updated. **⚠️ Incident (2026-07-12):** the drafted 1.6.0 appcast `<item>` had gone live when pushed (appcast.xml on `main` IS the Sparkle feed) — every 1.5.5 install offered a broken update (DMG 404). Hotfixed: item parked in `docs/appcast-v1.6.0-draft.xml`. **At release cut:** fill its `REPLACE_ME_*` placeholders (`edSignature`, `length`, `pubDate`), move it back to the top of `appcast.xml`, push only after the GitHub release + DMG exist.
 4. **Release prep (once blocker fixed):** reuse the **`conjoyn-notary`** keychain profile (creds are account-wide, not per-app — no new password); adapt Conjoyn/Magpie `make-dmg.sh`+`notarize.sh` (syncthingStatus has no release scripts); Release build → notarytool → staple → DMG → Sparkle EdDSA sign → fill appcast → git tag + `gh release create` + upload DMG.
 5. **Website (once released):** already catalogued at `3-Websites/App-Websites/APPS/apps.lucesumbrarum.com` — bump `apps-data.md` (line 102: version/size/features) + `public/apps/syncthingstatus.html`, copy the new DMG to the site's `downloads/` (dl.php self-hosts it), then `deploy.sh` (lftp → Strato).
@@ -84,7 +84,7 @@
 ## References
 - Implementation plan: `docs/IMPLEMENTATION-PLAN-stuck-deletes.md`
 - Feature design doc: `docs/FEATURE-stuck-deletes-cleanup.md`
-- Latest session log: `docs/sessions/2026-07-03.md` (**Session 4 has the sandbox/tilde blocker + Resume block**; earlier sessions: git reconcile, code-quality, release-notes draft, M1 Max run)
+- Latest session log: `docs/sessions/2026-07-12.md` (appcast incident + sandbox/tilde fix + verification)
 - Decisions: `docs/decisions.md` (latch + bookmark entries dated 2026-04-29)
 - Syncthing infra (cross-project): memory `project-syncthing-propro-setup` — ProPro folder ignores `.git`/`.stversions`; code syncs via GitHub
 - Debug install script: `tools/install-debug-build.sh`

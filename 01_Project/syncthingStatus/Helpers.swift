@@ -66,6 +66,35 @@ func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: Syncth
             completion.needBytes < settings.syncRemainingBytesThreshold)
 }
 
+// MARK: - Real-home path expansion
+
+/// The user's *real* home directory (`/Users/<name>`), via `getpwuid`.
+/// Under App Sandbox every Foundation home API — `NSHomeDirectory()`,
+/// `FileManager.homeDirectoryForCurrentUser`, `NSString.expandingTildeInPath`,
+/// `.standardizingPath` — resolves to the app's container instead. Syncthing's
+/// config paths mean the real home, so those APIs must never touch them.
+func realHomeDirectoryPath() -> String? {
+    guard let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir else { return nil }
+    // Copy immediately — pw_dir points at static per-thread storage.
+    return FileManager.default.string(withFileSystemRepresentation: dir, length: strlen(dir))
+}
+
+/// Expands a leading `~` against the real home directory. Non-tilde paths
+/// (and an unresolvable passwd entry) pass through unchanged.
+func expandingTildeToRealHome(_ path: String) -> String {
+    guard path == "~" || path.hasPrefix("~/") else { return path }
+    guard let home = realHomeDirectoryPath() else { return path }
+    return home + path.dropFirst(1)
+}
+
+extension SyncthingFolder {
+    /// Folder root as a filesystem-usable absolute path — `~` expanded to the
+    /// real home. `path` keeps Syncthing's literal spelling for display.
+    var realPath: String { expandingTildeToRealHome(path) }
+    /// `realPath` as a directory URL, for Finder reveals and open panels.
+    var realURL: URL { URL(fileURLWithPath: realPath, isDirectory: true) }
+}
+
 extension SyncthingFolderStatus {
     /// True when the folder has any pending work — additions, deletes, or
     /// directory changes. Mirrors the WebUI's "Out of Sync" criterion. Falls

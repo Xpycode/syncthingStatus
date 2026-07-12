@@ -1808,9 +1808,17 @@ final class StuckDeletesController: ObservableObject {
     /// triggers an automatic candidate reload on success so the user lands
     /// directly in the cleanup view.
     func grantAccess(_ url: URL) {
-        let chosenPath = url.standardizedFileURL.path
-        let expectedPath = (folder.path as NSString).standardizingPath
+        // realPath, not folder.path: any NSString standardization would expand
+        // `~` against the sandbox container home and reject every valid pick.
+        // Canonicalize both sides (symlinks, /private, firmlinks) — resolution
+        // only needs metadata, which the sandbox allows even pre-grant.
+        let chosenURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        let expectedURL = URL(fileURLWithPath: folder.realPath, isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let chosenPath = chosenURL.path
+        let expectedPath = expectedURL.path
         let isAtOrAbove = chosenPath == expectedPath
+            || Self.isSameItem(chosenURL, expectedURL)
             || expectedPath.hasPrefix(chosenPath + "/")
         guard isAtOrAbove else {
             stuckDeletesLog.error("Bookmark grant rejected: \(chosenPath, privacy: .public) is not the folder root or an ancestor of \(expectedPath, privacy: .public)")
@@ -1830,6 +1838,17 @@ final class StuckDeletesController: ObservableObject {
         }
     }
 
+    /// True when both URLs name the same on-disk item — survives APFS
+    /// case-insensitivity (a panel pick returns on-disk casing, which may
+    /// differ from Syncthing's configured spelling) and hard aliases.
+    /// Metadata-only, so it works on paths without content access.
+    private static func isSameItem(_ a: URL, _ b: URL) -> Bool {
+        guard let ia = try? a.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier,
+              let ib = try? b.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier
+        else { return false }
+        return ia.isEqual(ib)
+    }
+
     /// Result of probing the folder root for accessibility. Each case maps to
     /// a distinct UI state, so the user gets an actionable message instead of
     /// being dead-ended in an access gate when the real issue is elsewhere.
@@ -1842,8 +1861,10 @@ final class StuckDeletesController: ObservableObject {
         /// unreadable (revoked, deleted, etc.). User must grant access via
         /// `NSOpenPanel`.
         case needsBookmark
-        /// Folder root doesn't exist on this Mac. Common when one peer's
-        /// Syncthing config points to a path the other peer hasn't created.
+        /// Folder root doesn't exist on this Mac. Requires proof: a stat that
+        /// fails with ENOENT (sandbox permits metadata reads, so that's
+        /// trustworthy even pre-grant), or a missing directory behind a
+        /// resolved bookmark. A denied check reports `.needsBookmark` instead.
         case notFound(path: String)
         /// Path exists but isn't a directory (extremely unusual).
         case notADirectory(path: String)
@@ -1871,25 +1892,25 @@ final class StuckDeletesController: ObservableObject {
     /// Stale-but-functional bookmarks are silently refreshed.
     private func probeFolderAccess() -> AccessProbeResult {
         let fm = FileManager()
-        let path = folder.path
+        let path = folder.realPath
+        stuckDeletesLog.debug("Probe: folder path \(self.folder.path, privacy: .public) resolved to \(path, privacy: .public)")
 
-        // Cheap existence check first — if the path is gone there's no point
-        // prompting the user for a bookmark.
-        var isDir: ObjCBool = false
-        if fm.fileExists(atPath: path, isDirectory: &isDir) {
-            if !isDir.boolValue {
-                stuckDeletesLog.error("Probe: path exists but is not a directory: \(path, privacy: .public)")
-                return .notADirectory(path: path)
-            }
+        // stat(2) instead of fileExists: the sandbox broadly allows metadata
+        // reads (application.sb `file-read-metadata`), so ENOENT here is
+        // provable absence — while EPERM only means "can't know", which must
+        // never block the grant prompt. fileExists() conflates both as false.
+        var st = stat()
+        let statFailed = stat(path, &st) != 0
+        let statErrno = statFailed ? errno : 0
+        if !statFailed, (st.st_mode & S_IFMT) != S_IFDIR {
+            stuckDeletesLog.error("Probe: path exists but is not a directory: \(path, privacy: .public)")
+            return .notADirectory(path: path)
         }
-        // (We don't return .notFound here yet — under sandbox, fileExists may
-        // return false on inaccessible paths even though they exist. We try
-        // the bookmark first, and only fall back to .notFound if the bookmark
-        // is missing AND fileExists agrees.)
+        let provablyAbsent = statFailed && (statErrno == ENOENT || statErrno == ENOTDIR)
 
         switch bookmarks.resolve(for: folder.id) {
         case .missing:
-            if !fm.fileExists(atPath: path) {
+            if provablyAbsent {
                 stuckDeletesLog.error("Probe: folder root not found at \(path, privacy: .public)")
                 return .notFound(path: path)
             }
@@ -1912,10 +1933,14 @@ final class StuckDeletesController: ObservableObject {
                     stuckDeletesLog.info("Probe: bookmark refreshed for folder \(self.folder.id, privacy: .public)")
                 }
                 return .granted(url)
-            } catch let e as CocoaError where
-                e.code == .fileReadNoPermission || e.code == .fileReadNoSuchFile {
+            } catch let e as CocoaError where e.code == .fileReadNoPermission {
                 stuckDeletesLog.error("Probe: bookmark unusable for \(self.folder.id, privacy: .public) — \(e.localizedDescription, privacy: .public)")
                 return .needsBookmark
+            } catch let e as CocoaError where e.code == .fileReadNoSuchFile {
+                // Bookmark resolved but the directory is gone — with access
+                // held this IS provable absence, unlike the pre-grant stat.
+                stuckDeletesLog.error("Probe: folder root missing at \(url.path, privacy: .public) — \(e.localizedDescription, privacy: .public)")
+                return .notFound(path: url.path)
             } catch {
                 let nsError = error as NSError
                 stuckDeletesLog.error("Probe: unexpected error on \(url.path, privacy: .public) — domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) desc=\(nsError.localizedDescription, privacy: .public)")

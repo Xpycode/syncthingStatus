@@ -182,7 +182,7 @@ final class StuckDeletesWindowController: NSWindowController {
         stuckController.requestAccessAction = { [weak window, weak stuckController] in
             guard let stuckController else { return }
             let folder = stuckController.folder
-            let folderURL = URL(fileURLWithPath: folder.path, isDirectory: true)
+            let folderURL = folder.realURL
 
             let panel = NSOpenPanel()
             panel.canChooseFiles = false

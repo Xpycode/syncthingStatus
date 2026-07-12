@@ -1514,7 +1514,15 @@ struct StuckDeletesView: View {
         }
         .padding(AppConstants.UI.paddingM)
         .frame(minWidth: 560, idealWidth: 640, minHeight: 380, idealHeight: 480)
-        .task { await controller.loadCandidates() }
+        .task {
+            // Probe access up front so a missing grant gates the window
+            // immediately — granting mid-delete used to interrupt the flow
+            // and drop the user's selection. `grantAccess` reloads the list
+            // itself on success, so skip the load whenever the probe blocks.
+            controller.recheckAccess()
+            guard !controller.accessBlocked, controller.lastError == nil else { return }
+            await controller.loadCandidates()
+        }
         .onChange(of: controller.candidates) { _, newCandidates in
             // Drop selections for items that are no longer in the list — they
             // were either successfully deleted or (rare) removed by Syncthing.
@@ -1562,8 +1570,7 @@ struct StuckDeletesView: View {
                     .truncationMode(.middle)
                 Spacer(minLength: 0)
                 Button {
-                    let url = URL(fileURLWithPath: controller.folder.path, isDirectory: true)
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                    NSWorkspace.shared.activateFileViewerSelecting([controller.folder.realURL])
                 } label: {
                     Label("Open root", systemImage: "folder")
                 }
@@ -1667,7 +1674,7 @@ struct StuckDeletesView: View {
                     ForEach(Array(controller.candidates.enumerated()), id: \.element.id) { index, item in
                         CandidateRow(
                             item: item,
-                            folderPath: controller.folder.path,
+                            folderPath: controller.folder.realPath,
                             isSelected: Binding(
                                 get: { selection.contains(item.id) },
                                 set: { newValue in
@@ -2209,7 +2216,9 @@ struct SettingsView: View {
 
     private func defaultSyncthingConfigDirectory() -> URL? {
         let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser
+        // Real home — under sandbox homeDirectoryForCurrentUser is the app
+        // container, which never holds Syncthing's config.
+        let home = URL(fileURLWithPath: realHomeDirectoryPath() ?? fileManager.homeDirectoryForCurrentUser.path, isDirectory: true)
         let primary = home.appendingPathComponent("Library/Application Support/Syncthing", isDirectory: true)
         if fileManager.fileExists(atPath: primary.path) { return primary }
         let alternate = home.appendingPathComponent(".config/syncthing", isDirectory: true)
