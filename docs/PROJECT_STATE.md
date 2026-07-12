@@ -31,7 +31,7 @@
 | Phase 5 — full polish + docs | **mostly done** | Settings toggle, diagnostic export, About panel, popover versions, ⌘A select-all all shipped. README + release notes still pending. |
 | Phase 5.x — App Minimums audit | **done** | DiagnosticLogger.swift + Settings UI for export; About panel now shows Syncthing version; popover Local Device shows app + Syncthing versions stacked. |
 | Phase 6 — manual verification | **mostly done** | M1 Max end-to-end verified. Cross-peer round-trip verified 2026-06-03 via a real ProPro stuck-delete with M4-Pro online (recovered + reconciled; both nodes agree, 3315==3315 dirs). Cleanup-window ⌘A select-all still not live-tested (this repro was resolved via git, not the app's Resolve flow). |
-| Inline Rescan button (out-of-sync row) | **done** | `FolderStatusRow.folderStatusLabel` — orange `arrow.clockwise` + tooltip, calls `rescanFolder`; shown only in the "Out of sync" state. Context-menu Rescan kept as fallback. |
+| Inline Rescan button (out-of-sync row) | **done + eyeballed** | `FolderStatusRow.folderStatusLabel` — orange `arrow.clockwise` + tooltip, calls `rescanFolder`; shown only in the "Out of sync" state. Context-menu Rescan kept as fallback. Live-eyeballed 2026-07-12 evening via DEMO_OOS rig (button renders, tooltip correct, click POSTs `db/scan` — OSLog-confirmed). |
 
 ## Tech Stack
 - Swift / SwiftUI on macOS (deployment target macOS 15.5)
@@ -73,8 +73,15 @@
 - **✅ OSLog release gate (2026-07-03):** the 30+ bare `print()` calls flagged in the 2026-05-01 review had already been converted in the v1.6.0 catch-up work; the last remaining one (DEBUG-only API-key-length print in `makeRequest`) is now removed. Diagnostic export captures all production logging.
 - **✅ Local git repo re-established (2026-07-03):** `.git` was gone on both Macs and origin was stale at `a28caa8` (2026-04-28, v1.5.5 era). Bootstrapped via `git-bootstrap` skill (init → fetch → `reset --mixed origin/main` → verify → catch-up commit → push); non-destructive to files. All v1.6.0 work + docs now committed as `6318080` and pushed; local `main` == `origin/main`, tree clean. Root cause was the ProPro Syncthing folder syncing/losing `.git` in branch-flip churn — now mitigated by `.git`/`.stversions` being ignored on both Macs (see memory `project-syncthing-propro-setup`).
 
+## Done for v1.6.0 (ship line — everything not here is v1.7 by default)
+- [x] Stuck-deletes: detect → alert → cleanup window → scoped delete → rescan, no crash (verified 2026-07-12)
+- [x] Sandbox `~` folders grantable; bookmarks survive relaunch (verified 2026-07-12)
+- [x] Inline Rescan ↻ fires `db/scan` (verified 2026-07-12 evening)
+- [x] Popover/out-of-sync counts match WebUI; no false-red icon
+- [ ] Notarized, stapled, Sparkle-signed DMG; appcast item live only after the DMG exists
+
 ## Next Actions
-1. **Eyeball the inline Rescan ↻ button** — the last unverified UI; it lives in the *detailed* row (main Window `folderStatusLabel`), NOT the popover compact row. Needs a real out-of-sync folder or a small DEMO injection. **NB:** run Debug via ad-hoc (`CODE_SIGN_IDENTITY="-"`, memory `dev-signing-cert-gap`) — no dev cert on either Mac.
+1. ~~Eyeball the inline Rescan ↻ button~~ ✅ **done 2026-07-12 evening** via DEMO_OOS injection (needFiles-based, stuck-latch untouched). Two observations, both non-blocking: repeat clicks while the daemon is mid-scan time out (`db/scan` blocks until scan completes; failure only logs, no UI noise); tooltip appears at the system-default delay (felt slow — `NSInitialToolTipDelay` default could shorten it app-wide if wanted).
 2. **Run `/check ship`** before the release cut.
 3. **Release notes + README:** ✅ drafted (2026-07-03) — README `## What's New in Version 1.6.0` + badges/manual-download link/Features/API lists updated. **⚠️ Incident (2026-07-12):** the drafted 1.6.0 appcast `<item>` had gone live when pushed (appcast.xml on `main` IS the Sparkle feed) — every 1.5.5 install offered a broken update (DMG 404). Hotfixed: item parked in `docs/appcast-v1.6.0-draft.xml`. **At release cut:** fill its `REPLACE_ME_*` placeholders (`edSignature`, `length`, `pubDate`), move it back to the top of `appcast.xml`, push only after the GitHub release + DMG exist.
 4. **Release prep (once blocker fixed):** reuse the **`conjoyn-notary`** keychain profile (creds are account-wide, not per-app — no new password); adapt Conjoyn/Magpie `make-dmg.sh`+`notarize.sh` (syncthingStatus has no release scripts); Release build → notarytool → staple → DMG → Sparkle EdDSA sign → fill appcast → git tag + `gh release create` + upload DMG.

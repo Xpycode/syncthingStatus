@@ -5,27 +5,22 @@ import OSLog
 private let launchAtLoginLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "LaunchAtLogin")
 
 struct LaunchAtLoginHelper {
-    private static let appIdentifier = "LucesUmbrarum.syncthingStatus"
-
+    // The app registers itself (single target, no embedded login-item helper),
+    // so this must be `mainApp` — `loginItem(identifier:)` requires a helper
+    // bundle at Contents/Library/LoginItems and always fails without one.
     static var isEnabled: Bool {
         get {
-            if #available(macOS 13.0, *) {
-                return SMAppService.loginItem(identifier: appIdentifier).status == .enabled
-            } else {
-                return false
-            }
+            SMAppService.mainApp.status == .enabled
         }
         set {
-            if #available(macOS 13.0, *) {
-                do {
-                    if newValue {
-                        try SMAppService.loginItem(identifier: appIdentifier).register()
-                    } else {
-                        try SMAppService.loginItem(identifier: appIdentifier).unregister()
-                    }
-                } catch {
-                    launchAtLoginLog.error("Failed to update Launch at Login status: \(error.localizedDescription, privacy: .public)")
+            do {
+                if newValue {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
                 }
+            } catch {
+                launchAtLoginLog.error("Failed to update Launch at Login status: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

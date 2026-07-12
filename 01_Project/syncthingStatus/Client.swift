@@ -1226,6 +1226,9 @@ class SyncthingClient: ObservableObject {
             await refresh()
         } catch {
             networkLog.error("Failed to pause device \(deviceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            guard !isCancellationError(error), !demoMode else { return }
+            let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
+            lastErrorMessage = "Failed to pause \(deviceName): \(error.localizedDescription)"
         }
     }
 
@@ -1237,6 +1240,9 @@ class SyncthingClient: ObservableObject {
             await refresh()
         } catch {
             networkLog.error("Failed to resume device \(deviceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            guard !isCancellationError(error), !demoMode else { return }
+            let deviceName = devices.first { $0.deviceID == deviceID }?.name ?? deviceID
+            lastErrorMessage = "Failed to resume \(deviceName): \(error.localizedDescription)"
         }
     }
 
@@ -1282,6 +1288,8 @@ class SyncthingClient: ObservableObject {
             await refresh()
         } catch {
             networkLog.error("Failed to pause all devices: \(error.localizedDescription, privacy: .public)")
+            guard !isCancellationError(error), !demoMode else { return }
+            lastErrorMessage = "Failed to pause all devices: \(error.localizedDescription)"
         }
     }
 
@@ -1292,6 +1300,8 @@ class SyncthingClient: ObservableObject {
             await refresh()
         } catch {
             networkLog.error("Failed to resume all devices: \(error.localizedDescription, privacy: .public)")
+            guard !isCancellationError(error), !demoMode else { return }
+            lastErrorMessage = "Failed to resume all devices: \(error.localizedDescription)"
         }
     }
 
@@ -1350,6 +1360,9 @@ class SyncthingClient: ObservableObject {
 
         } catch {
             configLog.error("Failed to set folder paused state for \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            guard !isCancellationError(error), !demoMode else { return }
+            let folderName = folders.first { $0.id == folderID }?.label ?? folderID
+            lastErrorMessage = "Failed to \(paused ? "pause" : "resume") \(folderName): \(error.localizedDescription)"
         }
     }
 
