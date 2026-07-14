@@ -174,7 +174,7 @@ Or visit the [Releases page](https://github.com/Xpycode/syncthingStatus/releases
 
 > **Note**: The app is notarized by Apple and will run without security warnings.
 
-> **Auto-update troubleshooting**: if the in-app update fails with _"An error occurred while launching the installer"_, the bundle on disk is at a malformed path (e.g. `/Applications/syncthingStatus.app.1` or any name without the `.app` suffix — usually a Finder rename mishap). macOS won't dispatch Sparkle's XPC services unless the parent bundle ends in `.app`. Run [`tools/repair-install.sh`](tools/repair-install.sh) for a clean re-install that preserves your settings, or just trash the malformed bundle in `/Applications/` and drag-install fresh from the DMG.
+> **Auto-update troubleshooting**: if the in-app update fails with _"An error occurred while launching the installer"_, the bundle on disk may be at a malformed path (e.g. `/Applications/syncthingStatus.app.1` or any name without the `.app` suffix — usually a Finder rename mishap). macOS won't dispatch Sparkle's XPC services unless the parent bundle ends in `.app`. Sandboxed builds also need Sparkle's installer launcher service and Mach lookup entitlements; release notarization now asserts both so future packages fail fast instead of shipping a broken updater. Run [`tools/repair-install.sh`](tools/repair-install.sh) for a clean re-install that preserves your settings, or just trash the malformed bundle in `/Applications/` and drag-install fresh from the DMG.
 
 ### Build from Source
 1. Clone this repository:
