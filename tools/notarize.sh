@@ -117,6 +117,20 @@ for key in com.apple.security.app-sandbox com.apple.security.network.client; do
 done
 echo "  ✓ sandbox + network.client entitlements intact"
 
+# Sandboxed Sparkle apps must opt into the installer launcher service and allow
+# Sparkle to communicate with its installer/status helpers via temporary Mach lookup.
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
+installer_launcher="$(/usr/libexec/PlistBuddy -c 'Print :SUEnableInstallerLauncherService' "$APP/Contents/Info.plist" 2>/dev/null || true)"
+if [ "$installer_launcher" != "true" ]; then
+    echo "error: SUEnableInstallerLauncherService is not true; sandboxed Sparkle installs will fail" >&2
+    exit 1
+fi
+for service in "${bundle_id}-spks" "${bundle_id}-spki"; do
+    printf '%s' "$ent" | grep -Fq "$service" \
+        || { echo "error: exported app lost Sparkle Mach lookup entitlement $service" >&2; exit 1; }
+done
+echo "  ✓ Sparkle sandbox installer configuration intact"
+
 # --- 3. submit to the notary service ---------------------------------------
 mkdir -p "$OUT_DIR"
 rm -f "$ZIP"
