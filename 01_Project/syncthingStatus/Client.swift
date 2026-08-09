@@ -100,6 +100,54 @@ class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
     }
 }
 
+// MARK: - Server Trust
+
+/// Accepts Syncthing's self-signed GUI certificate, but only on loopback.
+///
+/// Syncthing's `<gui tls="true">` setting ("Use HTTPS for GUI") serves the REST
+/// API with a self-signed certificate from `https-cert.pem`, which URLSession
+/// rejects as `NSURLErrorServerCertificateUntrusted` — surfacing to the user as
+/// Apple's alarming "a server that is pretending to be" text. That setting also
+/// redirects plain HTTP to HTTPS, so users hit this even with the default
+/// `http://127.0.0.1:8384` base URL untouched.
+///
+/// Trust is granted only for loopback hosts, where the traffic never leaves the
+/// machine and there is no network path for an impostor to sit on. A self-signed
+/// certificate from a *remote* host is indistinguishable from a real
+/// interception, so those fall through to default handling and stay a hard
+/// failure rather than a silent trust.
+final class SyncthingServerTrustDelegate: NSObject, URLSessionDelegate {
+
+    /// True for hosts that resolve to this machine. Covers all of `127.0.0.0/8`
+    /// — Syncthing defaults to `127.0.0.1`, but the GUI can be bound anywhere in
+    /// the loopback range.
+    static func isLoopback(_ host: String) -> Bool {
+        let host = host.lowercased()
+        if host == "localhost" || host == "localhost." { return true }
+        if host == "::1" || host == "[::1]" { return true }
+
+        let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4, octets[0] == "127" else { return false }
+        return octets.allSatisfy { UInt8($0) != nil }
+    }
+
+    func urlSession(_ session: URLSession,
+                    didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let host = challenge.protectionSpace.host
+
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust,
+              Self.isLoopback(host) else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        networkLog.notice("Accepting self-signed certificate from loopback host \(host, privacy: .public)")
+        completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    }
+}
+
 // MARK: - Syncthing API Client
 @MainActor
 class SyncthingClient: ObservableObject {
@@ -190,7 +238,10 @@ class SyncthingClient: ObservableObject {
             config.timeoutIntervalForRequest = AppConstants.Network.requestTimeoutSeconds
             config.timeoutIntervalForResource = AppConstants.Network.resourceTimeoutSeconds
             config.waitsForConnectivity = false       // Fail fast
-            self.session = URLSession(configuration: config)
+            // Delegate trusts Syncthing's self-signed GUI cert on loopback only.
+            self.session = URLSession(configuration: config,
+                                      delegate: SyncthingServerTrustDelegate(),
+                                      delegateQueue: nil)
         }
 
         observeSettings()
@@ -538,6 +589,14 @@ class SyncthingClient: ObservableObject {
                     message = "API key missing or invalid."
                 case .cannotFindHost, .cannotConnectToHost:
                     message = "Could not reach Syncthing at \(settings.trimmedBaseURL)."
+                case .serverCertificateUntrusted, .serverCertificateHasUnknownRoot,
+                     .serverCertificateHasBadDate, .serverCertificateNotYetValid:
+                    // Loopback self-signed certs are accepted by
+                    // SyncthingServerTrustDelegate, so reaching here means a
+                    // remote host — where an untrusted cert cannot safely be
+                    // waved through. Point at the fix instead of showing
+                    // Apple's "server that is pretending to be" wording.
+                    message = "Syncthing's HTTPS certificate isn't trusted by macOS. Turn off \"Use HTTPS for GUI\" in Syncthing's Settings → GUI, or give it a certificate from a trusted authority."
                 default:
                     message = urlError.localizedDescription
                 }
