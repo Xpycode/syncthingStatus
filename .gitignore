@@ -131,3 +131,4 @@ syncthingStatus-v*.dmg
 !github/releases/*.dmg
 *.app/
 session-log-*.md
+WORKING_NOTES.md
