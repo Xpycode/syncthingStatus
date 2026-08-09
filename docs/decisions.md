@@ -143,4 +143,22 @@ This file tracks the WHY behind technical and design decisions.
 **Consequences:** First use per folder is grant → list → one select → one delete. Probe errors at open surface immediately instead of being wiped by the subsequent load's `lastError = nil`.
 
 ---
+
+### 2026-08-09 — Self-signed GUI certificate trusted on loopback only
+**Context:** A user reported "failed to connect to Syncthing: The certificate for this server is Invalid. You might be connecting to a server that is pretending to be…" while their API key was correct. Cause: `SyncthingClient` built a plain `URLSession(configuration:)` with **no delegate** — a project-wide grep for `URLSessionDelegate` / `URLAuthenticationChallenge` / `SecTrust` returned nothing, so **every released version** was affected. Syncthing's `<gui tls="true">` ("Use HTTPS for GUI") serves the REST API with a self-signed cert from `https-cert.pem`, and *also redirects plain HTTP to HTTPS* — so the failure reaches users who never changed the default `http://127.0.0.1:8384` base URL. TLS fails before the API key is ever sent, which is why the key looked correct and was.
+
+**Options Considered:**
+1. **Error message only** — smallest diff, zero security surface, but every HTTPS user is told to turn HTTPS off rather than being supported.
+2. **Loopback-only auto-trust + actionable message** — a `URLSessionDelegate` accepting a self-signed cert only when the challenge host is loopback. Covers the overwhelming majority of users with no new UI.
+3. **Loopback auto-trust + opt-in trust-on-first-use pinning for remote hosts** — also covers NAS/remote-server users, but needs Settings UI, fingerprint storage, and cert-change detection: a feature, not a patch.
+
+**Decision:** Option 2. `SyncthingServerTrustDelegate` (`Client.swift`) grants trust only when `challenge.protectionSpace.host` is loopback — `localhost`, `::1`, or anything in `127.0.0.0/8`; everything else falls through to `.performDefaultHandling`. `fetchStatus`'s `URLError` switch gained the `serverCertificate*` cases so remote failures name the "Use HTTPS for GUI" setting instead of showing Apple's "pretending to be" wording.
+
+**Rationale:** On loopback the traffic never leaves the machine, so there is no network path for an impostor to sit on and the certificate check protects against nothing. A self-signed certificate from a *remote* host is indistinguishable from a real interception, so waving it through would trade a cosmetic annoyance for a genuine MITM hole. The asymmetry is the whole decision: auto-trust is safe precisely and only where there is no network.
+
+**Verification:** Against a real self-signed HTTPS server — loopback by IP, by hostname, and via an `http→https` redirect all connect; the identical request *without* the delegate reproduces the reported `-1202` verbatim; a LAN-IP host is still refused. 13 `isLoopback` unit checks pass, including the spoof attempts `127.0.0.1.evil.com` and `127.0.0.256`.
+
+**Consequences:** Remote-HTTPS users (Syncthing on a NAS or another machine) remain **unsupported by design** — they now get an actionable message rather than a connection. If more reports arrive from that group, option 3 is the follow-up. Any future networking code must go through the delegated session; constructing a bare `URLSession` would silently reintroduce this bug. Trust is host-based, not URL-based, so it survives redirects. Commit `68e927f`.
+
+---
 *Add decisions as they are made. Future-you will thank present-you.*

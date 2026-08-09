@@ -10,9 +10,10 @@
 
 ## Current Position
 - **Phase:** **v1.6.0 RELEASED (2026-07-12 evening).** Notarized+stapled DMG on GitHub release v1.6.0, Sparkle appcast live (1.5.x installs get offered the update), website deployed + verified (page, feature card, DMG all serving). Release scripts now in `tools/` (notarize.sh + make-dmg.sh, adapted from Magpie).
-- **Focus:** post-release. `/check ship` passed same day (0 blockers); its two should-fixes (dead Launch-at-Login toggle → `SMAppService.mainApp`; silent pause/resume → error banner) shipped IN 1.6.0.
+- **Focus:** post-release, accumulating v1.7. Two user-facing fixes now sit on `main` unreleased (see below).
 - **Known issue (fixed on main, rides next release):** About panel could show "Syncthing: not connected" while fully connected — `fetchVersion()`'s catch nilled `syncthingVersion` on *cancelled* refreshes (the one site the July cancellation fix missed). Guard added; cosmetic only; exists in 1.5.5 too.
-- **Last updated:** 2026-07-12 (v1.6.0 shipped)
+- **User-reported bug (fixed on main, rides next release):** the app could not connect at all when Syncthing had "Use HTTPS for GUI" enabled — no TLS trust handling existed, so its self-signed cert was rejected with Apple's alarming "server that is pretending to be" text. Affected **every shipped version**, including users on the default `http://` URL (Syncthing redirects HTTP→HTTPS). Now trusted on loopback only (`68e927f`). Remote-HTTPS setups (NAS) still unsupported by design.
+- **Last updated:** 2026-08-09 (loopback cert fix + git bootstrap)
 
 ## Progress
 ```
@@ -81,6 +82,7 @@
 - [x] Notarized, stapled, Sparkle-signed DMG; appcast item live only after the DMG exists (✅ shipped 2026-07-12)
 
 ## Next Actions
+0. **Reply to the HTTPS reporter** — workaround: untick Syncthing's **Actions → Settings → GUI → "Use HTTPS for GUI"**, restart. **Ask whether their Syncthing is local or remote** — the fix only covers local, and they never said which.
 1. **Cookbook promotions** (both proven this release): sandbox-tilde + `stat(2)`/errno probe (memory `sandbox-tilde-real-home`, → `22_macos-platform.md`); `SMAppService.mainApp` vs `.loginItem(identifier:)` (silent no-op toggle, survived 3 releases).
 2. **v1.7 investigation — refresh overrun:** with offline devices, some fetch in the refresh group is still in flight at the next 10-s tick, so every cycle cancels its predecessor (`system/version: cancelled` every 10 s in logs). Suspect: `db/completion` for disconnected devices holding until the 30-s resource timeout. The About-version flap this caused is already guarded; find and bound the slow fetch itself.
 3. **v1.7 polish backlog (bucket 3 from `/check ship`):** app-citizenship packages (Feedback/Donate/Help), window frame autosave, CHANGELOG file, split Views/Client (2.3k/2.1k lines), About credits could refresh on reconnect.
