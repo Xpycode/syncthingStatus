@@ -6,12 +6,18 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.6.0-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.6.1-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.6.0 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.0/syncthingStatus-v1.6.0.dmg) once. Future updates will auto-update normally.
+> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.6.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg) once. Future updates will auto-update normally.
+
+## What's New in Version 1.6.1
+
+### Bug Fixes
+- **Works with "Use HTTPS for GUI"** — if Syncthing's GUI was set to HTTPS (which also silently redirects the default `http://127.0.0.1:8384` there), the app could not connect at all: macOS rejected Syncthing's self-signed certificate with an alarming "server that is pretending to be" error. The app now trusts Syncthing's certificate **for local connections only** (`localhost` / `127.x.x.x` / `::1`). Connections to a *remote* Syncthing over HTTPS still fail closed — but now with a clear message naming the setting instead of Apple's scary wording.
+- **About panel no longer claims "Syncthing: not connected"** while fully connected — a background refresh being superseded could wipe the remembered Syncthing version; it now survives cancelled refreshes.
 
 ## What's New in Version 1.6.0
 
