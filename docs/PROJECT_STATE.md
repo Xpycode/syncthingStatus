@@ -9,11 +9,10 @@
 - **Bundle ID:** `com.lucesumbrarum.syncthingStatus`
 
 ## Current Position
-- **Phase:** **v1.6.0 RELEASED (2026-07-12 evening).** Notarized+stapled DMG on GitHub release v1.6.0, Sparkle appcast live (1.5.x installs get offered the update), website deployed + verified (page, feature card, DMG all serving). Release scripts now in `tools/` (notarize.sh + make-dmg.sh, adapted from Magpie).
-- **Focus:** post-release, accumulating v1.7. Two user-facing fixes now sit on `main` unreleased (see below).
-- **Known issue (fixed on main, rides next release):** About panel could show "Syncthing: not connected" while fully connected — `fetchVersion()`'s catch nilled `syncthingVersion` on *cancelled* refreshes (the one site the July cancellation fix missed). Guard added; cosmetic only; exists in 1.5.5 too.
-- **User-reported bug (fixed on main, rides next release):** the app could not connect at all when Syncthing had "Use HTTPS for GUI" enabled — no TLS trust handling existed, so its self-signed cert was rejected with Apple's alarming "server that is pretending to be" text. Affected **every shipped version**, including users on the default `http://` URL (Syncthing redirects HTTP→HTTPS). Now trusted on loopback only (`68e927f`). Remote-HTTPS setups (NAS) still unsupported by design.
-- **Last updated:** 2026-08-09 (loopback cert fix + git bootstrap)
+- **Phase:** **v1.6.1 RELEASED (2026-08-10, from the M4-Pro).** Notarized+stapled DMG on GitHub release v1.6.1, appcast live and verified serving. Ships: the loopback HTTPS cert fix, the About-panel version flap fix, and — the headline found *while cutting* — the sandboxed-Sparkle installer fix.
+- **Focus:** post-release. v1.7 backlog unchanged.
+- **Major discovery (2026-08-10, fixed + shipped):** every sandboxed release (1.5.x, 1.6.0) could **download updates but never install them** — Sparkle's sandbox accommodations were never added, so installs died on auth error -60005 ("An error occurred while launching the installer"). Caught live from the user's own failed 1.5.5→1.6.0 attempt. Fixed in `a0eebbd` (`SUEnableInstallerLauncherService` + mach-lookup `-spks`/`-spki`; Downloader XPC deliberately not enabled). **Proven end-to-end**: rig copy of released 1.6.1 installed a fake 1.6.2 from a localhost feed in place, zero errors. Consequence: **≤1.6.0 installs need one manual DMG download** (their installed app holds the broken installer); README, appcast item, and GitHub release all say so. From 1.6.1 onward auto-update genuinely works — for the first time ever on a sandboxed build.
+- **Last updated:** 2026-08-10 (v1.6.1 released)
 
 ## Progress
 ```
@@ -82,8 +81,9 @@
 - [x] Notarized, stapled, Sparkle-signed DMG; appcast item live only after the DMG exists (✅ shipped 2026-07-12)
 
 ## Next Actions
-0. **v1.6.1 patch — deferred to when both Macs are available (user, 2026-08-09).** Two unreleased user-facing fixes on `main` (HTTPS cert, About-panel flap); leaning patch-now over holding for v1.7, since the cert bug is total loss of function and v1.7's lead item is open-ended. 🔴 **Verify the Sparkle EdDSA private key survived the fresh Mac setup before promising a date** — `SUPublicEDKey` is baked into shipped builds, so a lost private key means existing installs reject every future update (the 1.5→1.5.1 breakage again). Dev ID cert + `conjoyn-notary` profile are machine-local too, but recoverable. Appcast `<item>` only after the DMG is published.
-0b. **Reply to the HTTPS reporter** — workaround: untick Syncthing's **Actions → Settings → GUI → "Use HTTPS for GUI"**, restart. **Ask whether their Syncthing is local or remote** — the fix only covers local, and they never said which.
+0. **Reply to the HTTPS reporter (user):** ✅ v1.6.1 shipped with their fix; their setup (same-Mac Syncthing, confirmed 2026-08-10) is fully covered. They must **download the DMG manually once** — their installed version can't self-update (the very bug this release also fixes).
+0b. **Strongbox hygiene (user):** find the Group B Sparkle key entry (likely saved but unlabeled) by comparing against `99-AUTH/sparkle_private_key.txt`; retitle it "Sparkle EdDSA — Group B (syncthingStatus + DiskVerdict), public eH6joIk0…". Optional: import the key into this Mac's Keychain under `--account syncthingstatus` per registry custody rules.
+0c. **Website update** — the site still advertises v1.6.0; refresh version/download link for 1.6.1 (deploy flow per `29_web-strato-hosting.md`).
 1. **Cookbook promotions** (both proven this release): sandbox-tilde + `stat(2)`/errno probe (memory `sandbox-tilde-real-home`, → `22_macos-platform.md`); `SMAppService.mainApp` vs `.loginItem(identifier:)` (silent no-op toggle, survived 3 releases).
 2. **v1.7 investigation — refresh overrun:** with offline devices, some fetch in the refresh group is still in flight at the next 10-s tick, so every cycle cancels its predecessor (`system/version: cancelled` every 10 s in logs). Suspect: `db/completion` for disconnected devices holding until the 30-s resource timeout. The About-version flap this caused is already guarded; find and bound the slow fetch itself.
 3. **v1.7 polish backlog (bucket 3 from `/check ship`):** app-citizenship packages (Feedback/Donate/Help), window frame autosave, CHANGELOG file, split Views/Client (2.3k/2.1k lines), About credits could refresh on reconnect.
@@ -92,11 +92,11 @@
 ## References
 - Implementation plan: `docs/IMPLEMENTATION-PLAN-stuck-deletes.md`
 - Feature design doc: `docs/FEATURE-stuck-deletes-cleanup.md`
-- Latest session log: `docs/sessions/2026-07-12.md` (appcast incident + sandbox/tilde fix + verification)
+- Latest session log: `docs/sessions/2026-08-10.md` (v1.6.1 release + sandboxed-updater root cause)
 - Decisions: `docs/decisions.md` (latch + bookmark entries dated 2026-04-29)
 - Syncthing infra (cross-project): memory `project-syncthing-propro-setup` — ProPro folder ignores `.git`/`.stversions`; code syncs via GitHub
 - Debug install script: `tools/install-debug-build.sh`
-- Build: v1.6.0 build 162 (Debug, with inline Rescan button)
+- Build: v1.6.1 build 163 (released 2026-08-10; installed + running locally)
 
 ---
 *Updated by Claude. Source of truth for project position.*
