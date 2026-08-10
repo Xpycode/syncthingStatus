@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!-- Sparkle 2 sandboxed-installer accommodation (sparkle-project.org/documentation/sandboxing/):
+	     without these, a sandboxed app downloads updates but the install fails with auth error
+	     -60005 ("Failed to gain authorization required to update target"). The Downloader XPC
+	     service is deliberately NOT enabled — the app already has network.client. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+	</array>
+</dict>
 </plist>

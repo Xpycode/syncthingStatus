@@ -11,11 +11,12 @@
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-> ⚠️ **v1.5 users**: Auto-update will not work due to a signing key change in v1.5.1. Please [download v1.6.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg) once. Future updates will auto-update normally.
+> ⚠️ **Updating from v1.6.0 or earlier?** Please [download v1.6.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg) — one time only. In-app update on older versions downloads fine but then fails to install ("An error occurred while launching the installer"): the app is sandboxed, and the installer permissions Sparkle needs in a sandbox were missing. v1.6.1 fixes this, so updates **from** v1.6.1 onward install normally.
 
 ## What's New in Version 1.6.1
 
 ### Bug Fixes
+- **In-app updates can now actually install** — every sandboxed version so far could download an update but failed at the install step with "An error occurred while launching the installer". The sandbox accommodations Sparkle's installer requires are now in place. (Updating *to* 1.6.1 from an older version still needs the one-time manual download above — the broken installer is in the old, already-installed version.)
 - **Works with "Use HTTPS for GUI"** — if Syncthing's GUI was set to HTTPS (which also silently redirects the default `http://127.0.0.1:8384` there), the app could not connect at all: macOS rejected Syncthing's self-signed certificate with an alarming "server that is pretending to be" error. The app now trusts Syncthing's certificate **for local connections only** (`localhost` / `127.x.x.x` / `::1`). Connections to a *remote* Syncthing over HTTPS still fail closed — but now with a clear message naming the setting instead of Apple's scary wording.
 - **About panel no longer claims "Syncthing: not connected"** while fully connected — a background refresh being superseded could wipe the remembered Syncthing version; it now survives cancelled refreshes.
 
