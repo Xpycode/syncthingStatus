@@ -8,10 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		237DBFCA2EDEF53500234BA9 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 23SPARKLE012E457BBF009D58A9 /* Sparkle */; };
+		A11000000000000000000001 /* Client.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000015 /* Client.swift */; };
+		A11000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000016 /* Models.swift */; };
+		A11000000000000000000003 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000017 /* Constants.swift */; };
+		A11000000000000000000004 /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000018 /* Helpers.swift */; };
+		A11000000000000000000005 /* SyncthingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000019 /* SyncthingSettings.swift */; };
+		A11000000000000000000006 /* FolderAccessBookmarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1100000000000000000001A /* FolderAccessBookmarks.swift */; };
+		A11000000000000000000007 /* LaunchAtLoginHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1100000000000000000001B /* LaunchAtLoginHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		236262752E457BBF009D58A9 /* syncthingStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = syncthingStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A11000000000000000000015 /* Client.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Client.swift; sourceTree = "<group>"; };
+		A11000000000000000000016 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A11000000000000000000017 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		A11000000000000000000018 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
+		A11000000000000000000019 /* SyncthingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncthingSettings.swift; sourceTree = "<group>"; };
+		A1100000000000000000001A /* FolderAccessBookmarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessBookmarks.swift; sourceTree = "<group>"; };
+		A1100000000000000000001B /* LaunchAtLoginHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginHelper.swift; sourceTree = "<group>"; };
+		A11000000000000000000028 /* syncthingStatusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = syncthingStatusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -33,6 +48,11 @@
 			path = syncthingStatus;
 			sourceTree = "<group>";
 		};
+		A11000000000000000000029 /* syncthingStatusTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = syncthingStatusTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +64,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1100000000000000000002B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -51,6 +78,8 @@
 			isa = PBXGroup;
 			children = (
 				236262772E457BBF009D58A9 /* syncthingStatus */,
+				A11000000000000000000029 /* syncthingStatusTests */,
+				A1100000000000000000002A /* Production Test Sources */,
 				236262762E457BBF009D58A9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -59,8 +88,24 @@
 			isa = PBXGroup;
 			children = (
 				236262752E457BBF009D58A9 /* syncthingStatus.app */,
+				A11000000000000000000028 /* syncthingStatusTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A1100000000000000000002A /* Production Test Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A11000000000000000000015 /* Client.swift */,
+				A11000000000000000000016 /* Models.swift */,
+				A11000000000000000000017 /* Constants.swift */,
+				A11000000000000000000018 /* Helpers.swift */,
+				A11000000000000000000019 /* SyncthingSettings.swift */,
+				A1100000000000000000001A /* FolderAccessBookmarks.swift */,
+				A1100000000000000000001B /* LaunchAtLoginHelper.swift */,
+			);
+			name = "Production Test Sources";
+			path = syncthingStatus;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -88,6 +133,26 @@
 			productName = syncthingStatus;
 			productReference = 236262752E457BBF009D58A9 /* syncthingStatus.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A1100000000000000000002E /* syncthingStatusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1100000000000000000002F /* Build configuration list for PBXNativeTarget "syncthingStatusTests" */;
+			buildPhases = (
+				A1100000000000000000002D /* Sources */,
+				A1100000000000000000002B /* Frameworks */,
+				A1100000000000000000002C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A11000000000000000000029 /* syncthingStatusTests */,
+			);
+			name = syncthingStatusTests;
+			productName = syncthingStatusTests;
+			productReference = A11000000000000000000028 /* syncthingStatusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -122,12 +187,20 @@
 			projectRoot = "";
 			targets = (
 				236262742E457BBF009D58A9 /* syncthingStatus */,
+				A1100000000000000000002E /* syncthingStatusTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		236262732E457BBF009D58A9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1100000000000000000002C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -141,6 +214,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1100000000000000000002D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A11000000000000000000001 /* Client.swift in Sources */,
+				A11000000000000000000002 /* Models.swift in Sources */,
+				A11000000000000000000003 /* Constants.swift in Sources */,
+				A11000000000000000000004 /* Helpers.swift in Sources */,
+				A11000000000000000000005 /* SyncthingSettings.swift in Sources */,
+				A11000000000000000000006 /* FolderAccessBookmarks.swift in Sources */,
+				A11000000000000000000007 /* LaunchAtLoginHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -357,6 +444,46 @@
 			};
 			name = Release;
 		};
+		A11000000000000000000030 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucesumbrarum.syncthingStatus.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "";
+			};
+			name = Debug;
+		};
+		A11000000000000000000031 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucesumbrarum.syncthingStatus.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -374,6 +501,15 @@
 			buildConfigurations = (
 				236262822E457BC0009D58A9 /* Debug */,
 				236262832E457BC0009D58A9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1100000000000000000002F /* Build configuration list for PBXNativeTarget "syncthingStatusTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11000000000000000000030 /* Debug */,
+				A11000000000000000000031 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
