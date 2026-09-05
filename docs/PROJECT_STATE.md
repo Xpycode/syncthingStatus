@@ -8,13 +8,13 @@
 
 ## Now
 - **Phase:** post-release; v1.6.1 (build 163) released 2026-08-10.
-- **Focus:** prepare Homebrew distribution of the existing notarized release; v1.7 maintenance follows.
+- **Focus:** v1.7 maintenance, starting with refresh overruns when devices are offline.
 - **Blockers:** full Homebrew audit requires Xcode 27.0 on this Mac (26.6 installed); cask style and download/checksum checks passed.
-- **Next:** publish the cask in this repository, verify the public tap, then investigate the v1.7 refresh overrun.
+- **Next:** reproduce the refresh overrun with an offline peer and identify the slow request.
 - **Updated:** 2026-09-05.
 
 ## Recent
-- **2026-09-05:** migrated this state to a lean digest, preserving decisions and historical details.
+- **2026-09-05:** published and verified the Homebrew tap; migrated this state to a lean digest with history preserved.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
 - **2026-08-09:** fixed connections to local Syncthing instances using self-signed HTTPS certificates.
 - **2026-07-12:** released v1.6.0 with stuck-delete cleanup, folder access grants, Rescan, and working Launch at Login.
@@ -31,6 +31,7 @@
 
 ## Infrastructure
 - **Release:** GitHub `Xpycode/syncthingStatus`; v1.6.1 DMG notarized and stapled. Appcast and website were verified live at release.
+- **Homebrew:** `Casks/syncthingstatus.rb` is live in this repository's custom tap; fresh public tap and fetch verified 2026-09-05. Install commands and validation limits: [Homebrew distribution](homebrew.md).
 - **Upgrade caveat:** versions ≤1.6.0 cannot install their own updates; users need one manual DMG installation. Sparkle installation was verified end-to-end from v1.6.1.
 - **Live feed:** root `appcast.xml` on `main` is production. Publish the DMG before exposing an appcast item; keep drafts outside the live feed.
 - **Filesystem access:** App Sandbox stays enabled; security-scoped bookmarks keyed `FolderAccessBookmark.<folderID>` replace Full Disk Access.
@@ -47,5 +48,5 @@
 - [Homebrew distribution](homebrew.md) — cask validation, publication, and release maintenance.
 
 ## Resume
-- Finish Homebrew distribution, then investigate the v1.7 refresh overrun with an offline peer.
+- Investigate the v1.7 refresh overrun with an offline peer; rerun the full Homebrew audit when Xcode 27.0 is available.
 - Before the next app release, run `/check ship` and update the cask version and checksum after the DMG is published.

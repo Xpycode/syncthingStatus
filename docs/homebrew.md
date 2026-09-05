@@ -4,9 +4,9 @@ The repository doubles as a custom Homebrew tap through `Casks/syncthingstatus.r
 It distributes the existing notarized GitHub release DMG; no app rebuild or separate
 tap repository is required. This is not a listing in Homebrew's official cask catalogue.
 
-## Installation after publication
+## Installation
 
-These commands require the cask to be published on this repository's default branch:
+The cask is published on this repository's default branch:
 
 ```sh
 brew tap xpycode/syncthingstatus https://github.com/Xpycode/syncthingStatus.git
@@ -66,5 +66,7 @@ No `zap` action is supplied because these contain configuration worth retaining.
 - Full `brew audit --cask --online --strict` stopped during environment setup:
   installed Xcode 26.6 is below Homebrew's required 27.0 on this Mac. Re-run on a
   supported developer-tool setup. No app source build was needed or attempted.
-- Public-tap publication: pending. Full Homebrew installation was not run against
-  the existing app installation.
+- Published to `main`; a fresh tap from the public GitHub URL loaded v1.6.1 and
+  `brew fetch --cask` verified the release successfully. Temporary validation taps
+  were removed and Homebrew developer mode restored to off.
+- Full Homebrew installation was not run against the existing app installation.
