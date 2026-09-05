@@ -1,0 +1,43 @@
+Task 1.1 production test verification — 2026-09-05
+Xcode 26.6 (17F113); macOS hostless XCTest; Debug ad-hoc signing.
+
+/private/tmp/syncthingStatus-1.1-integration.log
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.103 (0.109) seconds
+Test Suite 'All tests' passed at 2026-09-05 15:10:20.213.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.103 (0.110) seconds
+	/tmp/syncthingStatus-v17-tests/Logs/Test/Test-syncthingStatusTests-2026.09.05_15-10-15-+0200.xcresult
+
+/private/tmp/syncthingStatus-1.1-repeat-2.log
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.092 (0.098) seconds
+Test Suite 'All tests' passed at 2026-09-05 15:12:27.357.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.092 (0.098) seconds
+	/tmp/syncthingStatus-v17-tests/Logs/Test/Test-syncthingStatusTests-2026.09.05_15-12-25-+0200.xcresult
+
+/private/tmp/syncthingStatus-1.1-repeat-3.log
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.098 (0.104) seconds
+Test Suite 'All tests' passed at 2026-09-05 15:12:30.275.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.098 (0.105) seconds
+	/tmp/syncthingStatus-v17-tests/Logs/Test/Test-syncthingStatusTests-2026.09.05_15-12-28-+0200.xcresult
+
+Executed tests:
+syncthingStatusTests.CleanupSafetyTests testExactRootGrantDeletesOnlySelectedCandidateAndReloads
+syncthingStatusTests.CleanupSafetyTests testMissingBookmarkBlocksSelectedDeletion
+syncthingStatusTests.CleanupSafetyTests testRealBookmarkStoreMissingAndClearUseOnlyInjectedDefaults
+syncthingStatusTests.CleanupSafetyTests testSelectedTraversalIsRejectedThroughProductionController
+syncthingStatusTests.CleanupSafetyTests testStaleBookmarkRefreshesAndFalseScopeStartDoesNotImplyDenial
+syncthingStatusTests.CleanupSafetyTests testValidatePathRejectsTraversalOutsideTemporaryRoot
+syncthingStatusTests.ClientIsolationTests testPauseActionCapturesNotificationWithoutSystemCenter
+syncthingStatusTests.ClientIsolationTests testRefreshUsesOnlyScriptedSessionAndSyntheticCredentials
+syncthingStatusTests.ClientIsolationTests testUnscriptedRequestFailsLocallyAndIsRecorded
+syncthingStatusTests.SettingsIsolationTests testCloseDrainsPendingSavesBeforeRemovingOnlyOwnedSuite
+syncthingStatusTests.SettingsIsolationTests testCompletedMigrationDoesNotOpenLegacySource
+syncthingStatusTests.SettingsIsolationTests testFlushPersistsLatestValuesAndDeletesEmptyCredential
+syncthingStatusTests.SettingsIsolationTests testInitializationPublishesInjectedCredentialAndReadsFakeLogin
+syncthingStatusTests.SettingsIsolationTests testMigrationReadsDisposableLegacySuiteWithoutMigratingBookmarks
+syncthingStatusTests.SettingsIsolationTests testResetUsesInjectedStoresAndLoginToggleUsesFakeSetter
+
+Fresh-build launch:
+Quitting PID 61951: /Applications/syncthingStatus.app/Contents/MacOS/syncthingStatus
+All old instances exited.
+Launched PID 48249: /private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app/Contents/MacOS/syncthingStatus
+Verified exactly one running instance at /tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app/Contents/MacOS/syncthingStatus
