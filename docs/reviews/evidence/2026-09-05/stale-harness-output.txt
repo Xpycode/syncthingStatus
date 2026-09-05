@@ -1,0 +1,5 @@
+savedBookmarkRoot=/private/tmp/syncthingStatus-review-evidence/stale-fixture/OldLocalFolder
+currentConfiguredRoot=/private/tmp/syncthingStatus-review-evidence/stale-fixture/NewLocalFolder
+computedDeletionTarget=/private/tmp/syncthingStatus-review-evidence/stale-fixture/OldLocalFolder/candidate
+oldCandidateExistsAfterDelete=false
+currentCandidateExistsAfterDelete=true

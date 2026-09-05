@@ -1,0 +1,6 @@
+Pending small file: rowPending=true, summary='1 file, 512', icon=inSync
+Pending directory: rowPending=true, summary='', icon=inSync
+Malformed empty response: rowPending=false, summary='', icon=inSync
+Missing folder status: icon=inSync
+95 percent with four deletes: effectivelySynced=true
+Two overlapping refreshes: started=1, completed=0, refreshing=false
