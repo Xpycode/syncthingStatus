@@ -1,0 +1,8 @@
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' started.
+/tmp/syncthingStatus-wave2-baseline/01_Project/syncthingStatusTests/SyncStatusTests.swift:113: error: -[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion] : XCTAssertFalse failed
+/tmp/syncthingStatus-wave2-baseline/01_Project/syncthingStatusTests/SyncStatusTests.swift:114: error: -[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion] : XCTAssertTrue failed
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' failed (0.600 seconds).
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.600 (0.601) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.600 (0.602) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.600 (0.602) seconds
+** TEST FAILED **

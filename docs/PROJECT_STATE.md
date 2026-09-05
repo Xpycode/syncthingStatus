@@ -9,20 +9,20 @@
 ## Now
 - **Phase:** v1.7 implementation. Current public release remains v1.6.1 (build 163).
 <!-- Phase changed: 2026-09-06 -->
-- **Focus:** the next planned wave makes sync status trustworthy; implementation is not started. Cleanup safety is verified and archived. [Evidence](reviews/evidence/2026-09-05/cleanup-safety.md).
-- **Blockers:** cleanup root/identity blocker cleared. Other v1.7 correctness work remains queued; full Homebrew audit still awaits supported Xcode tools.
-- **Next:** Wave 2 (truthful sync status) is next in the plan when implementation resumes. GitHub #2, #5 and #6 remain explicitly deferred; no later wave or release started.
+- **Focus:** Wave 2 complete: one status policy now drives rows, icons and completion notifications; invalid/missing data stays unavailable. Cleanup safety remains verified. [Status evidence](reviews/evidence/2026-09-06/sync-status.md).
+- **Blockers:** none for the next implementation phase. Full Homebrew audit still awaits supported Xcode tools.
+- **Next:** Wave 3: reproduce refresh cancellation with deterministic gates, then give refresh scheduling one owner. It has not started; GitHub #2, #5 and #6 remain deferred.
 - **Updated:** 2026-09-06.
 
 ## Recent
+- **2026-09-06:** completed truthful sync status (2.1–2.3/A4): 70 tests, independent review and native row/Settings checks and icon mapping passed; final sandboxed Debug app built and launched. Pending/unknown status cannot emit completion, and failed configuration invalidates cached metrics/history.
 - **2026-09-06:** wrapped cleanup safety: 49 tests, independent review and real sandbox/UI checks passed; five tasks archived, fresh Debug app handed off, GitHub issues recorded for later.
 - **2026-09-05:** completed task 1.1: hostless production target, isolated system effects and 15 tests passing three times; independent isolation review passed. Built and launched the fresh sandboxed Debug app. [Evidence](reviews/evidence/2026-09-05/task-1.1-isolation.md).
 - **2026-09-05:** expanded the review handoff into seven implementation waves with Sol/Luna source checks and a five-task cleanup sprint; subsequently detailed task 1.1 against production source, covering test membership and isolated system effects. Application source unchanged.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
-- **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 
 ## Backlog
-- **Review queue:** completed five-task cleanup sprint, 14 backlog items (nine review follow-ups, two Homebrew checks and three deferred GitHub follow-ups), and two observations awaiting reproduction are tracked in [Tasks](TASKS.md). See the [review](reviews/2026-09-05-usability-code-review.md) for evidence and priority.
+- **Review queue:** five archived cleanup tasks, one completed status sprint task, 13 backlog items (eight review follow-ups, two Homebrew checks and three deferred GitHub follow-ups), and two observations awaiting reproduction are tracked in [Tasks](TASKS.md). See the [review](reviews/2026-09-05-usability-code-review.md) for evidence and priority.
 - **v1.7 priority:** investigate refresh overruns with offline devices. Requests can outlast the 10-second refresh interval and be cancelled by the next cycle; suspect disconnected-device `db/completion` reaching the 30-second resource timeout. About-version flickering is already fixed.
 - **GitHub issues:** #2 genuine monochrome icons, #5 long-path layout reproduction/fix and #6 Homebrew response are explicitly deferred until after cleanup safety; linked tasks are recorded in `TASKS.md` (user decision 2026-09-05).
 - **v1.7 polish:** Feedback / Donate / Help, window frame autosave, CHANGELOG, split the large Views and Client files, refresh About credits on reconnect.
@@ -54,9 +54,9 @@
 - [Homebrew distribution](homebrew.md) — cask validation, publication, and release maintenance.
 
 ## Resume
-- Cleanup safety tasks 1.1–1.5 are complete on `fix/isolated-production-tests`. A1–A3 passed; this is not whole-release approval. Next planned implementation is Wave 2; do not start deferred GitHub fixes without the next requested work.
-- Sprint: none active; five cleanup tasks archived. Tracked progress: 5/19 (26%). Deferred: 14 backlog items and two unconfirmed observations. GitHub #2, #5 and #6 are linked in `TASKS.md` and the cleanup evidence.
-- Git handoff: `fix/isolated-production-tests` contains cleanup source/tests/evidence and the planning/session documentation. Continue on this branch; no merge or release is part of the handoff.
-- Running app handoff: `/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app`; old installed instance quit gracefully and the exact fresh executable was verified on September 5.
-- Model fit: deep capability + high reasoning for status validity and upcoming refresh concurrency; bounded independent validation remains useful.
+- Cleanup safety (1.1–1.5/A1–A3) and truthful status (2.1–2.3/A4) are complete on `fix/isolated-production-tests`. This is not whole-release approval. Next planned implementation is Wave 3; later waves and deferred GitHub fixes have not started.
+- Sprint: status task 1/1 complete (awaiting ordinary log archival); five cleanup tasks archived. Tracked progress: 6/19 (32%). Deferred: 13 backlog items and two unconfirmed observations.
+- Git handoff: continue on `fix/isolated-production-tests`; no merge or release is part of this handoff.
+- Running app handoff: `/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app`; old app instances quit gracefully and the exact fresh executable was verified on September 6.
+- Model fit: deep capability + high reasoning for the upcoming refresh ownership/concurrency work; use bounded independent validation.
 - For every public app release, follow [Release maintenance](homebrew.md#release-maintenance): GitHub DMG first, then Sparkle + cask metadata, website deployment, and live checks. Run `/check ship` before a separately requested release.

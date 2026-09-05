@@ -1,0 +1,7 @@
+bundleIsolation=unique-id;app-sandbox=true
+compact: axNodes=82;requiredText=passed;screenshot=saved
+compact: fixtureReady=true;mode=compact;folders=4;devices=5;traffic=unavailable: Folder status unavailable; icon=warning;monochrome=unavailable: Folder status unavailable; icon=warning;notifications=0
+fixtureClosed=true;unexpectedHTTP=0;notifications=0
+detailed: axNodes=72;requiredText=passed;screenshot=saved
+detailed: fixtureReady=true;mode=detailed;folders=4;devices=5;traffic=unavailable: Folder status unavailable; icon=warning;monochrome=unavailable: Folder status unavailable; icon=warning;notifications=0
+fixtureClosed=true;unexpectedHTTP=0;notifications=0

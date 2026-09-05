@@ -1,6 +1,6 @@
 # Implementation plan — v1.7 review fixes
 
-Updated: 2026-09-06. **Cleanup safety sprint (tasks 1.1–1.5) complete; A1–A3 passed.** The user authorized continuing the cleanup safety sprint on 2026-09-05 and deferred the GitHub follow-ups. This is the active plan; older plans describe historical work.
+Updated: 2026-09-06. **Cleanup safety (1.1–1.5) and truthful status (2.1–2.3) complete; A1–A4 passed.** The user authorized the next planned phase on 2026-09-06; GitHub follow-ups remain deferred. This is the active plan; older plans describe historical work.
 
 ## Goal and scope
 
@@ -31,7 +31,7 @@ On 2026-09-05 the user authorized continuing only the cleanup safety sprint. Git
 
 ## Execution and validation
 
-- First sprint: **1.1–1.5 only**. Promote subsequent waves after predecessor gates pass. Tasks in one wave are not automatically safe for parallel edits: `Client.swift`, `Views.swift` and `App.swift` overlap. Delegate bounded fixture work/review to Sol or Luna with explicit ownership. Split a numbered task further if it cannot fit a short implementation pass.
+- Cleanup sprint **1.1–1.5** is complete. The user authorized the next phase on 2026-09-06: **2.1–2.3**. Promote subsequent waves after predecessor gates pass. Tasks in one wave are not automatically safe for parallel edits: `Client.swift`, `Views.swift` and `App.swift` overlap. Delegate bounded fixture work/review to Sol or Luna with explicit ownership. Split a numbered task further if it cannot fit a short implementation pass.
 - Source paths below are relative to `01_Project/syncthingStatus/`; test classes are proposed files in `01_Project/syncthingStatusTests/`. New filenames/test commands describe work to create, not existing infrastructure.
 - Use a hostless XCTest bundle compiling the same production files or narrowly extracted production components as the app. Exclude `App.swift`/`Views.swift` and app startup; move the status resolver out of `App.swift` when needed. No copied methods, app-hosted lifecycle, or general framework. Controller tests can compile the real `Client.swift` and its dependencies with injected external effects; helper-only tests are insufficient to close the cleanup gate.
 - Use unique temporary roots, defaults suites, credential storage, stubbed HTTP and captured notifications. `SyncthingSettings` starts asynchronous Keychain work, so defaults injection alone is insufficient. `FolderAccessBookmarks` already accepts defaults, but the controller constructs its own default store: inject it. Tests must not touch real preferences, bookmarks, Keychain, login items, daemon configuration or notifications.
@@ -59,7 +59,7 @@ xcodebuild -project 01_Project/syncthingStatus.xcodeproj -scheme syncthingStatus
 
 ## Tasks
 
-### Wave 1 — cleanup safety (active sprint)
+### Wave 1 — cleanup safety (complete)
 
 - [x] **1.1 — Establish isolated production tests.** Targets: `../syncthingStatus.xcodeproj/project.pbxproj`, shared app/test schemes, `../syncthingStatusTests/`, minimal seams in `Client.swift`, `SyncthingSettings.swift`, `FolderAccessBookmarks.swift`.
   - Detailed execution plan: [task 1.1 — six substeps across three waves](PLAN-task-1.1.md), including legacy-defaults migration, login-item initialization, credential persistence, captured notifications, and the existing transport seam. Completed 2026-09-05: 15 tests passed three consecutive runs, independent isolation review found no blockers, and the sandboxed Debug build passed and was launched. [Evidence](reviews/evidence/2026-09-05/task-1.1-isolation.md).
@@ -86,15 +86,15 @@ xcodebuild -project 01_Project/syncthingStatus.xcodeproj -scheme syncthingStatus
 
 Depends on Wave 1. Establish status semantics before refresh publication and notification work.
 
-- [ ] **2.1 — Specify and test the status decision table.** Targets: `Models.swift`, `Helpers.swift`, resolver in `App.swift` → new `SyncStatusPolicy.swift`, `SyncStatusTests.swift`.
+- [x] **2.1 — Specify and test the status decision table.** Targets: `Models.swift`, `Helpers.swift`, resolver in `App.swift` → new `SyncStatusPolicy.swift`, `SyncStatusTests.swift`.
   - Success: fixtures cover known complete, bytes/files/directories/symlinks/deletes, malformed/missing data, failed latest fetch with cached values, paused folders, scanning/syncing and offline peers. Empty folder list says no folders. Thresholds cannot erase pending item/delete counts; device completion with four deletes is not complete.
   - Backpressure: T(SyncStatusTests), recording the review's false-healthy cases failing before repair.
 
-- [ ] **2.2 — Preserve status validity through decoding/publication.** Depends on 2.1. Targets: `Models.swift` (`SyncthingFolderStatus`), `Client.swift` (`fetchFolderStatus`), `SyncStatusPolicy.swift`.
+- [x] **2.2 — Preserve status validity through decoding/publication.** Depends on 2.1. Targets: `Models.swift` (`SyncthingFolderStatus`), `Client.swift` (`fetchFolderStatus`), `SyncStatusPolicy.swift`.
   - Success: distinguish known zero from required-field absence, malformed payload and latest-fetch failure; cached data is explicitly stale/unavailable. Tolerate unknown extra fields and avoid double-counting total/individual counters.
   - Backpressure: T(SyncStatusTests), B.
 
-- [ ] **2.3 — Route display and completion consumers through the policy.** Depends on 2.2. Targets: icon resolver, `Helpers.swift` pending/effective-sync helpers, `Views.swift` summaries, `Client.swift` completion tracking.
+- [x] **2.3 — Route display and completion consumers through the policy.** Depends on 2.2. Targets: icon resolver, `Helpers.swift` pending/effective-sync helpers, `Views.swift` summaries, `Client.swift` completion tracking.
   - Success: A4 passes across rows and both icon styles; unknown/pending status cannot trigger global or folder completion notifications. Peer availability stays distinct from API reachability.
   - Backpressure: T(SyncStatusTests), V with idle, pending-delete, unavailable, paused and offline-peer fixtures.
 
@@ -218,7 +218,7 @@ Plan expanded with Sol/Luna source inspection on 2026-09-05. No application fixe
 | Wave | State | Completion evidence |
 |---|---|---|
 | 1 — cleanup | Complete: 1.1–1.5; A1–A3 passed | [Cleanup verification](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests, independent review, real sandbox/UI, Debug build/launch |
-| 2 — status | Queued | Pending |
+| 2 — status | Complete: 2.1–2.3; A4 passed | [Status evidence](reviews/evidence/2026-09-06/sync-status.md): 70 tests, independent review, native compact/detailed/Settings fixtures and icon mapping, Debug build/launch |
 | 3 — refresh | Queued | Pending |
 | 4 — controls/recovery | Queued | Pending |
 | 5 — UI/accessibility | Queued | Pending |

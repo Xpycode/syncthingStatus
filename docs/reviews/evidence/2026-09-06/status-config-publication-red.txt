@@ -1,0 +1,8 @@
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationOnlyFailureDiscardsCachedCompleteMetrics]' started.
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:344: error: -[syncthingStatusTests.SyncStatusTests testConfigurationOnlyFailureDiscardsCachedCompleteMetrics] : XCTAssertNil failed: "SyncthingFolderStatus(globalFiles: 10, globalBytes: 1000, localFiles: 10, localBytes: 1000, needFiles: 0, needBytes: 0, needDeletes: 0, needDirectories: 0, needSymlinks: 0, needTotalItems: 0, state: "idle", lastScan: nil)"
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:345: error: -[syncthingStatusTests.SyncStatusTests testConfigurationOnlyFailureDiscardsCachedCompleteMetrics] : XCTAssertNil failed: "SyncthingDeviceCompletion(completion: 100.0, globalBytes: 1000, needBytes: 0, needDeletes: 0, needItems: 0)"
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationOnlyFailureDiscardsCachedCompleteMetrics]' failed (0.609 seconds).
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.609 (0.610) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.609 (0.610) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.609 (0.611) seconds
+** TEST FAILED **

@@ -57,13 +57,7 @@ func formatConnectionDuration(since date: Date?) -> String {
 }
 
 func isEffectivelySynced(completion: SyncthingDeviceCompletion, settings: SyncthingSettings) -> Bool {
-    // Consider a device "synced" if:
-    // 1. It's at 100%, OR
-    // 2. It's >= threshold% complete AND has less than threshold bytes remaining
-    // This handles the case where Syncthing shows 95%+ but with 0 bytes remaining
-    return completion.completion >= 100.0 ||
-           (completion.completion >= settings.syncCompletionThreshold &&
-            completion.needBytes < settings.syncRemainingBytesThreshold)
+    SyncStatusPolicy.isComplete(completion)
 }
 
 // MARK: - Real-home path expansion
@@ -96,20 +90,35 @@ extension SyncthingFolder {
 }
 
 extension SyncthingFolderStatus {
-    /// True when the folder has any pending work — additions, deletes, or
-    /// directory changes. Mirrors the WebUI's "Out of Sync" criterion. Falls
-    /// back to a sum of the legacy fields when `needTotalItems` is absent.
-    var hasPendingWork: Bool {
-        needTotalItems > 0 || needFiles > 0 || needDeletes > 0 || needBytes > 0
-    }
+    var hasPendingWork: Bool { SyncStatusPolicy.hasPendingWork(self) }
 
-    /// Compact summary line for the popover row when work is pending.
-    /// Examples: "5 files, 2 MB" / "10 deletes" / "3 files, 7 deletes, 1 MB".
+    /// Individual counters explain work; the aggregate is only a fallback, not an extra count.
     var pendingSummary: String {
         var parts: [String] = []
         if needFiles > 0 { parts.append("\(needFiles) file\(needFiles == 1 ? "" : "s")") }
+        if needDirectories > 0 { parts.append("\(needDirectories) director\(needDirectories == 1 ? "y" : "ies")") }
+        if needSymlinks > 0 { parts.append("\(needSymlinks) symlink\(needSymlinks == 1 ? "" : "s")") }
         if needDeletes > 0 { parts.append("\(needDeletes) delete\(needDeletes == 1 ? "" : "s")") }
+        // Max, not sum, also avoids overflow on inconsistent but nonnegative counters.
+        let described = [needFiles, needDirectories, needSymlinks, needDeletes].reduce(0) { sum, count in
+            let (next, overflow) = sum.addingReportingOverflow(count)
+            return overflow ? Int.max : next
+        }
+        if needTotalItems > described {
+            let other = needTotalItems - described
+            parts.append("\(other) other item\(other == 1 ? "" : "s")")
+        }
         if needBytes > 0 { parts.append(formatBytes(needBytes)) }
         return parts.joined(separator: ", ")
+    }
+}
+
+extension SyncthingDeviceCompletion {
+    var pendingSummary: String {
+        var parts: [String] = []
+        if needItems > 0 { parts.append("\(needItems) item\(needItems == 1 ? "" : "s")") }
+        if needDeletes > 0 { parts.append("\(needDeletes) delete\(needDeletes == 1 ? "" : "s")") }
+        if needBytes > 0 { parts.append(formatBytes(needBytes)) }
+        return parts.isEmpty ? "Checking completion" : parts.joined(separator: ", ")
     }
 }

@@ -6,13 +6,12 @@
 <!-- Ideas and future work. Added by /interview, user input, or discovered during development. -->
 <!-- Priority: top = highest, bottom = lowest -->
 
-- [ ] [Review: high] Unify icon/row sync semantics and represent missing or malformed folder status explicitly; account for pending items/deletes. See `reviews/2026-09-05-usability-code-review.md` and preserved status fixtures.
 - [ ] [Review: high] Give refresh scheduling one owner; prevent cancellation from discarding the replacement refresh and protect later peers/folders from slow requests. Keep the specific offline-peer timeout cause in Inbox until measured.
 - [ ] [Review] Correct per-folder notification selection: an empty stored array currently enables all notifications while displaying every switch as off; model all versus selected folders explicitly.
 - [ ] [Review] Change folder pause/resume to a targeted config PATCH so concurrent configuration edits are not overwritten by whole-config POST.
 - [ ] [Review] Put Connection first and show actionable, untruncated recovery with the existing config picker; defer notification permission until connection/intent. Consider Advanced grouping for tuning and diagnostics.
 - [ ] [Review] Page cleanup's db/need results beyond 1,000 items, deduplicate, and support cancellation; do not depend on the removed total field.
-- [ ] [Review] Put folder/device status before idle charts, clarify API reachability versus peer availability, reduce redundant footer controls, and rename Window to Details.
+- [ ] [Review] Put folder/device status before idle charts, clarify API reachability versus peer availability, reduce redundant footer controls, and rename Window to Details. Clarify peer wording when byte completion is 100% but deletes remain (Wave 2 fixture displays “Syncing (100%)” with the pending-delete count).
 - [ ] [Review] Give global and per-item pause/selection controls explicit accessible scope; verify cleanup selection labels and focused main-menu action discoverability.
 - [ ] [Review] Separate cleanup/demo and Settings/view responsibilities, consolidate HTTP helpers, and reduce developer scenario/unused animation code while preserving intentional public demo behavior.
 - [ ] Re-run the full Homebrew cask audit with supported developer tools (Xcode 27.0 required on this Mac; 26.6 currently installed). See `homebrew.md` for commands and completed checks.
@@ -30,9 +29,11 @@ User confirmed 2026-09-05: continue the cleanup safety sprint; handle these sepa
 <!-- Active work. Populated by /plan or /execute. Keep focused (3-7 tasks). -->
 <!-- When done: /log moves to tasks-archive.md -->
 
-No active sprint tasks. Wave 1 is archived; Wave 2 is the next planned work.
+- [x] [Review: high] Make sync status trustworthy (Wave 2, tasks 2.1–2.3): decision-table regressions, valid status publication, and consistent rows/icons/completion notifications. `reviews/2026-09-05-usability-code-review.md` and preserved status fixtures.
 
-Cleanup sprint complete: **5/5 archived** in [Completed Tasks](tasks-archive.md). [Wave 1](IMPLEMENTATION_PLAN.md#wave-1--cleanup-safety-active-sprint) and [verification evidence](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests passed, independent source review passed, and real sandbox/native-window fixtures passed with production-equivalent filesystem entitlements. Fresh sandboxed Debug app built and launched. Cleanup root/identity blocker cleared; later waves and the three GitHub issues remain deferred. This is not release approval.
+Wave 2 complete (2026-09-06): **1/1 sprint task**, covering plan 2.1–2.3. 70 tests (21 status), independent review and native row/Settings checks and icon mapping passed. [Evidence](reviews/evidence/2026-09-06/sync-status.md). Next planned work is Wave 3 refresh ownership; it has not started.
+
+Cleanup sprint complete: **5/5 archived** in [Completed Tasks](tasks-archive.md). [Wave 1](IMPLEMENTATION_PLAN.md#wave-1--cleanup-safety-complete) and [verification evidence](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests passed, independent source review passed, and real sandbox/native-window fixtures passed with production-equivalent filesystem entitlements. Fresh sandboxed Debug app built and launched. Cleanup root/identity blocker cleared; later waves and the three GitHub issues remain deferred. This is not release approval.
 
 ## Inbox
 

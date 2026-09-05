@@ -1,0 +1,46 @@
+Test Case '-[syncthingStatusTests.SyncStatusTests testAggregateFallbackAndUnknownFieldsDoNotDoubleCount]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testAggregateFallbackAndUnknownFieldsDoNotDoubleCount]' passed (0.002 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationAndConnectionFailureBlockCachedSuccess]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationAndConnectionFailureBlockCachedSuccess]' passed (0.016 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationFailureClearsFolderCompletionHistory]' started.
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:315: error: -[syncthingStatusTests.SyncStatusTests testConfigurationFailureClearsFolderCompletionHistory] : XCTAssertTrue failed
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:316: error: -[syncthingStatusTests.SyncStatusTests testConfigurationFailureClearsFolderCompletionHistory] : XCTAssertFalse failed
+Test Case '-[syncthingStatusTests.SyncStatusTests testConfigurationFailureClearsFolderCompletionHistory]' failed (0.546 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceDecisionTableAndRequiredCounters]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceDecisionTableAndRequiredCounters]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceWithFourDeletesIsNotComplete]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceWithFourDeletesIsNotComplete]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testEveryRequiredFolderFieldRejectsAbsenceAndWrongType]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testEveryRequiredFolderFieldRejectsAbsenceAndWrongType]' passed (0.002 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testFailedLatestFetchInvalidatesFolderAndPeerCompletion]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testFailedLatestFetchInvalidatesFolderAndPeerCompletion]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testFetchFailureAndPauseCannotManufactureCompletionTransition]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testFetchFailureAndPauseCannotManufactureCompletionTransition]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testFolderDecisionTable]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testFolderDecisionTable]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testGenuineCompletionSendsExactlyOneFolderAndGlobalNotification]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testGenuineCompletionSendsExactlyOneFolderAndGlobalNotification]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testGlobalTrackerCompletesActiveAndIdlePendingExactlyOnce]' started.
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:284: error: -[syncthingStatusTests.SyncStatusTests testGlobalTrackerCompletesActiveAndIdlePendingExactlyOnce] : XCTAssertTrue failed
+Test Case '-[syncthingStatusTests.SyncStatusTests testGlobalTrackerCompletesActiveAndIdlePendingExactlyOnce]' failed (0.001 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testGlobalTrackerForgetsPendingAcrossUnavailablePausedAndError]' started.
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:295: error: -[syncthingStatusTests.SyncStatusTests testGlobalTrackerForgetsPendingAcrossUnavailablePausedAndError] : XCTAssertFalse failed
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:295: error: -[syncthingStatusTests.SyncStatusTests testGlobalTrackerForgetsPendingAcrossUnavailablePausedAndError] : XCTAssertFalse failed
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/SyncStatusTests.swift:295: error: -[syncthingStatusTests.SyncStatusTests testGlobalTrackerForgetsPendingAcrossUnavailablePausedAndError] : XCTAssertFalse failed
+Test Case '-[syncthingStatusTests.SyncStatusTests testGlobalTrackerForgetsPendingAcrossUnavailablePausedAndError]' failed (0.002 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testIconTableIncludesKnownCompleteNoFoldersScanningPausedAndOffline]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testIconTableIncludesKnownCompleteNoFoldersScanningPausedAndOffline]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testMalformedPayloadCannotBecomeKnownZero]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testMalformedPayloadCannotBecomeKnownZero]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testMissingStatusCannotProduceHealthyIcon]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testMissingStatusCannotProduceHealthyIcon]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingCountersCannotProduceHealthyIcon]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingCountersCannotProduceHealthyIcon]' passed (0.004 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testUnknownStatusCannotSendGlobalCompletion]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testUnknownStatusCannotSendGlobalCompletion]' passed (0.005 seconds).
+	 Executed 18 tests, with 6 failures (0 unexpected) in 0.618 (0.623) seconds
+	 Executed 18 tests, with 6 failures (0 unexpected) in 0.618 (0.623) seconds
+	 Executed 18 tests, with 6 failures (0 unexpected) in 0.618 (0.624) seconds
+** TEST FAILED **

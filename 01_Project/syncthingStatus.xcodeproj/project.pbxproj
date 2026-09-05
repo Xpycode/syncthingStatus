@@ -15,6 +15,7 @@
 		A11000000000000000000005 /* SyncthingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000019 /* SyncthingSettings.swift */; };
 		A11000000000000000000006 /* FolderAccessBookmarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1100000000000000000001A /* FolderAccessBookmarks.swift */; };
 		A11000000000000000000007 /* LaunchAtLoginHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1100000000000000000001B /* LaunchAtLoginHelper.swift */; };
+		A22000000000000000000001 /* SyncStatusPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22000000000000000000002 /* SyncStatusPolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		A1100000000000000000001A /* FolderAccessBookmarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessBookmarks.swift; sourceTree = "<group>"; };
 		A1100000000000000000001B /* LaunchAtLoginHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginHelper.swift; sourceTree = "<group>"; };
 		A11000000000000000000028 /* syncthingStatusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = syncthingStatusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A22000000000000000000002 /* SyncStatusPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusPolicy.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -103,6 +105,7 @@
 				A11000000000000000000019 /* SyncthingSettings.swift */,
 				A1100000000000000000001A /* FolderAccessBookmarks.swift */,
 				A1100000000000000000001B /* LaunchAtLoginHelper.swift */,
+				A22000000000000000000002 /* SyncStatusPolicy.swift */,
 			);
 			name = "Production Test Sources";
 			path = syncthingStatus;
@@ -228,6 +231,7 @@
 				A11000000000000000000005 /* SyncthingSettings.swift in Sources */,
 				A11000000000000000000006 /* FolderAccessBookmarks.swift in Sources */,
 				A11000000000000000000007 /* LaunchAtLoginHelper.swift in Sources */,
+				A22000000000000000000001 /* SyncStatusPolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

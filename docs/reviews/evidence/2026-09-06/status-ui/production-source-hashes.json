@@ -1,0 +1,30 @@
+{
+  "Views.swift": {
+    "fileSHA256": "c5a1aebdc13d753572ea7f7c003c41ba0c21ceb9c882710c799c724a3b5f6124",
+    "sliceSHA256": "c8f85507aba5285b191a696f5ff5fcc3813c20917bf0b087c494401f0064e34a"
+  },
+  "App.swift": {
+    "fileSHA256": "bc93984960a0e3d93836ba9030661ce0877fb11e3f26793c7d312e53d5a164dd"
+  },
+  "Client.swift": {
+    "fileSHA256": "83b362bf1cd7b7502df40156c0ce77c3ae3632f3196d174ae0dfa24f0085cf29"
+  },
+  "Models.swift": {
+    "fileSHA256": "373d0cf48d0bd7fdc288760e46d6a604604c6be5f307732dff11bafeefcbd747"
+  },
+  "Helpers.swift": {
+    "fileSHA256": "1df2437189b6447d68307158fbe221016be4efc9be36888fbcfd0cc506091c71"
+  },
+  "SyncStatusPolicy.swift": {
+    "fileSHA256": "3aae4e119bf0bdf52650bbdb88c8b2a216cef4380787b33450b03240fa3053b5"
+  },
+  "SyncStatusPresentation.swift": {
+    "fileSHA256": "a69dc2352464ad4b705ede661f5bab9998e9729698c79e9208ecddb0004424ae"
+  },
+  "SyncthingSettings.swift": {
+    "fileSHA256": "a0d062624ed4adb8cbe2165730ebeaf588b0e9b8c0c9a32f8f4be11f4de77d49"
+  },
+  "SyncthingStatusIcon.swift": {
+    "fileSHA256": "600feee7688cb81bd760024b1ef8254d2cb96e44b41050786b1c72c5bca898d8"
+  }
+}

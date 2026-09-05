@@ -66,13 +66,10 @@ struct SyncthingFolderStatus: Codable, Equatable {
     let localBytes: Int64
     let needFiles: Int
     let needBytes: Int64
-    /// Items the local node still needs to *delete* to be in sync. Stays > 0
-    /// when Syncthing refuses to remove a directory containing `.stignore`-matched
-    /// files (the "stuck deletes" failure mode). Defaults to 0 if the daemon
-    /// omits the field, so the icon stays calm on partial responses.
     let needDeletes: Int
-    /// Sum of all `need*` counters. Preferred over individual fields when present
-    /// because it's the same value the WebUI uses to decide "Out of Sync".
+    let needDirectories: Int
+    let needSymlinks: Int
+    /// Aggregate item count; never add it to the individual counters.
     let needTotalItems: Int
     let state: String
     let lastScan: String?
@@ -87,7 +84,9 @@ struct SyncthingFolderStatus: Codable, Equatable {
         needDeletes: Int,
         needTotalItems: Int,
         state: String,
-        lastScan: String?
+        lastScan: String?,
+        needDirectories: Int = 0,
+        needSymlinks: Int = 0
     ) {
         self.globalFiles = globalFiles
         self.globalBytes = globalBytes
@@ -96,6 +95,8 @@ struct SyncthingFolderStatus: Codable, Equatable {
         self.needFiles = needFiles
         self.needBytes = needBytes
         self.needDeletes = needDeletes
+        self.needDirectories = needDirectories
+        self.needSymlinks = needSymlinks
         self.needTotalItems = needTotalItems
         self.state = state
         self.lastScan = lastScan
@@ -103,17 +104,42 @@ struct SyncthingFolderStatus: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        globalFiles = (try? c.decode(Int.self, forKey: .globalFiles)) ?? 0
-        globalBytes = (try? c.decode(Int64.self, forKey: .globalBytes)) ?? 0
-        localFiles = (try? c.decode(Int.self, forKey: .localFiles)) ?? 0
-        localBytes = (try? c.decode(Int64.self, forKey: .localBytes)) ?? 0
-        needFiles = (try? c.decode(Int.self, forKey: .needFiles)) ?? 0
-        needBytes = (try? c.decode(Int64.self, forKey: .needBytes)) ?? 0
-        needDeletes = (try? c.decode(Int.self, forKey: .needDeletes)) ?? 0
-        needTotalItems = (try? c.decode(Int.self, forKey: .needTotalItems)) ?? 0
-        state = (try? c.decode(String.self, forKey: .state)) ?? "idle"
-        lastScan = try? c.decode(String.self, forKey: .lastScan)
+        globalFiles = try c.decode(Int.self, forKey: .globalFiles)
+        globalBytes = try c.decode(Int64.self, forKey: .globalBytes)
+        localFiles = try c.decode(Int.self, forKey: .localFiles)
+        localBytes = try c.decode(Int64.self, forKey: .localBytes)
+        needFiles = try c.decode(Int.self, forKey: .needFiles)
+        needBytes = try c.decode(Int64.self, forKey: .needBytes)
+        needDeletes = try c.decode(Int.self, forKey: .needDeletes)
+        needDirectories = try c.decode(Int.self, forKey: .needDirectories)
+        needSymlinks = try c.decode(Int.self, forKey: .needSymlinks)
+        // Older payloads may omit the aggregate. Individual counters remain required.
+        let total = try c.decodeIfPresent(Int.self, forKey: .needTotalItems)
+        let counts = [needFiles, needDeletes, needDirectories, needSymlinks]
+        var sum = 0
+        for count in counts {
+            let (next, overflow) = sum.addingReportingOverflow(count)
+            guard count >= 0, !overflow else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                    debugDescription: "Invalid pending item count"))
+            }
+            sum = next
+        }
+        needTotalItems = total ?? sum
+        state = try c.decode(String.self, forKey: .state)
+        lastScan = try c.decodeIfPresent(String.self, forKey: .lastScan)
+        guard hasValidCounters, !state.isEmpty else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                debugDescription: "Invalid folder status"))
+        }
     }
+
+    var hasValidCounters: Bool {
+        globalFiles >= 0 && globalBytes >= 0 && localFiles >= 0 && localBytes >= 0 &&
+        needFiles >= 0 && needBytes >= 0 && needDeletes >= 0 && needDirectories >= 0 &&
+        needSymlinks >= 0 && needTotalItems >= 0
+    }
+
 }
 
 struct SyncthingDeviceCompletion: Codable, Equatable {
@@ -121,20 +147,33 @@ struct SyncthingDeviceCompletion: Codable, Equatable {
     let globalBytes: Int64
     let needBytes: Int64
     let needDeletes: Int
+    let needItems: Int
 
-    init(completion: Double, globalBytes: Int64, needBytes: Int64, needDeletes: Int = 0) {
+    init(completion: Double, globalBytes: Int64, needBytes: Int64, needDeletes: Int = 0,
+         needItems: Int = 0) {
         self.completion = completion
         self.globalBytes = globalBytes
         self.needBytes = needBytes
         self.needDeletes = needDeletes
+        self.needItems = needItems
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        completion = (try? c.decode(Double.self, forKey: .completion)) ?? 0
-        globalBytes = (try? c.decode(Int64.self, forKey: .globalBytes)) ?? 0
-        needBytes = (try? c.decode(Int64.self, forKey: .needBytes)) ?? 0
-        needDeletes = (try? c.decode(Int.self, forKey: .needDeletes)) ?? 0
+        completion = try c.decode(Double.self, forKey: .completion)
+        globalBytes = try c.decode(Int64.self, forKey: .globalBytes)
+        needBytes = try c.decode(Int64.self, forKey: .needBytes)
+        needDeletes = try c.decode(Int.self, forKey: .needDeletes)
+        needItems = try c.decode(Int.self, forKey: .needItems)
+        guard isValid else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                debugDescription: "Invalid device completion"))
+        }
+    }
+
+    var isValid: Bool {
+        completion.isFinite && (0...100).contains(completion) && globalBytes >= 0 &&
+        needBytes >= 0 && needDeletes >= 0 && needItems >= 0
     }
 }
 

@@ -1,0 +1,20 @@
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceWithFourDeletesIsNotComplete]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testDeviceWithFourDeletesIsNotComplete]' passed (0.014 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testFailedLatestFetchInvalidatesFolderAndPeerCompletion]' started.
+/tmp/syncthingStatus-wave2-baseline/01_Project/syncthingStatusTests/SyncStatusTests.swift:98: error: -[syncthingStatusTests.SyncStatusTests testFailedLatestFetchInvalidatesFolderAndPeerCompletion] : XCTAssertNil failed: "SyncthingDeviceCompletion(completion: 100.0, globalBytes: 1000, needBytes: 0, needDeletes: 0, needItems: 0)"
+Test Case '-[syncthingStatusTests.SyncStatusTests testFailedLatestFetchInvalidatesFolderAndPeerCompletion]' failed (0.611 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testMalformedPayloadCannotBecomeKnownZero]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testMalformedPayloadCannotBecomeKnownZero]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testMissingStatusCannotProduceHealthyIcon]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testMissingStatusCannotProduceHealthyIcon]' passed (0.004 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingCountersCannotProduceHealthyIcon]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingCountersCannotProduceHealthyIcon]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' started.
+Test Case '-[syncthingStatusTests.SyncStatusTests testPendingDeletesCannotSendFolderCompletion]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.SyncStatusTests testUnknownStatusCannotSendGlobalCompletion]' started.
+/tmp/syncthingStatus-wave2-baseline/01_Project/syncthingStatusTests/SyncStatusTests.swift:122: error: -[syncthingStatusTests.SyncStatusTests testUnknownStatusCannotSendGlobalCompletion] : XCTAssertTrue failed
+Test Case '-[syncthingStatusTests.SyncStatusTests testUnknownStatusCannotSendGlobalCompletion]' failed (0.110 seconds).
+	 Executed 7 tests, with 2 failures (0 unexpected) in 0.755 (0.757) seconds
+	 Executed 7 tests, with 2 failures (0 unexpected) in 0.755 (0.758) seconds
+	 Executed 7 tests, with 2 failures (0 unexpected) in 0.755 (0.758) seconds
+** TEST FAILED **

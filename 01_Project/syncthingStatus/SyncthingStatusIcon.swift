@@ -1,14 +1,5 @@
 import AppKit
 
-enum SyncState {
-    case normal
-    case warning
-    case error
-    case uploading
-    case downloading
-    case upAndDown
-}
-
 @MainActor
 final class SyncthingStatusIcon: NSObject {
     let statusItem: NSStatusItem
@@ -54,13 +45,13 @@ final class SyncthingStatusIcon: NSObject {
         super.init()
         preloadAllImages()
         if let button = statusItem.button {
-            button.image = image(named: "syncthingStatus-Normal")
-            button.toolTip = "In sync"
-            button.setAccessibilityTitle("In sync")
+            button.image = image(named: "syncthingStatus-WARN")
+            button.toolTip = "Connecting…"
+            button.setAccessibilityTitle("Connecting…")
             button.target = self
             button.action = #selector(didTap(_:))
         }
-        currentTooltip = "In sync"
+        currentTooltip = "Connecting…"
     }
 
     func set(state: SyncState) {

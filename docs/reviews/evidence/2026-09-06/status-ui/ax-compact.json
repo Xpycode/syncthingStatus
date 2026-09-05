@@ -1,0 +1,551 @@
+[
+  {
+    "enabled": false,
+    "label": "",
+    "role": "AXWindow",
+    "title": "Wave 2 Status UI \u2014 Compact"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Compact production status rows"
+  },
+  {
+    "enabled": true,
+    "label": "Close Fixture",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Traffic icon semantic: unavailable: Folder status unavailable; icon=warning"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Monochrome icon semantic: unavailable: Folder status unavailable; icon=warning"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Soft warning mapping: traffic=warning; monochrome=normal"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Paused mapping: traffic=warning; monochrome=normal"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Config-only failure: unavailable: Configuration unavailable"
+  },
+  {
+    "enabled": true,
+    "label": "Sync Completion",
+    "role": "AXHeading",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Up to date means no pending files, directories, symlinks, deletions or bytes. Scanning and unavailable status are shown separately; offline devices do not imply a connection failure to Syncthing."
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXScrollBar",
+    "title": "",
+    "value": 0
+  },
+  {
+    "enabled": false,
+    "label": "",
+    "role": "AXValueIndicator",
+    "title": "",
+    "value": 0
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Folder scenarios"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Idle Folder"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Move",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Idle Folder"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "10 files"
+  },
+  {
+    "enabled": true,
+    "label": "Selected",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Up to date"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "/fixture/idle"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "1 KB"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Pending Deletes Folder"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Move",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Pending Deletes Folder"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "10 files"
+  },
+  {
+    "enabled": true,
+    "label": "Warning",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Out of sync"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "/fixture/pending"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "1 KB"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "4 deletes"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Unavailable Folder"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Move",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Unavailable Folder"
+  },
+  {
+    "enabled": true,
+    "label": "Question Mark In A Circle",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Status unavailable"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "/fixture/unavailable"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Paused Folder"
+  },
+  {
+    "enabled": true,
+    "label": "Play",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Move",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Paused Folder"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "10 files"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Paused"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "/fixture/paused"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "1 KB"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Device scenarios"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Idle Device"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Laptop Computer",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Idle Device"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Up to date"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "fixture-idle"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "v2"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Pending Deletes Device"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Laptop Computer",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Pending Deletes Device"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Syncing (100%)"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "fixture-pending"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "4 deletes"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Unavailable Device"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Laptop Computer",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Unavailable Device"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Status unavailable"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "fixture-unavailable"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Paused Device"
+  },
+  {
+    "enabled": true,
+    "label": "Play",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Laptop Computer",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Paused Device"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Paused"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Fixture scenario: Offline Peer"
+  },
+  {
+    "enabled": true,
+    "label": "Pause",
+    "role": "AXButton",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "Laptop Computer",
+    "role": "AXImage",
+    "title": ""
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Offline Peer"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Offline"
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXScrollBar",
+    "title": "",
+    "value": 0
+  },
+  {
+    "enabled": false,
+    "label": "",
+    "role": "AXValueIndicator",
+    "title": "",
+    "value": 0
+  },
+  {
+    "enabled": true,
+    "label": "",
+    "role": "AXStaticText",
+    "title": "",
+    "value": "Wave 2 Status UI \u2014 Compact"
+  }
+]

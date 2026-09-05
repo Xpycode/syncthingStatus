@@ -403,7 +403,7 @@ struct SystemStatisticsView: View {
                             Text("Local Data")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(formatBytes(syncthingClient.totalSyncedData))
+                            Text(syncthingClient.folderStatisticsAvailable ? formatBytes(syncthingClient.totalSyncedData) : "Unavailable")
                                 .font(.title3)
                                 .fontWeight(.semibold)
                         }
@@ -411,7 +411,7 @@ struct SystemStatisticsView: View {
                             Text("Global Data")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(formatBytes(syncthingClient.totalGlobalData))
+                            Text(syncthingClient.folderStatisticsAvailable ? formatBytes(syncthingClient.totalGlobalData) : "Unavailable")
                                 .font(.title3)
                                 .fontWeight(.semibold)
                         }
@@ -800,6 +800,11 @@ struct DeviceStatusRow: View {
         }
     }
 
+    private var policy: SyncStatusPolicy.DeviceState {
+        guard syncthingClient.hasCurrentConfiguration else { return .unavailable }
+        return SyncStatusPolicy.device(device, connection: connection, completion: completion)
+    }
+
     private var compactView: some View {
         HStack {
             Button(action: {
@@ -825,13 +830,13 @@ struct DeviceStatusRow: View {
                     } else if let connection, connection.connected {
                         Text(connection.address ?? "Connected").font(.caption).foregroundColor(.secondary)
                     } else {
-                        Text("Disconnected").font(.caption).foregroundColor(.secondary)
+                        Text(policy == .offline ? "Offline" : "Status unavailable").font(.caption).foregroundColor(.secondary)
                     }
                 }
             }
             Spacer()
             if let connection, connection.connected, !device.paused {
-                if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
+                if policy == .pending, let completion {
                     VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
                         Text("Syncing (\(Int(completion.completion))%)").font(.caption).foregroundColor(.blue)
                         if let rates = transferRates {
@@ -849,19 +854,21 @@ struct DeviceStatusRow: View {
                                     }
                                 }
                             } else {
-                                Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
+                                Text(completion.pendingSummary).font(.caption2).foregroundColor(.secondary)
                             }
                         } else {
-                            Text("~ \(formatBytes(completion.needBytes)) left").font(.caption2).foregroundColor(.secondary)
+                            Text(completion.pendingSummary).font(.caption2).foregroundColor(.secondary)
                         }
                     }
-                } else {
+                } else if policy == .upToDate {
                     VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
                         Text("Up to date").font(.caption).foregroundColor(.green)
                         if let version = connection.clientVersion {
                             Text(version).font(.caption2).foregroundColor(.secondary)
                         }
                     }
+                } else {
+                    Text("Status unavailable").font(.caption).foregroundColor(.orange)
                 }
             }
         }
@@ -913,16 +920,15 @@ struct DeviceStatusRow: View {
 
     @ViewBuilder
     private var deviceStatusLabel: some View {
-        if device.paused {
-            Text("Paused").font(.subheadline).foregroundColor(.secondary)
-        } else if let connection, connection.connected {
-            if let completion, !isEffectivelySynced(completion: completion, settings: settings) {
+        switch policy {
+        case .paused: Text("Paused").font(.subheadline).foregroundColor(.secondary)
+        case .offline: Text("Offline").font(.subheadline).foregroundColor(.secondary)
+        case .unavailable: Text("Status unavailable").font(.subheadline).foregroundColor(.orange)
+        case .upToDate: Text("Up to date").font(.subheadline).foregroundColor(.green)
+        case .pending:
+            if let completion {
                 Text("Syncing (\(Int(completion.completion))%)").font(.subheadline).foregroundColor(.blue)
-            } else {
-                Text("Up to date").font(.subheadline).foregroundColor(.green)
             }
-        } else {
-            Text("Disconnected").font(.subheadline).foregroundColor(.red)
         }
     }
 }
@@ -1080,8 +1086,8 @@ struct DeviceDetailedConnectedView: View {
                 Text("Remaining")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                if let completion, completion.needBytes > 0 {
-                    Text(formatBytes(completion.needBytes))
+                if let completion, !SyncStatusPolicy.isComplete(completion) {
+                    Text(completion.pendingSummary)
                         .font(.caption)
                 } else {
                     Text("—")
@@ -1285,6 +1291,10 @@ struct FolderStatusRow: View {
     let status: SyncthingFolderStatus?
     var isDetailed: Bool = false
 
+    private var policy: SyncStatusPolicy.FolderState {
+        SyncStatusPolicy.folder(folder, status: syncthingClient.hasCurrentConfiguration ? status : nil)
+    }
+
     var body: some View {
         if isDetailed {
             detailedView
@@ -1334,20 +1344,16 @@ struct FolderStatusRow: View {
 
                 Spacer()
                 
-                if let status {
-                    VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
-                        HStack {
-                            statusIcon
-                            Text(status.state.capitalized).font(.caption).foregroundColor(statusColor)
-                        }
-                        if status.hasPendingWork {
-                            Text(status.pendingSummary).font(.caption2).foregroundColor(.orange)
-                        } else {
-                            Text("Up to date").font(.caption2).foregroundColor(.green)
-                        }
+                VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
+                    HStack {
+                        statusIcon
+                        Text(policy.title).font(.caption).foregroundColor(statusColor)
                     }
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
+                    if policy != .unavailable, let status, status.hasPendingWork {
+                        Text(status.pendingSummary).font(.caption2).foregroundColor(.orange)
+                    }
                 }
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
             }
             if let status, status.state == "syncing", status.needBytes > 0 {
                 let total = Double(status.globalBytes)
@@ -1436,53 +1442,26 @@ struct FolderStatusRow: View {
         }
     }
 
-    @ViewBuilder
     private var folderStatusLabel: some View {
-        if let status {
-            if status.state == "syncing" && status.hasPendingWork {
-                Text("Syncing").font(.subheadline).foregroundColor(.blue)
-            } else if status.hasPendingWork {
-                HStack(spacing: AppConstants.UI.spacingXS) {
-                    Text("Out of sync").font(.subheadline).foregroundColor(.orange)
-                    Button {
-                        Task { await syncthingClient.rescanFolder(folderID: folder.id) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise").font(.subheadline).foregroundColor(.orange)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Rescan this folder to repair out-of-sync items")
+        HStack(spacing: AppConstants.UI.spacingXS) {
+            Text(policy.title).font(.subheadline).foregroundColor(statusColor)
+            if policy == .pending {
+                Button {
+                    Task { await syncthingClient.rescanFolder(folderID: folder.id) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").font(.subheadline).foregroundColor(.orange)
                 }
-            } else {
-                Text("Up to date").font(.subheadline).foregroundColor(.green)
+                .buttonStyle(.plain)
+                .help("Rescan this folder to repair out-of-sync items")
             }
         }
     }
 
     private var statusIcon: some View {
-        Group {
-            if let status {
-                switch status.state {
-                case "idle" where status.hasPendingWork: Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
-                case "idle": Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                case "syncing": Image(systemName: "arrow.triangle.2.circlepath").foregroundColor(.blue)
-                case "scanning": Image(systemName: "magnifyingglass").foregroundColor(.blue)
-                default: Image(systemName: "questionmark.circle").foregroundColor(.gray)
-                }
-            } else {
-                Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
-            }
-        }
+        Image(systemName: policy.symbolName).foregroundColor(statusColor)
     }
 
-    private var statusColor: Color {
-        guard let status else { return .red }
-        switch status.state {
-        case "idle" where status.hasPendingWork: return .orange
-        case "idle": return .green
-        case "syncing", "scanning": return .blue
-        default: return .gray
-        }
-    }
+    private var statusColor: Color { policy.color }
 }
 
 // MARK: - Stuck Deletes Cleanup Window
@@ -1861,7 +1840,6 @@ struct SettingsView: View {
     @ObservedObject var syncthingClient: SyncthingClient
     @ObservedObject var updateController: UpdateController
     @State private var showResetConfirmation = false
-    @State private var remainingMB: Double
     @State private var stalledMinutes: Double
     @State private var notificationCooldownMinutes: Double
     @State private var configSelectionError: String?
@@ -1876,7 +1854,6 @@ struct SettingsView: View {
         self.settings = settings
         self.syncthingClient = syncthingClient
         self.updateController = updateController
-        _remainingMB = State(initialValue: Double(settings.syncRemainingBytesThreshold) / 1_048_576.0)
         _stalledMinutes = State(initialValue: settings.stalledSyncTimeoutMinutes)
         _notificationCooldownMinutes = State(initialValue: settings.syncNotificationCooldownMinutes)
     }
@@ -1964,34 +1941,9 @@ struct SettingsView: View {
             }
             .disabled(!isManualMode)
 
-            Section("Sync Completion Threshold") {
-                VStack(alignment: .leading, spacing: AppConstants.UI.spacingL) {
-                    VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
-                        HStack {
-                            Text("Completion Percentage:")
-                            Spacer()
-                            Text("\(Int(settings.syncCompletionThreshold))%")
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(value: $settings.syncCompletionThreshold, in: 90...100, step: 1)
-                    }
-
-                    VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
-                        HStack {
-                            Text("Remaining Data:")
-                            Spacer()
-                            Text(String(format: "%.1f MB", remainingMB))
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(value: $remainingMB, in: 0...10, step: 0.5)
-                            .onChange(of: remainingMB) { oldValue, newValue in
-                                settings.syncRemainingBytesThreshold = Int64(newValue * 1_048_576.0)
-                            }
-                    }
-                }
-
-                Text("Devices are considered 'synced' when they reach the completion percentage with less than the specified remaining data. This handles cases where Syncthing shows high completion (95%+) with minimal remaining bytes.")
-                    .font(.caption2)
+            Section("Sync Completion") {
+                Text("Up to date means no pending files, directories, symlinks, deletions or bytes. Scanning and unavailable status are shown separately; offline devices do not imply a connection failure to Syncthing.")
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -2125,7 +2077,6 @@ struct SettingsView: View {
         .alert("Reset Settings", isPresented: $showResetConfirmation) {
             Button("Reset", role: .destructive) {
                 settings.resetToDefaults()
-                remainingMB = Double(settings.syncRemainingBytesThreshold) / 1_048_576.0
                 stalledMinutes = settings.stalledSyncTimeoutMinutes
             }
             Button("Cancel", role: .cancel) { }

@@ -1,0 +1,9 @@
+Final Debug build (2026-09-06):
+2026-09-06 01:17:05.952 appintentsmetadataprocessor[4517:15318478] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+** BUILD SUCCEEDED **
+
+Quit requested: 97194 /private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app/Contents/MacOS/syncthingStatus
+All previous instances exited.
+Running: 5280 /tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app/Contents/MacOS/syncthingStatus
+
+Signed app entitlement verified: com.apple.security.app-sandbox = true

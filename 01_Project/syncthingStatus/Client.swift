@@ -193,6 +193,7 @@ class SyncthingClient: ObservableObject {
     }
     private var stalledSyncTrackers: [String: StalledSyncTracker] = [:]
 
+    @Published var configurationAvailable = false
     @Published var isConnected = false
     @Published var devices: [SyncthingDevice] = []
     @Published var folders: [SyncthingFolder] = []
@@ -261,6 +262,22 @@ class SyncthingClient: ObservableObject {
     }
 
     // MARK: - Computed Statistics
+    var hasCurrentConfiguration: Bool { configurationAvailable || demoMode }
+
+    var folderStatisticsAvailable: Bool {
+        hasCurrentConfiguration && folders.allSatisfy { folderStatuses[$0.id] != nil }
+    }
+
+    var hasPendingSyncWork: Bool {
+        guard hasCurrentConfiguration else { return false }
+        return folders.contains { folder in
+            guard !folder.paused, let status = folderStatuses[folder.id] else { return false }
+            return status.hasPendingWork || status.state == "syncing"
+        } || devices.contains {
+            SyncStatusPolicy.device($0, connection: connections[$0.id], completion: deviceCompletions[$0.id]) == .pending
+        }
+    }
+
     var totalSyncedData: Int64 {
         folderStatuses.values.reduce(0) { $0 + $1.localBytes }
     }
@@ -682,12 +699,17 @@ class SyncthingClient: ObservableObject {
             }
             let remoteDevices = config.devices.filter { $0.deviceID != localDeviceID }
             
+            let unchangedFolderIDs = Set(config.folders.filter { realFolders.contains($0) }.map(\.id))
+            realFolderStatuses = realFolderStatuses.filter { unchangedFolderIDs.contains($0.key) }
+            previousFolderStates = previousFolderStates.filter { unchangedFolderIDs.contains($0.key) }
+
             // Always cache the real data
             self.realDevices = remoteDevices
             self.realFolders = config.folders
 
             // Only update the published properties if not in debug mode
             if !demoMode {
+                self.configurationAvailable = true
                 self.devices = remoteDevices
                 self.folders = config.folders
 
@@ -695,12 +717,19 @@ class SyncthingClient: ObservableObject {
                 // Without this, removing a folder or device would leave its
                 // last-known status forever and could keep the resolver in a
                 // wrong state.
-                let validFolderIDs = Set(config.folders.map { $0.id })
+                let validFolderIDs = unchangedFolderIDs
                 self.folderStatuses = self.folderStatuses.filter { validFolderIDs.contains($0.key) }
                 let validDeviceIDs = Set(remoteDevices.map { $0.deviceID })
                 self.deviceCompletions = self.deviceCompletions.filter { validDeviceIDs.contains($0.key) }
             }
         } catch {
+            realFolderStatuses = [:]
+            previousFolderStates.removeAll()
+            if !demoMode {
+                configurationAvailable = false
+                folderStatuses = [:]
+                deviceCompletions = [:]
+            }
             // Skip cancelled errors - these are transient and happen during refresh
             guard !isCancellationError(error) else { return }
 
@@ -732,6 +761,11 @@ class SyncthingClient: ObservableObject {
                 self.connections = connectionsResponse.connections
             }
         } catch {
+            realConnections = [:]
+            if !demoMode {
+                connections = [:]
+                transferRates = [:]
+            }
             // Skip cancelled errors - these are transient and happen during refresh
             guard !isCancellationError(error) else { return }
 
@@ -845,13 +879,20 @@ class SyncthingClient: ObservableObject {
         for folder in foldersToFetch {
             do {
                 let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
-                self.realFolderStatuses[folder.id] = status // Update the cache
+                if configurationAvailable { self.realFolderStatuses[folder.id] = status }
 
-                if !demoMode {
+                if !demoMode && configurationAvailable {
                     self.folderStatuses[folder.id] = status
                     self.trackSyncEvent(folder: folder, status: status)
                 }
             } catch {
+                // Discard cached success on every unsuccessful observation, including cancellation.
+                // Missing status is explicitly rendered unavailable by the shared policy.
+                realFolderStatuses.removeValue(forKey: folder.id)
+                if !demoMode {
+                    folderStatuses.removeValue(forKey: folder.id)
+                    previousFolderStates.removeValue(forKey: folder.id)
+                }
                 // Skip cancelled errors - these are transient and happen during refresh
                 guard !isCancellationError(error) else { continue }
 
@@ -864,10 +905,6 @@ class SyncthingClient: ObservableObject {
                             self.isConnected = false
                         }
                     }
-                    // Drop any cached status for this folder so a stale value
-                    // (e.g. a transient "scanning" captured on an earlier
-                    // refresh) cannot persist and force a false-red icon.
-                    self.folderStatuses.removeValue(forKey: folder.id)
                 }
             }
         }
@@ -904,11 +941,14 @@ class SyncthingClient: ObservableObject {
 
         let now = Date()
         var newCounts: [String: Int] = [:]
+        var unavailableFolderIDs: Set<String> = []
         let debounce = AppConstants.Sync.stuckDeletesDebounceSeconds
 
         for folder in folders where !folder.paused {
-            guard let s = folderStatuses[folder.id] else {
+            guard configurationAvailable, let s = folderStatuses[folder.id] else {
                 firstSeenStuckAt.removeValue(forKey: folder.id)
+                // Hide stale counts without claiming that an unobserved problem resolved.
+                unavailableFolderIDs.insert(folder.id)
                 continue
             }
 
@@ -919,7 +959,8 @@ class SyncthingClient: ObservableObject {
             let isStuckEligible =
                 s.needDeletes > 0 &&
                 s.needFiles == 0 &&
-                s.needBytes == 0
+                s.needDirectories == 0 && s.needSymlinks == 0 &&
+                s.needTotalItems <= s.needDeletes && s.needBytes == 0
 
             // For initial detection we additionally require state == idle so
             // the entry debounce only ticks during quiet windows.
@@ -951,7 +992,7 @@ class SyncthingClient: ObservableObject {
             lastLoggedStuckState[folderID] = true
         }
         for (folderID, wasDetected) in lastLoggedStuckState
-            where wasDetected && newCounts[folderID] == nil {
+            where wasDetected && newCounts[folderID] == nil && !unavailableFolderIDs.contains(folderID) {
             stuckDeletesLog.notice("Stuck deletes cleared on folder \(folderID, privacy: .public)")
             lastLoggedStuckState[folderID] = false
         }
@@ -960,10 +1001,19 @@ class SyncthingClient: ObservableObject {
     }
 
     private func trackSyncEvent(folder: SyncthingFolder, status: SyncthingFolderStatus) {
-        let effectivelyComplete = status.needBytes <= settings.syncRemainingBytesThreshold
-        let effectiveState = (status.state == "idle" || effectivelyComplete) ? "idle" : status.state
-
+        let policy = SyncStatusPolicy.folder(folder, status: status)
+        let effectivelyComplete = policy == .upToDate
         let previousState = previousFolderStates[folder.id]
+        let effectiveState: String
+        switch policy {
+        case .upToDate: effectiveState = "idle"
+        case .pending: effectiveState = "syncing"
+        case .active(let state):
+            effectiveState = (state == "syncing" || previousState == "syncing") ? "syncing" : state
+        case .paused, .unavailable, .error:
+            previousFolderStates.removeValue(forKey: folder.id)
+            return
+        }
 
         // Track state changes
         if previousState != effectiveState {
@@ -983,12 +1033,7 @@ class SyncthingClient: ObservableObject {
                 )
             case ("syncing", "idle") where effectivelyComplete:
                 // Sync completed successfully
-                let remainingDescription: String
-                if status.needBytes > 0 {
-                    remainingDescription = "Within threshold (\(formatBytes(status.needBytes)) remaining)"
-                } else {
-                    remainingDescription = "All files synchronized"
-                }
+                let remainingDescription = "All files synchronized"
 
                 event = SyncEvent(
                     folderID: folder.id,
@@ -1248,10 +1293,11 @@ class SyncthingClient: ObservableObject {
                 let completion = try await makeRequest(path: "db/completion", queryItems: [URLQueryItem(name: "device", value: device.deviceID)], responseType: SyncthingDeviceCompletion.self)
                 // No separate cache for completions, as they are keyed by real device IDs.
                 // We can just update the main dictionary.
-                if !demoMode {
+                if !demoMode && configurationAvailable {
                     self.deviceCompletions[device.deviceID] = completion
                 }
             } catch {
+                if !demoMode { deviceCompletions.removeValue(forKey: device.deviceID) }
                 // Skip cancelled errors - these are transient and happen during refresh
                 guard !isCancellationError(error) else { continue }
 
@@ -1420,7 +1466,8 @@ class SyncthingClient: ObservableObject {
     }
 
     func handleGlobalSyncComplete() {
-        guard settings.showSyncNotifications else { return }
+        guard settings.showSyncNotifications, !demoMode, !isRefreshing,
+              StatusIconStateResolver().resolveState(client: self, settings: settings) == .inSync else { return }
 
         let now = Date()
         let minimumInterval = max(settings.refreshInterval, 5.0)
@@ -1565,8 +1612,13 @@ class SyncthingClient: ObservableObject {
         totalTransferHistory = dummyTotalHistory
         totalTransferHistory_published = dummyTotalHistory
 
-        // Clear other states
-        deviceCompletions = [:]
+        // Explicit synthetic completion keeps demo status subject to the same policy.
+        deviceCompletions = Dictionary(uniqueKeysWithValues: dummyDevices.map { device in
+            let rates = dummyTransferRates[device.id] ?? TransferRates()
+            let active = rates.downloadRate > 0 || rates.uploadRate > 0
+            return (device.id, SyncthingDeviceCompletion(completion: active ? 50 : 100,
+                globalBytes: 1000, needBytes: active ? 500 : 0, needItems: active ? 1 : 0))
+        })
         deviceHistory = [:]
         recentSyncEvents = []
     }

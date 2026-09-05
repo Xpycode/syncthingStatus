@@ -8,116 +8,6 @@ import OSLog
 
 private let appLifecycleLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "AppLifecycle")
 
-// MARK: - Status Icon State Resolver
-@MainActor
-struct StatusIconStateResolver {
-    enum IconDisplayState {
-        case error(tooltip: String)
-        case upAndDown(isActivityBased: Bool)
-        case uploading
-        case downloading
-        case paused
-        case warning(tooltip: String)
-        case inSync
-        case outOfSync
-    }
-
-    /// Folder states Syncthing reports during normal operation that should not
-    /// flag the icon as broken. "idle" is the canonical resting state; the
-    /// remaining values are transient stops along the scan/sync pipeline.
-    /// Treating only "idle" as healthy (as the previous resolver did) painted
-    /// the icon red on every routine background scan.
-    static let healthyFolderStates: Set<String> = [
-        "idle",
-        "scanning",
-        "scan-waiting",
-        "sync-preparing",
-        "sync-waiting",
-        "cleaning",
-        "clean-waiting"
-    ]
-
-    func resolveState(client: SyncthingClient, settings: SyncthingSettings) -> IconDisplayState {
-        let activityThreshold = AppConstants.Network.activityThresholdBytes
-
-        // Rule 1: Not connected
-        guard client.isConnected else {
-            return .error(tooltip: "Disconnected")
-        }
-
-        // Rule 2: Folder error trumps everything else — this is a real problem.
-        if client.folderStatuses.values.contains(where: { $0.state == "error" }) {
-            return .error(tooltip: "Folder error")
-        }
-
-        // Rule 3: Network activity
-        let totalDownload = client.currentDownloadSpeed
-        let totalUpload = client.currentUploadSpeed
-        let isDownloading = totalDownload > activityThreshold
-        let isUploading = totalUpload > activityThreshold
-
-        if isUploading && isDownloading {
-            return .upAndDown(isActivityBased: true)
-        } else if isUploading {
-            return .uploading
-        } else if isDownloading {
-            return .downloading
-        }
-
-        // Rule 4: Active syncing (folder in "syncing" state, or a connected
-        // non-paused device's completion is below threshold).
-        let isActivelySyncing = client.folderStatuses.values.contains { $0.state == "syncing" } ||
-            client.deviceCompletions.contains { deviceID, completion in
-                guard let connection = client.connections[deviceID], connection.connected else { return false }
-                return !isEffectivelySynced(completion: completion, settings: settings)
-            }
-
-        if isActivelySyncing {
-            return .upAndDown(isActivityBased: false)
-        }
-
-        // Rule 5: All connected devices paused.
-        let connectedDevices = client.devices.filter { client.connections[$0.deviceID]?.connected == true }
-        let allConnectedDevicesArePaused = !connectedDevices.isEmpty && connectedDevices.allSatisfy { $0.paused }
-
-        if allConnectedDevicesArePaused {
-            return .paused
-        }
-
-        // Rule 6: Truly out of sync — folder at rest with non-trivial pending
-        // work. Anything still in a healthy/transient state (scanning,
-        // scan-waiting, etc.) is *not* counted as out-of-sync; only an idle
-        // folder qualifies. Two qualifying conditions:
-        //   a) remaining bytes exceed the user-configured threshold (the
-        //      original 2026-04-28 rule for byte-pending desyncs);
-        //   b) any pending deletes — covers the "stuck deletes" case where
-        //      Syncthing refuses to remove a directory containing ignored
-        //      files (.git, .build, etc.). `needDeletes > 0` produces zero
-        //      remaining bytes but still leaves the folder out of sync, which
-        //      is exactly what the WebUI shows.
-        let trulyOutOfSync = client.folderStatuses.values.contains { status in
-            guard status.state == "idle" else { return false }
-            if status.needBytes > settings.syncRemainingBytesThreshold { return true }
-            if status.needDeletes > 0 { return true }
-            return false
-        }
-        if trulyOutOfSync {
-            return .outOfSync
-        }
-
-        // Rule 7: Healthy, but worth a soft warning when the user has paused
-        // remote devices configured. Folders shared with paused peers will
-        // never converge until the peer is resumed — useful to surface in
-        // traffic-light mode without crying wolf.
-        let hasPausedConfiguredDevices = client.devices.contains { $0.paused }
-        if hasPausedConfiguredDevices {
-            return .warning(tooltip: "Some devices paused")
-        }
-
-        return .inSync
-    }
-}
-
 // MARK: - Window Controller
 class MainWindowController: NSWindowController {
     convenience init(syncthingClient: SyncthingClient, settings: SyncthingSettings, appDelegate: AppDelegate) {
@@ -271,7 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     let updateController = UpdateController()
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
-    private var pendingGlobalSyncNotification = false
+    private var globalSyncCompletion = GlobalSyncCompletionTracker()
     private var lastContentHeight: CGFloat = 0
     
     override init() {
@@ -481,17 +371,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let resolver = StatusIconStateResolver()
         let displayState = resolver.resolveState(client: syncthingClient, settings: settings)
 
-        // Apply the resolved state
+        let shouldNotify = globalSyncCompletion.observe(displayState,
+            hasPendingWork: syncthingClient.hasPendingSyncWork, isRefreshing: syncthingClient.isRefreshing)
+
+        // Mapping preserves soft warnings by style; unavailable always has a warning icon.
+        icon.set(state: displayState.iconState(for: settings.iconColorMode))
         switch displayState {
         case .error(let tooltip):
-            icon.set(state: .error)
             button?.toolTip = tooltip
             button?.setAccessibilityTitle(tooltip)
-            pendingGlobalSyncNotification = false
 
         case .upAndDown(let isActivityBased):
-            icon.set(state: .upAndDown)
-            pendingGlobalSyncNotification = true
             if isActivityBased {
                 button?.toolTip = "Syncing (network activity)"
             } else {
@@ -500,51 +390,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             button?.setAccessibilityTitle("Syncing")
 
         case .uploading:
-            icon.set(state: .uploading)
             button?.toolTip = "Uploading"
             button?.setAccessibilityTitle("Uploading")
-            pendingGlobalSyncNotification = true
 
         case .downloading:
-            icon.set(state: .downloading)
             button?.toolTip = "Downloading"
             button?.setAccessibilityTitle("Downloading")
-            pendingGlobalSyncNotification = true
 
         case .paused:
-            switch settings.iconColorMode {
-            case .traffic:
-                icon.set(state: .warning)
-            case .monochrome:
-                icon.set(state: .normal)
-            }
             button?.toolTip = "Paused"
             button?.setAccessibilityTitle("Paused")
 
-        case .warning(let tooltip):
-            switch settings.iconColorMode {
-            case .traffic:
-                icon.set(state: .warning)
-            case .monochrome:
-                icon.set(state: .normal)
-            }
+        case .warning(let tooltip), .unavailable(let tooltip):
             button?.toolTip = tooltip
             button?.setAccessibilityTitle(tooltip)
 
         case .inSync:
-            icon.set(state: .normal)
             button?.toolTip = "In sync"
             button?.setAccessibilityTitle("In sync")
-            if pendingGlobalSyncNotification {
-                syncthingClient.handleGlobalSyncComplete()
-                pendingGlobalSyncNotification = false
-            }
 
         case .outOfSync:
-            icon.set(state: .error)
             button?.toolTip = "Out of sync"
             button?.setAccessibilityTitle("Out of sync")
         }
+        if shouldNotify { syncthingClient.handleGlobalSyncComplete() }
     }
     
     @objc func statusItemClicked() {
@@ -748,6 +617,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
         
+        syncthingClient.$folders
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+
+        syncthingClient.$configurationAvailable
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+
         syncthingClient.$folderStatuses
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
