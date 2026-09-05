@@ -37,16 +37,38 @@ No `zap` action is supplied because these contain configuration worth retaining.
 
 ## Release maintenance
 
-1. Publish the notarized and stapled DMG as a GitHub release asset.
-2. Download that exact public asset and calculate `shasum -a 256`.
-3. Update `version` and `sha256` in `Casks/syncthingstatus.rb`; confirm the URL and
-   `syncthingStatus.app` name still match the archive.
-4. Validate through a local tap with `brew style`, `brew audit --cask --online
-   --strict`, and `brew fetch --cask`; inspect the downloaded app's architecture and minimum OS.
-5. Commit and publish the cask update. The production appcast must also continue to
-   reference only already-published DMGs.
-6. Verify the public tap can fetch and install the new release, using a temporary
-   app directory when an existing installation must be preserved.
+For each **public app release**, keep GitHub, Sparkle, Homebrew, and the website on
+the same version. Ordinary source or documentation edits can be committed and pushed
+without cutting a release or changing the cask and website.
+
+There is one app build and one release DMG. Homebrew downloads that GitHub asset;
+publishing its cask means pushing a small metadata change to this same repository.
+There is no separate Homebrew binary upload. These updates are currently manual;
+a source push alone does not update the cask, appcast, or website.
+
+1. **Prepare and validate:** bump app version/build, update release notes, run
+   `/check ship`, and build, sign, notarize, and staple the release DMG. Commit and
+   push the release source; tag the corresponding commit.
+2. **GitHub release:** publish that version's DMG and release notes. Verify the
+   public asset URL works before announcing it through any update channel.
+3. **Sparkle and Homebrew:** update `appcast.xml` with the release URL, version/build,
+   EdDSA signature, and byte length. Download the published DMG, calculate
+   `shasum -a 256`, and update `version` and `sha256` in `Casks/syncthingstatus.rb`.
+   Confirm its URL and `syncthingStatus.app` path. Run cask style, audit, and fetch
+   checks, then commit and push both metadata updates to `main`.
+4. **Website:** in the App-Websites project, update the syncthingStatus page,
+   catalogue `apps.json` version/release date, release notes, and any hosted download
+   or download link; deploy the site. Preserve any still-relevant upgrade caveats.
+5. **Verify live:** check the GitHub asset, Sparkle update feed, Homebrew tap and
+   install/upgrade flow, and website all serve the intended release. Use a temporary
+   app directory for installation checks when preserving an existing installation.
+   Record results and any validation limits in the session log and project state.
+
+Cask validation commands: `brew style Casks/syncthingstatus.rb`,
+`brew audit --cask --online --strict xpycode/syncthingstatus/syncthingstatus`, and
+`brew fetch --cask xpycode/syncthingstatus/syncthingstatus`. Test changed cask metadata
+through a local tap before publishing. The live root `appcast.xml` must never contain
+draft URLs or signatures: the referenced DMG must already be public.
 
 ## References
 

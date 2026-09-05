@@ -14,7 +14,7 @@
 - **Updated:** 2026-09-05.
 
 ## Recent
-- **2026-09-05:** published and verified the Homebrew tap; migrated this state to a lean digest with history preserved.
+- **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
 - **2026-08-09:** fixed connections to local Syncthing instances using self-signed HTTPS certificates.
 - **2026-07-12:** released v1.6.0 with stuck-delete cleanup, folder access grants, Rescan, and working Launch at Login.
@@ -28,6 +28,7 @@
 - **Signing-key housekeeping:** label the Group B Sparkle entry in Strongbox; optional named Keychain import. Custody details remain in the historical snapshot.
 - **Cookbook candidates:** real-home tilde expansion with `stat(2)` / errno probing; `SMAppService.mainApp` for Launch at Login.
 - **Optional user cleanup:** revoke the obsolete Full Disk Access grant for this app; retain the daemon's grant.
+- **Website handoff:** add the Homebrew option to the app page; instructions left in `3-Websites/App-Websites/APPS/apps.lucesumbrarum.com/docs/HANDOFF-syncthingstatus-homebrew.md` and linked from that project's task list. Website edit/deploy pending.
 
 ## Infrastructure
 - **Release:** GitHub `Xpycode/syncthingStatus`; v1.6.1 DMG notarized and stapled. Appcast and website were verified live at release.
@@ -42,11 +43,11 @@
 ## Detail (read only if needed)
 - [Decisions](decisions.md) — durable choices, including summaries preserved during migration.
 - [Sessions](sessions/_index.md) — complete work and validation history.
-- [Tasks](TASKS.md) — currently an unpopulated template; no meaningful sprint percentage.
+- [Tasks](TASKS.md) — deferred Homebrew validation; no active sprint.
 - [Stuck-delete implementation plan](IMPLEMENTATION-PLAN-stuck-deletes.md) and [feature design](FEATURE-stuck-deletes-cleanup.md).
 - [Pre-migration state](archive/project-state-2026-08-10.md) — historical phase tables, verification details, resolved incidents, and signing-key housekeeping references; contains superseded status.
 - [Homebrew distribution](homebrew.md) — cask validation, publication, and release maintenance.
 
 ## Resume
 - Investigate the v1.7 refresh overrun with an offline peer; rerun the full Homebrew audit when Xcode 27.0 is available.
-- Before the next app release, run `/check ship` and update the cask version and checksum after the DMG is published.
+- For every public app release, follow [Release maintenance](homebrew.md#release-maintenance): GitHub DMG first, then Sparkle + cask metadata, website deployment, and live checks. Ordinary edits do not require a release.

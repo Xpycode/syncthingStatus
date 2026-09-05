@@ -8,6 +8,7 @@
   ![License](https://img.shields.io/badge/license-MIT-green)
   ![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)
   [![Download](https://img.shields.io/badge/Download-v1.6.1-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  [![Homebrew](https://img.shields.io/badge/Homebrew-Install-FBB040?logo=homebrew&logoColor=white)](#install-with-homebrew)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
@@ -173,16 +174,29 @@ Or visit the [Releases page](https://github.com/Xpycode/syncthingStatus/releases
 
 ## Installation
 
-### Homebrew
+### Install with Homebrew
+
+With [Homebrew](https://brew.sh/) installed, add the project's custom tap and install
+syncthingStatus:
 
 ```sh
 brew tap xpycode/syncthingstatus https://github.com/Xpycode/syncthingStatus.git
 brew install --cask xpycode/syncthingstatus/syncthingstatus
 ```
 
-Requires macOS 15.5 or later. Syncthing must be configured and running separately;
-the cask installs the menu bar app. Built-in automatic updates remain available.
-See [Homebrew distribution](docs/homebrew.md) for existing installations and updates.
+Then open **syncthingStatus** from Applications. Requires macOS 15.5 or later and
+supports Apple Silicon and Intel. Syncthing must be configured and running separately;
+the cask installs the menu bar app.
+
+Built-in automatic updates remain available. To upgrade through Homebrew:
+
+```sh
+brew update
+brew upgrade --cask --greedy xpycode/syncthingstatus/syncthingstatus
+```
+
+This is the project's own tap. You can inspect the [cask definition](Casks/syncthingstatus.rb)
+or read the [Homebrew guide](docs/homebrew.md) for existing installations and release maintenance.
 
 ### Download Pre-built App
 1. Download the latest **[syncthingStatus.dmg](https://github.com/Xpycode/syncthingStatus/releases/latest)** from the Releases page
