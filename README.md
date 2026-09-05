@@ -173,6 +173,17 @@ Or visit the [Releases page](https://github.com/Xpycode/syncthingStatus/releases
 
 ## Installation
 
+### Homebrew
+
+```sh
+brew tap xpycode/syncthingstatus https://github.com/Xpycode/syncthingStatus.git
+brew install --cask xpycode/syncthingstatus/syncthingstatus
+```
+
+Requires macOS 15.5 or later. Syncthing must be configured and running separately;
+the cask installs the menu bar app. Built-in automatic updates remain available.
+See [Homebrew distribution](docs/homebrew.md) for existing installations and updates.
+
 ### Download Pre-built App
 1. Download the latest **[syncthingStatus.dmg](https://github.com/Xpycode/syncthingStatus/releases/latest)** from the Releases page
 2. Open the DMG file
