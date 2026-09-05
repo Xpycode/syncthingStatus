@@ -6,6 +6,13 @@ import OSLog
 private let settingsLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Settings")
 private let keychainLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "Keychain")
 
+/// Implementations must support access from the settings credential queue.
+protocol SettingsCredentialStore: Sendable {
+    func read() -> String?
+    @discardableResult func save(_ value: String) -> Bool
+    @discardableResult func delete() -> Bool
+}
+
 /// Visual mode for the menu-bar status icon.
 /// - `monochrome`: ship-as-was — only the existing Normal/Error/animation icons.
 /// - `traffic`: green/amber/red mapping using `syncthingStatus-WARN` for soft warnings.
@@ -43,9 +50,9 @@ final class SyncthingSettings: ObservableObject {
     @Published var notificationEnabledFolderIDs: [String]
     @Published var configBookmarkData: Data?
     @Published var configBookmarkPath: String?
-    @Published var launchAtLogin: Bool = LaunchAtLoginHelper.isEnabled {
+    @Published var launchAtLogin: Bool {
         didSet {
-            LaunchAtLoginHelper.isEnabled = launchAtLogin
+            writeLaunchAtLogin(launchAtLogin)
         }
     }
     @Published var popoverMaxHeightPercentage: Double
@@ -56,7 +63,11 @@ final class SyncthingSettings: ObservableObject {
     @Published var stuckDeletesAlertsEnabled: Bool
 
     private let defaults: UserDefaults
-    private let keychain: KeychainHelper
+    private let keychain: any SettingsCredentialStore
+    private let writeLaunchAtLogin: (Bool) -> Void
+    // Published and observed on the main actor, after the background read finishes.
+    @MainActor private var credentialsLoaded = false
+    @MainActor private var credentialLoadWaiters: [CheckedContinuation<Void, Never>] = []
     private var cancellables = Set<AnyCancellable>()
     private var defaultsSaveWorkItem: DispatchWorkItem?
     private var keychainSaveWorkItem: DispatchWorkItem?
@@ -87,12 +98,21 @@ final class SyncthingSettings: ObservableObject {
         static let stuckDeletesAlertsEnabled = "SyncthingSettings.stuckDeletesAlertsEnabled"
     }
 
-    init(defaults: UserDefaults = .standard, keychainService: String = "SyncthingStatusSettings") {
+    init(
+        defaults: UserDefaults = .standard,
+        keychainService: String = "SyncthingStatusSettings",
+        credentialStore: (any SettingsCredentialStore)? = nil,
+        legacyDefaultsProvider: () -> UserDefaults? = { UserDefaults(suiteName: "LucesUmbrarum.syncthingStatus") },
+        readLaunchAtLogin: () -> Bool = { LaunchAtLoginHelper.isEnabled },
+        writeLaunchAtLogin: @escaping (Bool) -> Void = { LaunchAtLoginHelper.isEnabled = $0 }
+    ) {
         self.defaults = defaults
-        self.keychain = KeychainHelper(service: keychainService, account: "ManualAPIKey")
+        self.keychain = credentialStore ?? KeychainHelper(service: keychainService, account: "ManualAPIKey")
+        self.writeLaunchAtLogin = writeLaunchAtLogin
+        launchAtLogin = readLaunchAtLogin()
 
         // Migrate settings from old bundle ID if needed
-        Self.migrateFromOldBundleIDIfNeeded(to: defaults)
+        Self.migrateFromOldBundleIDIfNeeded(to: defaults, legacyDefaultsProvider: legacyDefaultsProvider)
 
         // Load all values
         useAutomaticDiscovery = defaults.object(forKey: Keys.useAutomaticDiscovery) as? Bool ?? true
@@ -128,8 +148,46 @@ final class SyncthingSettings: ObservableObject {
             let key = self.keychain.read() ?? ""
             DispatchQueue.main.async {
                 self.manualAPIKey = key
+                self.credentialsLoaded = true
+                let waiters = self.credentialLoadWaiters
+                self.credentialLoadWaiters.removeAll()
+                waiters.forEach { $0.resume() }
             }
         }
+    }
+
+    /// Waits for the initial credential read and its main-thread publication.
+    @MainActor
+    func waitUntilCredentialsLoaded() async {
+        guard !credentialsLoaded else { return }
+        await withCheckedContinuation { credentialLoadWaiters.append($0) }
+    }
+
+    /// Saves pending debounced values through normal persistence, then drains the
+    /// serial credential queue. Call before releasing an isolated defaults suite.
+    @MainActor
+    func flushPendingPersistence() async {
+        await waitUntilCredentialsLoaded()
+        repeat {
+            if let item = defaultsSaveWorkItem {
+                item.cancel()
+                defaultsSaveWorkItem = nil
+                persistAllDefaults()
+            }
+            if let item = keychainSaveWorkItem {
+                item.cancel()
+                keychainSaveWorkItem = nil
+                persistKeychainIfNeeded()
+            }
+            if let item = bookmarkSaveWorkItem {
+                item.cancel()
+                bookmarkSaveWorkItem = nil
+                persistBookmarkIfNeeded()
+            }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                keychainQueue.async { continuation.resume() }
+            }
+        } while defaultsSaveWorkItem != nil || keychainSaveWorkItem != nil || bookmarkSaveWorkItem != nil
     }
 
     private func setupAutoSave() {
@@ -224,6 +282,7 @@ final class SyncthingSettings: ObservableObject {
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
+            self?.defaultsSaveWorkItem = nil
             self?.persistAllDefaults()
         }
         defaultsSaveWorkItem = workItem
@@ -238,6 +297,7 @@ final class SyncthingSettings: ObservableObject {
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
+            self?.keychainSaveWorkItem = nil
             self?.persistKeychainIfNeeded()
         }
         keychainSaveWorkItem = workItem
@@ -252,6 +312,7 @@ final class SyncthingSettings: ObservableObject {
 
         // Schedule new save after delay
         let workItem = DispatchWorkItem { [weak self] in
+            self?.bookmarkSaveWorkItem = nil
             self?.persistBookmarkIfNeeded()
         }
         bookmarkSaveWorkItem = workItem
@@ -370,12 +431,15 @@ final class SyncthingSettings: ObservableObject {
     /// Migrates settings from the old bundle ID (LucesUmbrarum.syncthingStatus) to the current one.
     /// This is needed because v1.4 changed the bundle ID to com.lucesumbrarum.syncthingStatus.
     /// Note: Security-scoped bookmarks cannot be migrated as they're tied to code signing identity.
-    private static func migrateFromOldBundleIDIfNeeded(to currentDefaults: UserDefaults) {
+    private static func migrateFromOldBundleIDIfNeeded(
+        to currentDefaults: UserDefaults,
+        legacyDefaultsProvider: () -> UserDefaults?
+    ) {
         // Check if migration was already completed
         guard !currentDefaults.bool(forKey: migrationCompletedKey) else { return }
 
         // Try to access the old bundle's UserDefaults
-        guard let oldDefaults = UserDefaults(suiteName: oldBundleID) else {
+        guard let oldDefaults = legacyDefaultsProvider() else {
             currentDefaults.set(true, forKey: migrationCompletedKey)
             return
         }
@@ -428,7 +492,7 @@ final class SyncthingSettings: ObservableObject {
 }
 
 // MARK: - Keychain Helper
-private struct KeychainHelper {
+private struct KeychainHelper: SettingsCredentialStore {
     let service: String
     let account: String
 

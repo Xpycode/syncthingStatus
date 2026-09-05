@@ -151,7 +151,10 @@ final class SyncthingServerTrustDelegate: NSObject, URLSessionDelegate {
 // MARK: - Syncthing API Client
 @MainActor
 class SyncthingClient: ObservableObject {
+    typealias NotificationDelivery = (UNNotificationRequest, @escaping @Sendable (Error?) -> Void) -> Void
+
     private let session: URLSession
+    private let deliverNotification: NotificationDelivery
     private let settings: SyncthingSettings
     private var baseURL: URL?
     private var apiKey: String?
@@ -227,8 +230,12 @@ class SyncthingClient: ObservableObject {
     private var realTransferHistory: [String: DeviceTransferHistory] = [:]
     private var realTotalTransferHistory = DeviceTransferHistory()
     
-    init(settings: SyncthingSettings, session: URLSession? = nil) {
+    init(settings: SyncthingSettings, session: URLSession? = nil,
+         deliverNotification: @escaping NotificationDelivery = { request, completion in
+             UNUserNotificationCenter.current().add(request, withCompletionHandler: completion)
+         }) {
         self.settings = settings
+        self.deliverNotification = deliverNotification
 
         // Configure URLSession with appropriate timeouts if not provided
         if let session = session {
@@ -1100,7 +1107,7 @@ class SyncthingClient: ObservableObject {
             trigger: nil
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
+        deliverNotification(request) { error in
             if let error = error {
                 notificationsLog.error("Failed to send pause/resume notification: \(error.localizedDescription, privacy: .public)")
             }
@@ -1126,7 +1133,7 @@ class SyncthingClient: ObservableObject {
             trigger: nil
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
+        deliverNotification(request) { error in
             if let error = error {
                 notificationsLog.error("Failed to send stalled sync notification: \(error.localizedDescription, privacy: .public)")
             }
@@ -1145,7 +1152,7 @@ class SyncthingClient: ObservableObject {
             trigger: nil // Deliver immediately
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
+        deliverNotification(request) { error in
             if let error = error {
                 notificationsLog.error("Failed to send sync-completion notification: \(error.localizedDescription, privacy: .public)")
             }
@@ -1164,7 +1171,7 @@ class SyncthingClient: ObservableObject {
             trigger: nil
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
+        deliverNotification(request) { error in
             if let error = error {
                 notificationsLog.error("Failed to send global sync notification: \(error.localizedDescription, privacy: .public)")
             }
@@ -1183,7 +1190,7 @@ class SyncthingClient: ObservableObject {
             trigger: nil
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
+        deliverNotification(request) { error in
             if let error = error {
                 notificationsLog.error("Failed to send connection notification: \(error.localizedDescription, privacy: .public)")
             }
@@ -1829,7 +1836,9 @@ final class StuckDeletesController: ObservableObject {
 
     let folder: SyncthingFolder
     private let client: SyncthingClient
-    private let bookmarks = FolderAccessBookmarks()
+    private let bookmarks: any FolderBookmarkStore
+    private let securityScope: FolderSecurityScope
+    private let waitForReconciliation: () async -> Void
     /// Set by `StuckDeletesWindowController` after init so the SwiftUI Close
     /// button can dismiss the window without `Client.swift` needing AppKit.
     /// Captured weakly inside the closure to avoid retaining the window.
@@ -1839,9 +1848,17 @@ final class StuckDeletesController: ObservableObject {
     /// folder root. Behind a closure so the controller stays AppKit-free.
     var requestAccessAction: (() -> Void)?
 
-    init(folder: SyncthingFolder, client: SyncthingClient) {
+    init(folder: SyncthingFolder, client: SyncthingClient,
+         bookmarks: any FolderBookmarkStore = FolderAccessBookmarks(),
+         securityScope: FolderSecurityScope = .live,
+         waitForReconciliation: @escaping () async -> Void = {
+             try? await Task.sleep(nanoseconds: 2_000_000_000)
+         }) {
         self.folder = folder
         self.client = client
+        self.bookmarks = bookmarks
+        self.securityScope = securityScope
+        self.waitForReconciliation = waitForReconciliation
     }
 
     /// Fetches candidates from `db/need`, filters to deleted directory entries,
@@ -1998,9 +2015,9 @@ final class StuckDeletesController: ObservableObject {
             return .needsBookmark
 
         case .resolved(let url, let isStale):
-            let started = url.startAccessingSecurityScopedResource()
+            let started = securityScope.start(url)
             defer {
-                if started { url.stopAccessingSecurityScopedResource() }
+                if started { securityScope.stop(url) }
             }
             do {
                 _ = try fm.contentsOfDirectory(atPath: url.path)
@@ -2087,9 +2104,9 @@ final class StuckDeletesController: ObservableObject {
         // Security-scoped access spans the whole delete loop. Sub-paths
         // constructed via appendingPathComponent inherit the parent scope, so
         // detached per-item tasks work without re-acquiring access.
-        let started = folderRoot.startAccessingSecurityScopedResource()
+        let started = securityScope.start(folderRoot)
         defer {
-            if started { folderRoot.stopAccessingSecurityScopedResource() }
+            if started { securityScope.stop(folderRoot) }
         }
 
         var succeededCount = 0
@@ -2120,7 +2137,7 @@ final class StuckDeletesController: ObservableObject {
         // Give Syncthing 2 s to ingest filesystem changes, then refresh the
         // candidate list. Successful deletions disappear; failed items remain
         // and the user can retry without reopening the window.
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        await waitForReconciliation()
         await loadCandidates()
     }
 
@@ -2201,4 +2218,3 @@ final class StuckDeletesController: ObservableObject {
         return candidate
     }
 }
-

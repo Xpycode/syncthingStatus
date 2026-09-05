@@ -3,6 +3,24 @@ import os.log
 
 private let bookmarksLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "FolderAccess")
 
+protocol FolderBookmarkStore {
+    func resolve(for folderID: String) -> FolderAccessBookmarks.ResolutionResult
+    func save(_ url: URL, for folderID: String) throws
+    func refresh(_ url: URL, for folderID: String)
+    func clear(for folderID: String)
+}
+
+/// The OS access boundary; the controller still owns scope lifetime and probes.
+struct FolderSecurityScope {
+    var start: (URL) -> Bool
+    var stop: (URL) -> Void
+
+    static let live = FolderSecurityScope(
+        start: { $0.startAccessingSecurityScopedResource() },
+        stop: { $0.stopAccessingSecurityScopedResource() }
+    )
+}
+
 /// Persists security-scoped bookmarks for Syncthing folder roots so the
 /// sandboxed app can read and delete inside them without Full Disk Access.
 ///
@@ -10,7 +28,7 @@ private let bookmarksLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus"
 /// `FolderAccessBookmark.<folderID>`. Resolution surfaces stale bookmarks to
 /// the caller; `refresh(_:for:)` re-saves bookmark data while inside an active
 /// security-scoped access scope.
-struct FolderAccessBookmarks {
+struct FolderAccessBookmarks: FolderBookmarkStore {
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
