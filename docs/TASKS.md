@@ -18,11 +18,21 @@
 - [ ] Re-run the full Homebrew cask audit with supported developer tools (Xcode 27.0 required on this Mac; 26.6 currently installed). See `homebrew.md` for commands and completed checks.
 - [ ] Smoke-test Homebrew installation and upgrade without replacing the existing app installation; public tap/fetch, DMG checksum, signature, and notarization checks already passed.
 
+### GitHub follow-ups — deferred until after cleanup safety
+
+User confirmed 2026-09-05: continue the cleanup safety sprint; handle these separately afterward. They must not delay a verified cleanup safety fix.
+
+- [ ] [GitHub #2](https://github.com/Xpycode/syncthingStatus/issues/2) — implement genuine monochrome menu-bar rendering in the UI wave; the existing setting retains colored assets. Preserve distinguishable sync/error states.
+- [ ] [GitHub #5](https://github.com/Xpycode/syncthingStatus/issues/5) — reproduce the reporter's long-path layout failure and fix it in the UI wave; verify narrow windows and long folder/path names against the attached screenshot.
+- [ ] [GitHub #6](https://github.com/Xpycode/syncthingStatus/issues/6) — complete the existing Homebrew validation follow-ups, then reply with the published custom-tap instructions and resolve the issue as appropriate. Publication/replies are separate work; no reply sent in this sprint.
+
 ## Current Sprint
 <!-- Active work. Populated by /plan or /execute. Keep focused (3-7 tasks). -->
 <!-- When done: /log moves to tasks-archive.md -->
 
-- [ ] [Release blocker; next session] Fix ancestor/obsolete-bookmark deletion-root confusion and add tests against actual production target resolution. Scope and acceptance checks: [active plan](IMPLEMENTATION_PLAN.md). Do not execute fixes in the review/log session.
+No active sprint tasks. Wave 1 is archived; Wave 2 is the next planned work.
+
+Cleanup sprint complete: **5/5 archived** in [Completed Tasks](tasks-archive.md). [Wave 1](IMPLEMENTATION_PLAN.md#wave-1--cleanup-safety-active-sprint) and [verification evidence](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests passed, independent source review passed, and real sandbox/native-window fixtures passed with production-equivalent filesystem entitlements. Fresh sandboxed Debug app built and launched. Cleanup root/identity blocker cleared; later waves and the three GitHub issues remain deferred. This is not release approval.
 
 ## Inbox
 

@@ -20,6 +20,38 @@ This file tracks the WHY behind technical and design decisions.
 
 ## Decisions
 
+### 2026-09-05 — Plan isolated production regressions before cleanup repair
+
+**Status:** implemented and verified by task 1.1 on 2026-09-05: 15 hostless production
+tests passed three consecutive runs, independent isolation review passed, and the sandboxed
+Debug app built and launched. [Evidence](reviews/evidence/2026-09-05/task-1.1-isolation.md).
+Root/identity repair and real sandbox verification subsequently passed in tasks 1.2–1.5; see the September 6 decision and cleanup evidence.
+
+**Context:** the review reproduced wrong-root deletion and status/refresh defects, but
+its frozen harnesses copy/extract code. The project has only an application target.
+Running app-hosted tests would initialize production defaults, asynchronous Keychain
+access, monitoring and notification permissions unless the lifecycle were redesigned.
+
+**Options considered:** keep copied harnesses (cannot verify future fixes); add app-hosted
+tests with extensive startup isolation; or compile the actual production files/components
+into a hostless XCTest bundle with narrowly injected external effects.
+
+**Decision:** plan the hostless bundle and shared scheme, using real controller behavior
+and isolated defaults, credentials, bookmarks, HTTP and temporary roots. Extract only
+what testability requires; do not introduce a general framework. Verify the real sandbox
+picker and security-scope flow separately with disposable fixtures.
+
+**Rationale:** production regressions must catch the access-root handoff defect without
+exposing user data or causing app startup side effects. Validator-only tests miss the
+wrong root supplied by the controller, while hostless tests alone cannot prove TCC/access.
+
+**Consequences:** the five-task cleanup sprint starts with test infrastructure and failing
+controller regressions before changing deletion. Independent review and sandbox checks
+close the safety gate. Broader extraction/transport cleanup remains separately deferrable;
+the plan is not evidence that the defect is fixed or that a release is ready.
+
+---
+
 ### 2026-04-28 — Whitelist healthy folder states; tighten the meaning of `.outOfSync`
 **Context:** The menu bar icon was showing red ("Out of sync") even when Syncthing's web UI and API both reported every folder as `state: idle, needFiles: 0`. Restarting the app cleared it; the bug recurred after a while. Diagnosis: `StatusIconStateResolver.resolveState` treated *any* state other than literal `"idle"` as out-of-sync, so a single transient `scanning` reading captured into `folderStatuses` would latch the icon to red until something else (manual restart, config change) refreshed the entry.
 
@@ -175,3 +207,15 @@ This file tracks the WHY behind technical and design decisions.
 - Loosened `makeRequest<T: Codable>` to `<T: Decodable>` — response types only need `Decodable`.
 - **Diagnostic logging via `OSLogStore` export**, not file-tee — sandbox-clean, App-Store safe, no churn at 25 existing log sites. Bookend `notice` lines at app launch and export-time guarantee a non-empty file on clean sessions.
 - **About panel uses `orderFrontStandardAboutPanel(options:)` with `.credits`** for the Syncthing version — reuses Apple's standard panel rather than building a custom window.
+
+### 2026-09-06 — Keep cleanup authorization tied to the reviewed target
+
+**Context:** a granted ancestor was incorrectly reused as the deletion root, and old cleanup windows could authorize deletion after folder/connection changes. Independent review also showed that replacing a shared grant after confirmation could silently authorize the old review.
+
+**Alternatives considered:** require exact-root grants (would unnecessarily reject useful parent grants and still leave stale identity); rely on cached folder paths and revalidate only at confirmation (misses changes during requests or between items); or separate access capability from the reviewed target and revalidate at mutation boundaries.
+
+**Decision:** separate scope URL from configured root; pin reviewed filesystem/connection identity; fetch current daemon/folder configuration before each item. Confirmation captures selected names and the persisted bookmark token. Native close cancels pending work; failures retain selected items.
+
+**Rationale and consequences:** parent grants remain supported while deletion is confined to the configured folder. Changing target or authorization requires fresh review. Tests, independent review and real sandbox/UI checks passed; see [cleanup evidence](reviews/evidence/2026-09-05/cleanup-safety.md). Checks and removal remain non-atomic, and cancellation cannot undo removal already underway. This closes the demonstrated cleanup blocker, not whole-release readiness.
+
+**Scope decision:** the user explicitly deferred GitHub #2, #5 and #6 on September 5. Their individual tasks remain in `TASKS.md` and committed evidence; later UI fixes and Homebrew responses are outside this safety sprint.
