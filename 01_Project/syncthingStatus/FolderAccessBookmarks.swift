@@ -4,6 +4,8 @@ import os.log
 private let bookmarksLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "FolderAccess")
 
 protocol FolderBookmarkStore {
+    /// Opaque persisted authorization identity; never log or expose its contents.
+    func authorizationToken(for folderID: String) -> Data?
     func resolve(for folderID: String) -> FolderAccessBookmarks.ResolutionResult
     func save(_ url: URL, for folderID: String) throws
     func refresh(_ url: URL, for folderID: String)
@@ -43,6 +45,10 @@ struct FolderAccessBookmarks: FolderBookmarkStore {
         case resolved(URL, isStale: Bool)
         case missing
         case failed(Error)
+    }
+
+    func authorizationToken(for folderID: String) -> Data? {
+        defaults.data(forKey: Self.key(for: folderID))
     }
 
     func resolve(for folderID: String) -> ResolutionResult {

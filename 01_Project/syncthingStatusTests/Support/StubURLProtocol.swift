@@ -4,6 +4,8 @@ import XCTest
 /// One script per session host. Every HTTP(S) request is intercepted, including
 /// unexpected URLs; this protocol never opens a connection or forwards a request.
 final class StubURLProtocol: URLProtocol {
+    private let deliveryLock = NSLock()
+    private var stopped = false
     private static let registryLock = NSLock()
     private static var scripts: [String: HTTPFixture] = [:]
 
@@ -38,21 +40,61 @@ final class StubURLProtocol: URLProtocol {
             client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
             return
         }
-        let response = HTTPURLResponse(url: request.url!, statusCode: reply.status,
-                                       httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type": "application/json"])!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: reply.body)
-        client?.urlProtocolDidFinishLoading(self)
+        let deliver = { [weak self] in
+            guard let self else { return }
+            self.deliveryLock.lock()
+            let shouldDeliver = !self.stopped
+            self.deliveryLock.unlock()
+            guard shouldDeliver else { return }
+            let response = HTTPURLResponse(url: self.request.url!, statusCode: reply.status,
+                                           httpVersion: "HTTP/1.1",
+                                           headerFields: ["Content-Type": "application/json"])!
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: reply.body)
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
+        if let gate = reply.gate { gate.submit(deliver) } else { deliver() }
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        deliveryLock.lock()
+        stopped = true
+        deliveryLock.unlock()
+    }
+}
+
+/// Suspends a scripted HTTP response at an observable boundary. Tests release
+/// every gate explicitly; cancellation never creates a fallback network path.
+final class HTTPReplyGate {
+    let entered = XCTestExpectation(description: "HTTP response reached controlled gate")
+    private let lock = NSLock()
+    private var delivery: (() -> Void)?
+    private var isOpen = false
+
+    func submit(_ action: @escaping () -> Void) {
+        lock.lock()
+        let deliverNow = isOpen
+        if !deliverNow { delivery = action }
+        lock.unlock()
+        entered.fulfill()
+        if deliverNow { action() }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let action = delivery
+        delivery = nil
+        lock.unlock()
+        action?()
+    }
 }
 
 final class HTTPFixture {
     struct Reply {
         let status: Int
         let body: Data
+        let gate: HTTPReplyGate?
     }
 
     let host = UUID().uuidString.lowercased() + ".invalid"
@@ -64,14 +106,14 @@ final class HTTPFixture {
 
     init() { StubURLProtocol.register(self) }
 
-    func enqueue(_ path: String, json: String, status: Int = 200) {
-        enqueue("GET", path, json: json, status: status)
+    func enqueue(_ path: String, json: String, status: Int = 200, gate: HTTPReplyGate? = nil) {
+        enqueue("GET", path, json: json, status: status, gate: gate)
     }
 
-    func enqueue(_ method: String, _ path: String, json: String, status: Int = 200) {
+    func enqueue(_ method: String, _ path: String, json: String, status: Int = 200, gate: HTTPReplyGate? = nil) {
         lock.lock()
         defer { lock.unlock() }
-        replies["\(method) \(path)", default: []].append(Reply(status: status, body: Data(json.utf8)))
+        replies["\(method) \(path)", default: []].append(Reply(status: status, body: Data(json.utf8), gate: gate))
     }
 
     fileprivate func consume(_ request: URLRequest) -> Reply? {

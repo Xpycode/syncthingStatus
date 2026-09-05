@@ -1,0 +1,19 @@
+{
+  "App.swift": {
+    "fileSHA256": "4e7a5d8ce5be4d1586e017e651993b04e6ddecfbf03db88fa2e991622db76293",
+    "snippetSHA256": "ff89cac1e050311750a4ce40ff619274fd423a39446218034238fdf72580ae6f"
+  },
+  "Views.swift": {
+    "fileSHA256": "66820093395606a3d56673e0c7eb56114ad38ce37d1da5eef33cc58f795d2130",
+    "snippetSHA256": "9f02ad6fd1b1498f8bcabc0978a7cadfda64a95a94fd56bec18183a0b2b98825"
+  },
+  "Client.swift": {
+    "fileSHA256": "899e5a58e96baded7b801d241ca28601ae21ac21d73ac338d8ebb671f3347eb4"
+  },
+  "FolderAccessBookmarks.swift": {
+    "fileSHA256": "4ddab4ceaa39398cccb8982553d0058a5b1e630c4b1dac6e5669f3b1f8868775"
+  },
+  "CleanupConfirmationDialog.swift": {
+    "fileSHA256": "f27534ef2c8918d5b512793112d7ff4d226b0208f0cdddeaa84817cd4150ba7d"
+  }
+}

@@ -1,0 +1,79 @@
+harness_pid=23713
+press=0
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+controllerGrant=true;obsolete=false;error=none
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/db/status", "GET /rest/system/connections", "GET /rest/db/need", "GET /rest/db/need"]
+
+controller-window
+Delete selected: enabled=False
+checkboxLabels=["Select candidate for deletion, Select candidate for deletion"]
+Select All: press=0
+Delete 1 selected: enabled=True
+Deselect All: press=0
+Delete selected: enabled=False
+Select All: press=0
+Delete 1 selected: press=-25200
+Cancel: press=0
+Delete 1 selected: enabled=True
+Delete 1 selected: press=-25200
+Delete Permanently: press=0
+visible=No stuck deletions found
+visible=Cleaned up 1 folder. Syncthing has been asked to rescan
+Close: press=0
+before=denied;code=257
+statBefore=0;errno=1
+windowClosed=true;deleted=1;failed=0;unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+windowAndSentinels=passed
+controller-window-failure
+Delete selected: enabled=False
+checkboxLabels=["Select candidate for deletion, Select candidate for deletion"]
+Select All: press=0
+Delete 1 selected: enabled=True
+Deselect All: press=0
+Delete selected: enabled=False
+Select All: press=0
+Delete 1 selected: press=-25200
+Cancel: press=0
+Delete 1 selected: enabled=True
+Delete 1 selected: press=-25200
+Delete Permanently: press=0
+visible=Cleanup needs attention
+Delete 1 selected: enabled=False
+Retry: press=0
+Delete 1 selected: enabled=True
+failedPreflightSelectionRetained=true
+Delete 1 selected: press=-25200
+Delete Permanently: press=0
+visible=No stuck deletions found
+visible=Cleaned up 1 folder. Syncthing has been asked to rescan
+Close: press=0
+before=denied;code=257
+statBefore=0;errno=1
+windowClosed=true;deleted=1;failed=0;unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+windowAndSentinels=passed
+controller-window-partial
+Delete selected: enabled=False
+checkboxLabels=["Select ../unsafe for deletion, Select ../unsafe for deletion", "Select candidate for deletion, Select candidate for deletion"]
+Select All: press=0
+Delete 2 selected: enabled=True
+Deselect All: press=0
+Delete selected: enabled=False
+Select All: press=0
+Delete 2 selected: press=-25200
+Cancel: press=0
+Delete 2 selected: enabled=True
+Delete 2 selected: press=-25200
+Delete Permanently: press=0
+visible=1 deleted, 1 failed
+Delete 1 selected: enabled=True
+partialFailureSelectionRetained=true
+Close: press=0
+before=denied;code=257
+statBefore=0;errno=1
+windowClosed=true;deleted=1;failed=1;unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+windowAndSentinels=passed

@@ -1501,7 +1501,6 @@ struct FolderStatusRow: View {
 struct StuckDeletesView: View {
     @ObservedObject var controller: StuckDeletesController
     @State private var selection: Set<String> = []
-    @State private var confirmingDeletion = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppConstants.UI.spacingL) {
@@ -1529,21 +1528,9 @@ struct StuckDeletesView: View {
             let valid = Set(newCandidates.map(\.id))
             selection = selection.intersection(valid)
         }
-        .confirmationDialog(
-            "Permanently delete \(selection.count) folder\(selection.count == 1 ? "" : "s")?",
-            isPresented: $confirmingDeletion,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task {
-                    await controller.performDeletion(selected: selection)
-                    selection.removeAll()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the selected folders and everything inside them — including any ignored files (.git, .build, etc.). This cannot be undone.")
-        }
+        .onChange(of: selection) { _, _ in controller.invalidateConfirmation() }
+        .onDisappear { controller.cancelPendingWork() }
+
     }
 
     private var header: some View {
@@ -1563,7 +1550,7 @@ struct StuckDeletesView: View {
                 Text("Folder root:")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text(controller.folder.path)
+                Text(controller.folder.realPath)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
                     .lineLimit(1)
@@ -1582,7 +1569,7 @@ struct StuckDeletesView: View {
 
     @ViewBuilder
     private var content: some View {
-        if controller.accessBlocked {
+        if controller.accessBlocked && !controller.obsolete {
             accessGate
         } else if controller.loading && controller.candidates.isEmpty {
             VStack(spacing: AppConstants.UI.spacingM) {
@@ -1597,17 +1584,18 @@ struct StuckDeletesView: View {
                 Image(systemName: "xmark.octagon.fill")
                     .font(.largeTitle)
                     .foregroundColor(.red)
-                Text("Couldn't load candidates")
+                Text(controller.obsolete ? "Cleanup needs a fresh review" : "Cleanup needs attention")
                     .font(.headline)
                 Text(error)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button("Retry") {
                     Task { await controller.loadCandidates() }
                 }
                 .buttonStyle(.bordered)
+                .disabled(controller.obsolete || controller.deleting)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
@@ -1747,7 +1735,7 @@ struct StuckDeletesView: View {
                 Text("Folder root:")
                     .fontWeight(.medium)
                     .padding(.top, AppConstants.UI.spacingXS)
-                Text(controller.folder.path)
+                Text(controller.folder.realPath)
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(2)
                     .truncationMode(.middle)
@@ -1764,8 +1752,10 @@ struct StuckDeletesView: View {
                 Button("Grant Access") { controller.requestAccess() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
+                    .disabled(controller.deleting)
                 Button("Try Again") { controller.recheckAccess() }
                     .buttonStyle(.bordered)
+                    .disabled(controller.deleting)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1784,11 +1774,15 @@ struct StuckDeletesView: View {
 
             if !controller.accessBlocked && !controller.candidates.isEmpty {
                 Button(deleteButtonLabel) {
-                    confirmingDeletion = true
+                    guard let review = controller.prepareDeletion(selected: selection) else { return }
+                    controller.requestConfirmationAction?(review) { confirmed in
+                        guard confirmed else { controller.invalidateConfirmation(); return }
+                        Task { await controller.performDeletion(confirmation: review, selected: selection) }
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(selection.isEmpty || controller.deleting)
+                .disabled(selection.isEmpty || controller.deleting || controller.loading || controller.obsolete || controller.lastError != nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
 
@@ -1835,9 +1829,10 @@ struct CandidateRow: View {
 
     var body: some View {
         HStack(spacing: AppConstants.UI.spacingM) {
-            Toggle("", isOn: $isSelected)
+            Toggle("Select \(item.name) for deletion", isOn: $isSelected)
                 .toggleStyle(.checkbox)
                 .labelsHidden()
+                .accessibilityLabel("Select \(item.name) for deletion")
                 .disabled(disabled)
 
             Image(systemName: "folder.badge.minus")

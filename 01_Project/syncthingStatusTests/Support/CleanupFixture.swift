@@ -29,14 +29,40 @@ final class CleanupFixture {
     }
 
     func bootstrap() async throws {
-        let config = SyncthingConfig(devices: [], folders: [
-            SyncthingFolder(id: "fixture-folder", label: "Fixture", path: root.path, devices: [], paused: false)
-        ])
+        try await refreshFolders([configuredFolder()])
+        XCTAssertEqual(connection.client.folders.first?.path, root.path)
+    }
+
+    func configuredFolder(path: URL? = nil, id: String = "fixture-folder") -> SyncthingFolder {
+        SyncthingFolder(id: id, label: "Fixture", path: (path ?? root).path, devices: [], paused: false)
+    }
+
+    /// Publish configuration through production HTTP decoding and refresh.
+    func refreshFolders(_ folders: [SyncthingFolder]) async throws {
+        let config = SyncthingConfig(devices: [], folders: folders)
         let json = String(decoding: try JSONEncoder().encode(config), as: UTF8.self)
         connection.enqueueRefresh(config: json)
-        connection.http.enqueue("/rest/db/status", json: #"{"state":"idle","needDeletes":1}"#)
+        for _ in folders {
+            connection.http.enqueue("/rest/db/status", json: #"{"state":"idle","needDeletes":1}"#)
+        }
         await connection.client.refresh()
-        XCTAssertEqual(connection.client.folders.first?.path, root.path)
+        XCTAssertEqual(connection.client.folders.map(\.id), folders.map(\.id))
+    }
+
+    func enqueueReconciliation(_ remaining: [String]) throws {
+        connection.http.enqueue("POST", "/rest/db/scan", json: "", status: 204)
+        try enqueueCandidates(remaining)
+        gate.open()
+    }
+
+    /// The deletion preflight reads authoritative daemon/folder identity through
+    /// the same intercepted session; the fixture does not replace that policy.
+    func enqueueDeletionPreflight(folder: SyncthingFolder? = nil, count: Int = 1) throws {
+        let json = String(decoding: try JSONEncoder().encode(folder ?? configuredFolder()), as: UTF8.self)
+        for _ in 0..<count {
+            connection.http.enqueue("/rest/system/status", json: #"{"myID":"fixture-local","uptime":123}"#)
+            connection.http.enqueue("/rest/config/folders/fixture-folder", json: json)
+        }
     }
 
     func controller() throws -> StuckDeletesController {
@@ -67,7 +93,8 @@ final class CleanupFixture {
     }
 
     func assertSentinel(_ url: URL, _ relativePath: String, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "sentinel:\(relativePath)", file: file, line: line)
+        // Report every lost sentinel without throwing before the next preservation assertion.
+        XCTAssertEqual(try? String(contentsOf: url, encoding: .utf8), "sentinel:\(relativePath)", file: file, line: line)
     }
 
     func close() async throws {
@@ -78,12 +105,23 @@ final class CleanupFixture {
 }
 
 final class MemoryFolderBookmarks: FolderBookmarkStore {
-    var result: FolderAccessBookmarks.ResolutionResult = .missing
+    var result: FolderAccessBookmarks.ResolutionResult = .missing {
+        didSet { token = Data(UUID().uuidString.utf8) }
+    }
+    private var token = Data(UUID().uuidString.utf8)
+    var replaceTokenOnRefresh = false
     private(set) var refreshed: [String] = []
 
+    func authorizationToken(for folderID: String) -> Data? {
+        guard case .resolved = result else { return nil }
+        return token
+    }
     func resolve(for folderID: String) -> FolderAccessBookmarks.ResolutionResult { result }
     func save(_ url: URL, for folderID: String) throws { result = .resolved(url, isStale: false) }
-    func refresh(_ url: URL, for folderID: String) { refreshed.append(folderID) }
+    func refresh(_ url: URL, for folderID: String) {
+        refreshed.append(folderID)
+        if replaceTokenOnRefresh { token = Data(UUID().uuidString.utf8) }
+    }
     func clear(for folderID: String) { result = .missing }
 }
 

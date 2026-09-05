@@ -159,6 +159,8 @@ class SyncthingClient: ObservableObject {
     private var baseURL: URL?
     private var apiKey: String?
     private var cachedAutomaticAPIKey: String?
+    /// Changes immediately on connection settings edits, before the refresh debounce.
+    @Published private(set) var cleanupConnectionRevision = UUID()
     private var cancellables = Set<AnyCancellable>()
 
     // Transfer rate tracking
@@ -292,6 +294,12 @@ class SyncthingClient: ObservableObject {
     }
 
     private func observeSettings() {
+        Publishers.CombineLatest4(settings.$useAutomaticDiscovery, settings.$baseURLString,
+                                  settings.$manualAPIKey, settings.$configBookmarkData)
+            .dropFirst()
+            .sink { [weak self] _ in self?.cleanupConnectionRevision = UUID() }
+            .store(in: &cancellables)
+
         Publishers.CombineLatest3(
             settings.$useAutomaticDiscovery,
             settings.$baseURLString,
@@ -431,6 +439,26 @@ class SyncthingClient: ObservableObject {
         return true
     }
     
+    /// On-demand safety preflight; never trusts the monitoring cache for deletion.
+    func fetchCleanupFolder(id: String, revision: UUID, deviceID: String) async throws -> SyncthingFolder {
+        guard cleanupConnectionRevision == revision, !demoMode, prepareCredentials() else {
+            throw CleanupSafetyError.obsolete
+        }
+        let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self,
+                                           requiresFreshResponse: true)
+        try Task.checkCancellation()
+        guard cleanupConnectionRevision == revision, !demoMode, status.myID == deviceID else {
+            throw CleanupSafetyError.obsolete
+        }
+        let folder = try await makeRequest(endpoint: "config/folders", responseType: SyncthingFolder.self,
+                                           lastPathComponent: id, requiresFreshResponse: true)
+        try Task.checkCancellation()
+        guard cleanupConnectionRevision == revision, !demoMode, folder.id == id else {
+            throw CleanupSafetyError.obsolete
+        }
+        return folder
+    }
+
     /// Builds an endpoint URL that preserves any custom base path (e.g., reverse-proxy subpaths).
     private func endpointURL(path: String, queryItems: [URLQueryItem]? = nil) -> URL? {
         guard var url = baseURL else { return nil }
@@ -443,11 +471,27 @@ class SyncthingClient: ObservableObject {
         return components.url
     }
     
-    private func makeRequest<T: Decodable>(endpoint: String, responseType: T.Type) async throws -> T {
-        guard let url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
+    private func makeRequest<T: Decodable>(endpoint: String, responseType: T.Type,
+                                           lastPathComponent: String? = nil,
+                                           requiresFreshResponse: Bool = false) async throws -> T {
+        guard var url = endpointURL(path: endpoint) else { throw URLError(.badURL) }
+        if let lastPathComponent {
+            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+            guard let encoded = lastPathComponent.addingPercentEncoding(withAllowedCharacters: allowed),
+                  var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                throw URLError(.badURL)
+            }
+            components.percentEncodedPath += "/" + encoded
+            guard let resolved = components.url else { throw URLError(.badURL) }
+            url = resolved
+        }
         guard let apiKey else { throw SyncthingClientError.missingAPIKey }
 
         var request = URLRequest(url: url)
+        if requiresFreshResponse {
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        }
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
@@ -1780,7 +1824,7 @@ enum DeletionError: Error, Equatable {
     /// The most paranoid case — we never reached `removeItem`.
     case invalidPath
     /// Filesystem returned EACCES / NSFileWriteNoPermissionError. Usually means
-    /// the user hasn't granted Full Disk Access for a TCC-protected path.
+    /// the folder grant is missing or no longer permits this operation.
     case permissionDenied
     /// Anything else — generally a transient or niche I/O error. Carries the
     /// localized description so the user has something to act on.
@@ -1789,7 +1833,7 @@ enum DeletionError: Error, Equatable {
     var humanReadable: String {
         switch self {
         case .invalidPath: return "Path rejected by safety check"
-        case .permissionDenied: return "Permission denied — grant Full Disk Access"
+        case .permissionDenied: return "Permission denied — grant folder access again and check filesystem permissions"
         case .osError(let msg): return msg
         }
     }
@@ -1809,44 +1853,81 @@ struct DeletionOutcome: Equatable {
     }
 }
 
-// MARK: - Stuck Deletes Controller
-/// Per-window controller for the stuck-deletes cleanup view. One instance is
-/// constructed when the user clicks "Resolve…" on a folder; it owns the fetch
-/// state, the candidate list, the deletion pipeline, and an FDA gate flag.
-///
-/// Threading: marked `@MainActor` for SwiftUI binding safety; FS-mutating work
-/// runs on a detached background task using a fresh `FileManager()` instance
-/// (the documented thread-safe choice — `FileManager.default` is per-thread).
+// MARK: - Cleanup target and confirmation identity
+private enum CleanupSafetyError: LocalizedError {
+    case obsolete
+    var errorDescription: String? {
+        "The folder or connection changed. Close this cleanup window, reopen it from the current folder, and review the selection again."
+    }
+}
+
+/// Captures both the canonical location and the filesystem object present at review.
+/// Metadata is readable under the sandbox even before content access is granted.
+private struct CleanupRootIdentity: Sendable {
+    let url: URL
+    let device: dev_t?
+    let inode: ino_t?
+
+    init(_ url: URL) {
+        self.url = url.standardizedFileURL.resolvingSymlinksInPath()
+        var info = stat()
+        let exists = stat(self.url.path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFDIR
+        device = exists ? info.st_dev : nil
+        inode = exists ? info.st_ino : nil
+    }
+
+    func matches(_ candidate: URL) -> Bool {
+        let other = CleanupRootIdentity(candidate)
+        guard let device, let inode, other.device == device, other.inode == inode else { return false }
+        // File identity accommodates case/firmlink aliases. The old captured path
+        // must still refer to the reviewed object (rename/replacement is obsolete).
+        var info = stat()
+        return stat(url.path, &info) == 0 && info.st_dev == device && info.st_ino == inode
+    }
+}
+
+/// Cancellation reaches detached filesystem work without reading actor state there.
+private final class CleanupPermit: @unchecked Sendable {
+    private let lock = NSLock()
+    private var valid = true
+    var isValid: Bool { lock.lock(); defer { lock.unlock() }; return valid }
+    func invalidate() { lock.lock(); valid = false; lock.unlock() }
+}
+
+struct CleanupConfirmation: Identifiable, Equatable {
+    let id: UUID
+    let rootPath: String
+    let names: [String]
+    fileprivate let revision: UUID
+    fileprivate let authorizationToken: Data?
+}
+
 @MainActor
 final class StuckDeletesController: ObservableObject {
     @Published private(set) var candidates: [RemoteNeedItem] = []
     @Published private(set) var loading = false
     @Published private(set) var lastError: String?
-
-    /// True while a deletion pass is in flight — disables UI interactions.
     @Published private(set) var deleting = false
-    /// Result of the most recent `performDeletion` call. Cleared when a new
-    /// one starts. Drives the outcome banner shown above the candidate list.
     @Published private(set) var lastOutcome: DeletionOutcome?
-    /// True when the access pre-flight failed and we don't yet have a usable
-    /// security-scoped bookmark for this folder root. Drives the grant-access
-    /// gate view that replaces the candidate list. Reset by `recheckAccess()`
-    /// once a bookmark resolves successfully.
     @Published private(set) var accessBlocked = false
+    @Published private(set) var confirmation: CleanupConfirmation?
+    @Published private(set) var obsolete = false
 
     let folder: SyncthingFolder
     private let client: SyncthingClient
     private let bookmarks: any FolderBookmarkStore
     private let securityScope: FolderSecurityScope
     private let waitForReconciliation: () async -> Void
-    /// Set by `StuckDeletesWindowController` after init so the SwiftUI Close
-    /// button can dismiss the window without `Client.swift` needing AppKit.
-    /// Captured weakly inside the closure to avoid retaining the window.
+    private let rootIdentity: CleanupRootIdentity
+    private let connectionRevision: UUID
+    private let deviceID: String?
+    private var revision = UUID()
+    private var loadRevision = UUID()
+    private var permit: CleanupPermit?
+    private var subscriptions = Set<AnyCancellable>()
     var dismissAction: (() -> Void)?
-    /// Set by `StuckDeletesWindowController`. Presents an `NSOpenPanel` so the
-    /// user can grant the sandboxed app a security-scoped bookmark for the
-    /// folder root. Behind a closure so the controller stays AppKit-free.
     var requestAccessAction: (() -> Void)?
+    var requestConfirmationAction: ((CleanupConfirmation, @escaping (Bool) -> Void) -> Void)?
 
     init(folder: SyncthingFolder, client: SyncthingClient,
          bookmarks: any FolderBookmarkStore = FolderAccessBookmarks(),
@@ -1859,328 +1940,336 @@ final class StuckDeletesController: ObservableObject {
         self.bookmarks = bookmarks
         self.securityScope = securityScope
         self.waitForReconciliation = waitForReconciliation
+        rootIdentity = CleanupRootIdentity(folder.realURL)
+        connectionRevision = client.cleanupConnectionRevision
+        deviceID = client.systemStatus?.myID
+        client.$cleanupConnectionRevision.dropFirst().sink { [weak self] _ in
+            self?.invalidateIdentity()
+        }.store(in: &subscriptions)
+        client.$folders.dropFirst().sink { [weak self] folders in
+            guard let self else { return }
+            guard let current = folders.first(where: { $0.id == self.folder.id }),
+                  self.rootIdentity.matches(current.realURL) else {
+                self.invalidateIdentity()
+                return
+            }
+        }.store(in: &subscriptions)
+        client.$demoMode.dropFirst().sink { [weak self] _ in
+            self?.invalidateIdentity()
+        }.store(in: &subscriptions)
+        client.$systemStatus.map { $0?.myID }.removeDuplicates().dropFirst().sink { [weak self] id in
+            guard let self, id != self.deviceID else { return }
+            self.invalidateIdentity()
+        }.store(in: &subscriptions)
     }
 
-    /// Fetches candidates from `db/need`, filters to deleted directory entries,
-    /// sorts by name. Cancellation-safe: if the SwiftUI `.task` modifier
-    /// cancels us (window closed mid-fetch), we silently return.
-    func loadCandidates() async {
-        loading = true
-        defer { loading = false }
-        lastError = nil
+    private func invalidateIdentity() {
+        if !obsolete { stuckDeletesLog.notice("Cleanup invalidated: folder or connection changed") }
+        obsolete = true
+        invalidateConfirmation()
+        permit?.invalidate()
+        lastError = CleanupSafetyError.obsolete.localizedDescription
+    }
 
-        do {
-            let response = try await client.fetchDbNeed(folder: folder.id)
-            try Task.checkCancellation()
-            let dirs = response.allItems
-                .filter { $0.deleted && $0.isDirectory && !$0.name.isEmpty }
-                .sorted { $0.name < $1.name }
-            candidates = dirs
-            stuckDeletesLog.info("Loaded \(dirs.count, privacy: .public) stuck-delete candidate(s) for folder \(self.folder.id, privacy: .public)")
-        } catch {
-            if isCancellationError(error) { return }
-            let desc = error.localizedDescription
-            lastError = desc
-            stuckDeletesLog.error("Failed db/need for folder \(self.folder.id, privacy: .public): \(desc, privacy: .public)")
+    func invalidateConfirmation() {
+        permit?.invalidate()
+        revision = UUID()
+        confirmation = nil
+    }
+
+    private func checkIdentity() throws {
+        try Task.checkCancellation()
+        guard !obsolete, !client.demoMode, connectionRevision == client.cleanupConnectionRevision,
+              let deviceID, !deviceID.isEmpty, deviceID == client.systemStatus?.myID,
+              let current = client.folders.first(where: { $0.id == folder.id }),
+              rootIdentity.matches(current.realURL), rootIdentity.matches(folder.realURL) else {
+            invalidateIdentity()
+            throw CleanupSafetyError.obsolete
         }
     }
 
+    func loadCandidates() async {
+        guard !deleting else { return }
+        await reloadCandidates()
+    }
+
+    private func reloadCandidates() async {
+        invalidateConfirmation()
+        let token = UUID()
+        loadRevision = token
+        loading = true
+        defer { if loadRevision == token { loading = false } }
+        do {
+            try checkIdentity()
+            lastError = nil
+            let response = try await client.fetchDbNeed(folder: folder.id)
+            try checkIdentity()
+            guard token == loadRevision else { return }
+            candidates = response.allItems
+                .filter { $0.deleted && $0.isDirectory && !$0.name.isEmpty }
+                .sorted { $0.name < $1.name }
+            stuckDeletesLog.info("Loaded \(self.candidates.count, privacy: .public) cleanup candidates")
+        } catch {
+            guard token == loadRevision, !isCancellationError(error) else { return }
+            lastError = error.localizedDescription
+        }
+    }
+
+    func cancelPendingWork() {
+        permit?.invalidate()
+        invalidateConfirmation()
+        loadRevision = UUID()
+    }
+
     func close() {
+        cancelPendingWork()
         dismissAction?()
     }
 
     func requestAccess() {
+        invalidateConfirmation()
         requestAccessAction?()
     }
 
-    /// Validates a user-picked URL from `NSOpenPanel`, persists the resulting
-    /// security-scoped bookmark, and re-runs the access probe. The picked URL
-    /// must be the folder root itself or an ancestor — narrower selections
-    /// don't grant access to the items we need to remove. Called by
-    /// `StuckDeletesWindowController` from the panel completion handler;
-    /// triggers an automatic candidate reload on success so the user lands
-    /// directly in the cleanup view.
     func grantAccess(_ url: URL) {
-        // realPath, not folder.path: any NSString standardization would expand
-        // `~` against the sandbox container home and reject every valid pick.
-        // Canonicalize both sides (symlinks, /private, firmlinks) — resolution
-        // only needs metadata, which the sandbox allows even pre-grant.
-        let chosenURL = url.standardizedFileURL.resolvingSymlinksInPath()
-        let expectedURL = URL(fileURLWithPath: folder.realPath, isDirectory: true)
-            .standardizedFileURL.resolvingSymlinksInPath()
-        let chosenPath = chosenURL.path
-        let expectedPath = expectedURL.path
-        let isAtOrAbove = chosenPath == expectedPath
-            || Self.isSameItem(chosenURL, expectedURL)
-            || expectedPath.hasPrefix(chosenPath + "/")
-        guard isAtOrAbove else {
-            stuckDeletesLog.error("Bookmark grant rejected: \(chosenPath, privacy: .public) is not the folder root or an ancestor of \(expectedPath, privacy: .public)")
-            lastError = "The selected folder doesn't grant access to \"\(expectedPath)\". Pick the folder root itself, or a parent of it."
-            return
-        }
+        guard !deleting else { return }
+        invalidateConfirmation()
         do {
-            try bookmarks.save(url, for: folder.id)
-            stuckDeletesLog.notice("Bookmark granted for folder \(self.folder.id, privacy: .public)")
-            recheckAccess()
-            if !accessBlocked {
-                Task { await loadCandidates() }
+            try checkIdentity()
+            guard Self.covers(scope: url, root: rootIdentity.url) else {
+                lastError = "Pick the configured folder root or a parent of it: \(rootIdentity.url.path)"
+                return
             }
-        } catch {
-            stuckDeletesLog.error("Failed to save bookmark for folder \(self.folder.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            lastError = "Couldn't store the access grant: \(error.localizedDescription)"
-        }
+            try bookmarks.save(url, for: folder.id)
+            recheckAccess()
+            if !accessBlocked, lastError == nil { Task { await loadCandidates() } }
+        } catch { lastError = error.localizedDescription }
     }
 
-    /// True when both URLs name the same on-disk item — survives APFS
-    /// case-insensitivity (a panel pick returns on-disk casing, which may
-    /// differ from Syncthing's configured spelling) and hard aliases.
-    /// Metadata-only, so it works on paths without content access.
-    private static func isSameItem(_ a: URL, _ b: URL) -> Bool {
-        guard let ia = try? a.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier,
-              let ib = try? b.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier
-        else { return false }
-        return ia.isEqual(ib)
+    private static func covers(scope: URL, root: URL) -> Bool {
+        let chosen = scope.standardizedFileURL.resolvingSymlinksInPath().path
+        let expected = root.standardizedFileURL.resolvingSymlinksInPath().path
+        return chosen == expected || CleanupRootIdentity(scope).matches(root)
+            || expected.hasPrefix(chosen.hasSuffix("/") ? chosen : chosen + "/")
     }
 
-    /// Result of probing the folder root for accessibility. Each case maps to
-    /// a distinct UI state, so the user gets an actionable message instead of
-    /// being dead-ended in an access gate when the real issue is elsewhere.
+    struct AccessContext {
+        let scopeURL: URL
+        let configuredRoot: URL
+    }
+
     enum AccessProbeResult {
-        /// Bookmark resolved and the folder is readable. Carries the
-        /// security-scoped URL the caller should wrap subsequent work in via
-        /// `startAccessingSecurityScopedResource()`.
-        case granted(URL)
-        /// No bookmark yet, or the bookmark resolved but the URL was
-        /// unreadable (revoked, deleted, etc.). User must grant access via
-        /// `NSOpenPanel`.
+        case granted(AccessContext)
         case needsBookmark
-        /// Folder root doesn't exist on this Mac. Requires proof: a stat that
-        /// fails with ENOENT (sandbox permits metadata reads, so that's
-        /// trustworthy even pre-grant), or a missing directory behind a
-        /// resolved bookmark. A denied check reports `.needsBookmark` instead.
         case notFound(path: String)
-        /// Path exists but isn't a directory (extremely unusual).
         case notADirectory(path: String)
-        /// Anything else: I/O error, dead symlink, etc. Carries the localized
-        /// description for the user.
         case other(message: String)
     }
 
-    /// Re-runs the access probe. Called from the View when the user clicks
-    /// "Try Again" after granting access. With security-scoped bookmarks the
-    /// freshly-granted access is honored immediately — no quit-and-relaunch
-    /// dance required (which is the whole point of this approach).
     func recheckAccess() {
-        let result = probeFolderAccess()
-        applyProbeResult(result)
-        if case .granted = result {
-            stuckDeletesLog.info("Access recheck: folder \(self.folder.id, privacy: .public) now readable")
-        }
+        invalidateConfirmation()
+        applyProbeResult(probeFolderAccess())
     }
 
-    /// Resolves the stored security-scoped bookmark and verifies the folder
-    /// root is readable. Distinguishes missing/stale bookmarks (need a fresh
-    /// grant via `NSOpenPanel`) from genuine path problems (missing folder,
-    /// non-directory, I/O errors) so the UI can show an actionable message.
-    /// Stale-but-functional bookmarks are silently refreshed.
     private func probeFolderAccess() -> AccessProbeResult {
-        let fm = FileManager()
         let path = folder.realPath
-        stuckDeletesLog.debug("Probe: folder path \(self.folder.path, privacy: .public) resolved to \(path, privacy: .public)")
-
-        // stat(2) instead of fileExists: the sandbox broadly allows metadata
-        // reads (application.sb `file-read-metadata`), so ENOENT here is
-        // provable absence — while EPERM only means "can't know", which must
-        // never block the grant prompt. fileExists() conflates both as false.
-        var st = stat()
-        let statFailed = stat(path, &st) != 0
-        let statErrno = statFailed ? errno : 0
-        if !statFailed, (st.st_mode & S_IFMT) != S_IFDIR {
-            stuckDeletesLog.error("Probe: path exists but is not a directory: \(path, privacy: .public)")
-            return .notADirectory(path: path)
-        }
-        let provablyAbsent = statFailed && (statErrno == ENOENT || statErrno == ENOTDIR)
-
+        var info = stat()
+        let failed = stat(path, &info) != 0
+        let code = failed ? errno : 0
+        if !failed, (info.st_mode & S_IFMT) != S_IFDIR { return .notADirectory(path: path) }
+        if failed, code == ENOENT || code == ENOTDIR { return .notFound(path: path) }
         switch bookmarks.resolve(for: folder.id) {
-        case .missing:
-            if provablyAbsent {
-                stuckDeletesLog.error("Probe: folder root not found at \(path, privacy: .public)")
-                return .notFound(path: path)
-            }
-            stuckDeletesLog.info("Probe: no bookmark for folder \(self.folder.id, privacy: .public) — needs grant")
-            return .needsBookmark
-
-        case .failed(let error):
-            stuckDeletesLog.error("Probe: bookmark resolution failed for \(self.folder.id, privacy: .public) — \(error.localizedDescription, privacy: .public)")
-            return .needsBookmark
-
-        case .resolved(let url, let isStale):
-            let started = securityScope.start(url)
-            defer {
-                if started { securityScope.stop(url) }
-            }
+        case .missing, .failed: return .needsBookmark
+        case .resolved(let scope, let stale):
+            guard Self.covers(scope: scope, root: rootIdentity.url) else { return .needsBookmark }
+            let started = securityScope.start(scope)
+            defer { if started { securityScope.stop(scope) } }
             do {
-                _ = try fm.contentsOfDirectory(atPath: url.path)
-                if isStale {
-                    bookmarks.refresh(url, for: folder.id)
-                    stuckDeletesLog.info("Probe: bookmark refreshed for folder \(self.folder.id, privacy: .public)")
-                }
-                return .granted(url)
-            } catch let e as CocoaError where e.code == .fileReadNoPermission {
-                stuckDeletesLog.error("Probe: bookmark unusable for \(self.folder.id, privacy: .public) — \(e.localizedDescription, privacy: .public)")
-                return .needsBookmark
-            } catch let e as CocoaError where e.code == .fileReadNoSuchFile {
-                // Bookmark resolved but the directory is gone — with access
-                // held this IS provable absence, unlike the pre-grant stat.
-                stuckDeletesLog.error("Probe: folder root missing at \(url.path, privacy: .public) — \(e.localizedDescription, privacy: .public)")
-                return .notFound(path: url.path)
-            } catch {
-                let nsError = error as NSError
-                stuckDeletesLog.error("Probe: unexpected error on \(url.path, privacy: .public) — domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) desc=\(nsError.localizedDescription, privacy: .public)")
-                return .other(message: nsError.localizedDescription)
-            }
+                // Probe the configured root, never just the granted ancestor.
+                _ = try FileManager().contentsOfDirectory(atPath: rootIdentity.url.path)
+                if stale { bookmarks.refresh(scope, for: folder.id) }
+                return .granted(AccessContext(scopeURL: scope, configuredRoot: rootIdentity.url))
+            } catch let e as CocoaError where e.code == .fileReadNoPermission { return .needsBookmark
+            } catch let e as CocoaError where e.code == .fileReadNoSuchFile { return .notFound(path: path)
+            } catch { return .other(message: error.localizedDescription) }
         }
     }
 
-    /// Translates a probe result into the controller's published state. Only
-    /// `.needsBookmark` flips `accessBlocked = true`; other failures surface
-    /// through `lastError` so the user gets an actionable message instead of
-    /// a misleading grant-access gate.
     private func applyProbeResult(_ result: AccessProbeResult) {
         switch result {
         case .granted:
             accessBlocked = false
-            // Clear any previous access error from a prior failed probe.
-            if let err = lastError,
-               err.hasPrefix("Folder root") || err.hasPrefix("Couldn't access") || err.hasPrefix("Path exists") {
-                lastError = nil
-            }
+            if !obsolete { lastError = nil }
         case .needsBookmark:
             accessBlocked = true
         case .notFound(let path):
             accessBlocked = false
-            lastError = "Folder root not found on this Mac: \(path). Check Syncthing's folder configuration — the path may differ between peers."
+            lastError = "Folder root not found on this Mac: \(path). Check Syncthing's folder configuration."
         case .notADirectory(let path):
             accessBlocked = false
             lastError = "Path exists but isn't a directory: \(path)."
-        case .other(let msg):
+        case .other(let message):
             accessBlocked = false
-            lastError = "Couldn't access folder root: \(msg)"
+            lastError = "Couldn't access folder root: \(message)"
         }
     }
 
-    /// Deletes the user-selected candidates. Steps:
-    ///   1. Per-item: validate path, then `removeItem` on a detached task.
-    ///   2. Trigger Syncthing rescan (`POST /rest/db/scan`).
-    ///   3. Wait briefly for the daemon to ingest the FS change.
-    ///   4. Reload candidates so the UI reflects the new state — failed items
-    ///      stay in the list (they weren't deleted), succeeded items disappear.
-    ///
-    /// Access pre-flight runs first; if it fails (no bookmark / stale / I/O
-    /// error), we surface the gate UI instead of attempting any deletes. The
-    /// security-scoped URL from a successful probe wraps the whole delete
-    /// loop so each per-item operation runs inside the granted access.
-    /// Idempotent on ENOENT (treat already-gone as success, so concurrent
-    /// windows / concurrent Finder cleanups don't produce spurious "failed"
-    /// entries).
-    func performDeletion(selected: Set<String>) async {
-        guard !deleting else { return }
-        let toDelete = candidates.filter { selected.contains($0.id) }
-        guard !toDelete.isEmpty else { return }
+    func prepareDeletion(selected: Set<String>) -> CleanupConfirmation? {
+        guard !loading, !deleting, !selected.isEmpty else { return nil }
+        do { try checkIdentity() } catch { return nil }
+        let names = candidates.filter { selected.contains($0.id) }.map(\.name)
+        guard Set(names) == selected else { return nil }
+        let review = CleanupConfirmation(id: UUID(), rootPath: rootIdentity.url.path,
+                                         names: names, revision: revision,
+                                         authorizationToken: bookmarks.authorizationToken(for: folder.id))
+        confirmation = review
+        return review
+    }
 
-        // Pre-flight: only block when there's no usable bookmark. Other errors
-        // (path missing, etc.) get surfaced through `lastError` so the user
-        // sees the real problem instead of a misleading grant-access gate.
+    /// Convenience entry point for callers that have already reviewed their selection.
+    /// The window uses the explicit snapshot overload below so its sheet cannot drift.
+    func performDeletion(selected: Set<String>) async {
+        guard let review = prepareDeletion(selected: selected) else { return }
+        await performDeletion(confirmation: review, selected: selected)
+    }
+
+    func performDeletion(confirmation review: CleanupConfirmation, selected: Set<String>) async {
+        guard !deleting, !loading else { return }
+        guard confirmation == review, review.revision == revision,
+              selected == Set(review.names),
+              Set(candidates.filter { selected.contains($0.id) }.map(\.name)) == selected else {
+            invalidateConfirmation()
+            lastError = "The selection changed. Review the selected folders again before deleting."
+            return
+        }
+        do { try checkIdentity() } catch { return }
+        guard bookmarks.authorizationToken(for: folder.id) == review.authorizationToken else {
+            invalidateConfirmation()
+            lastError = "Folder access changed. Review the selected folders again before deleting."
+            return
+        }
         let probe = probeFolderAccess()
         applyProbeResult(probe)
-        guard case .granted(let folderRoot) = probe else { return }
-
+        guard case .granted(let context) = probe else { return }
+        // A stale bookmark can be refreshed by our own probe. Subsequent changes
+        // from another window/store must invalidate the in-flight authorization.
+        let authorizationToken = bookmarks.authorizationToken(for: folder.id)
+        let items = candidates.filter { selected.contains($0.id) }
         deleting = true
-        defer { deleting = false }
+        let activePermit = CleanupPermit()
+        permit = activePermit
+        defer { deleting = false; permit = nil; confirmation = nil }
         lastOutcome = nil
-
-        stuckDeletesLog.notice("Deletion start: \(toDelete.count, privacy: .public) candidate(s) on folder \(self.folder.id, privacy: .public)")
-
-        // Security-scoped access spans the whole delete loop. Sub-paths
-        // constructed via appendingPathComponent inherit the parent scope, so
-        // detached per-item tasks work without re-acquiring access.
-        let started = securityScope.start(folderRoot)
-        defer {
-            if started { securityScope.stop(folderRoot) }
-        }
-
-        var succeededCount = 0
-        var failed: [DeletionOutcome.FailedItem] = []
-
-        for item in toDelete {
-            switch await deleteOne(item: item, folderRoot: folderRoot) {
-            case .success:
-                succeededCount += 1
-                stuckDeletesLog.notice("Deleted: \(item.name, privacy: .public)")
-            case .failure(let err):
-                failed.append(.init(name: item.name, reason: err.humanReadable))
-                stuckDeletesLog.error("Deletion failed for \(item.name, privacy: .public): \(err.humanReadable, privacy: .public)")
+        stuckDeletesLog.notice("Cleanup started: \(items.count, privacy: .public) reviewed candidates")
+        let started = securityScope.start(context.scopeURL)
+        defer { if started { securityScope.stop(context.scopeURL) } }
+        var succeeded: Set<String> = []
+        var failures: [DeletionOutcome.FailedItem] = []
+        var interrupted = false
+        for (index, item) in items.enumerated() {
+            do {
+                try checkIdentity()
+                guard activePermit.isValid, revision == review.revision else { throw CleanupSafetyError.obsolete }
+                // Both requests are checked across suspension. A cached folder is insufficient.
+                let current = try await client.fetchCleanupFolder(id: folder.id, revision: connectionRevision,
+                                                                  deviceID: deviceID!)
+                try checkIdentity()
+                guard rootIdentity.matches(current.realURL), activePermit.isValid else {
+                    invalidateIdentity()
+                    throw CleanupSafetyError.obsolete
+                }
+                // Detect cleared/replaced grants between items without silently inheriting them.
+                guard bookmarks.authorizationToken(for: folder.id) == authorizationToken,
+                      case .resolved(let scope, _) = bookmarks.resolve(for: folder.id),
+                      scope.standardizedFileURL == context.scopeURL.standardizedFileURL else {
+                    accessBlocked = true
+                    throw CocoaError(.fileWriteNoPermission)
+                }
+                switch await deleteOne(item: item, folderRoot: context.configuredRoot, permit: activePermit) {
+                case .success: succeeded.insert(item.id)
+                case .failure(let error):
+                    failures.append(.init(name: item.name, reason: error.humanReadable))
+                    if error == .permissionDenied { accessBlocked = true }
+                }
+            } catch {
+                let reason = isCancellationError(error) ? "Cleanup cancelled; review remaining folders before retrying." : error.localizedDescription
+                lastError = reason
+                failures += items[index...].map { .init(name: $0.name, reason: reason) }
+                interrupted = true
+                break
             }
         }
-
-        lastOutcome = DeletionOutcome(succeededCount: succeededCount, failed: failed)
-        stuckDeletesLog.info("Deletion complete: \(succeededCount, privacy: .public) ok, \(failed.count, privacy: .public) failed")
-
-        // Nudge Syncthing to reconcile; rescan is fire-and-forget.
+        lastOutcome = DeletionOutcome(succeededCount: succeeded.count, failed: failures)
+        stuckDeletesLog.notice("Cleanup finished: \(succeeded.count, privacy: .public) succeeded, \(failures.count, privacy: .public) failed")
+        // Preserve failed items and selections even if a subsequent reload fails.
+        candidates.removeAll { succeeded.contains($0.id) }
+        guard !interrupted else { return }
         do {
+            try checkIdentity()
             try await client.rescan(folder: folder.id)
-            stuckDeletesLog.info("Rescan triggered for folder \(self.folder.id, privacy: .public)")
+            try checkIdentity()
         } catch {
-            stuckDeletesLog.error("Rescan request failed: \(error.localizedDescription, privacy: .public)")
+            stuckDeletesLog.error("Cleanup rescan failed: \(error.localizedDescription, privacy: .public)")
+            lastError = "Cleanup finished, but Syncthing could not be rescanned: \(error.localizedDescription)"
+            return
         }
-
-        // Give Syncthing 2 s to ingest filesystem changes, then refresh the
-        // candidate list. Successful deletions disappear; failed items remain
-        // and the user can retry without reopening the window.
         await waitForReconciliation()
-        await loadCandidates()
+        do { try checkIdentity() } catch { return }
+        let failedItems = items.filter { !succeeded.contains($0.id) }
+        await reloadCandidates()
+        for item in failedItems where !candidates.contains(where: { $0.id == item.id }) { candidates.append(item) }
+        candidates.sort { $0.name < $1.name }
     }
 
-    private func deleteOne(item: RemoteNeedItem, folderRoot: URL) async -> Result<Void, DeletionError> {
-        guard let target = Self.validatePath(item.name, folderRoot: folderRoot) else {
-            return .failure(.invalidPath)
+    private func deleteOne(item: RemoteNeedItem, folderRoot: URL, permit: CleanupPermit) async -> Result<Void, DeletionError> {
+        let identity = rootIdentity
+        return await withTaskCancellationHandler {
+            await Task.detached(priority: .userInitiated) {
+                guard permit.isValid, identity.matches(folderRoot),
+                      let target = Self.validatePath(item.name, folderRoot: folderRoot) else {
+                    return .failure(.invalidPath)
+                }
+                let fm = FileManager()  // fresh instance: thread-safe per Apple guidance
+
+                // Probe attributes without following symlinks. `attributesOfItem`
+                // queries the symlink itself, not its target — important for the
+                // "directory containing a symlink to /" defense. We don't actually
+                // *use* the type here; the call is a sanity probe whose error path
+                // tells us whether the file is missing/permission-denied.
+                do {
+                    _ = try fm.attributesOfItem(atPath: target.path)
+                } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                    // Already gone — treat as success (idempotent).
+                    return .success(())
+                } catch let error as CocoaError where error.code == .fileReadNoPermission {
+                    return .failure(.permissionDenied)
+                } catch {
+                    return .failure(.osError(error.localizedDescription))
+                }
+
+                // Recursive removal. Foundation's removeItem unlinks symlinks for
+                // the *top-level* item without following, and unlinks (not follows)
+                // any nested symlinks during recursion. Documented POSIX behavior.
+                do {
+                    guard permit.isValid, identity.matches(folderRoot),
+                          Self.validatePath(item.name, folderRoot: folderRoot) == target else {
+                        return .failure(.invalidPath)
+                    }
+                    try fm.removeItem(at: target)
+                    return .success(())
+                } catch let error as CocoaError where
+                    error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+                    return .success(())  // Race: deleted between probe and removal.
+                } catch let error as CocoaError where
+                    error.code == .fileWriteNoPermission || error.code == .fileReadNoPermission {
+                    return .failure(.permissionDenied)
+                } catch {
+                    return .failure(.osError(error.localizedDescription))
+                }
+            }.value
+        } onCancel: {
+            permit.invalidate()
         }
-
-        return await Task.detached(priority: .userInitiated) {
-            let fm = FileManager()  // fresh instance: thread-safe per Apple guidance
-
-            // Probe attributes without following symlinks. `attributesOfItem`
-            // queries the symlink itself, not its target — important for the
-            // "directory containing a symlink to /" defense. We don't actually
-            // *use* the type here; the call is a sanity probe whose error path
-            // tells us whether the file is missing/permission-denied.
-            do {
-                _ = try fm.attributesOfItem(atPath: target.path)
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                // Already gone — treat as success (idempotent).
-                return .success(())
-            } catch let error as CocoaError where error.code == .fileReadNoPermission {
-                return .failure(.permissionDenied)
-            } catch {
-                return .failure(.osError(error.localizedDescription))
-            }
-
-            // Recursive removal. Foundation's removeItem unlinks symlinks for
-            // the *top-level* item without following, and unlinks (not follows)
-            // any nested symlinks during recursion. Documented POSIX behavior.
-            do {
-                try fm.removeItem(at: target)
-                return .success(())
-            } catch let error as CocoaError where
-                error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
-                return .success(())  // Race: deleted between probe and removal.
-            } catch let error as CocoaError where
-                error.code == .fileWriteNoPermission || error.code == .fileReadNoPermission {
-                return .failure(.permissionDenied)
-            } catch {
-                return .failure(.osError(error.localizedDescription))
-            }
-        }.value
     }
 
     /// Validates a Syncthing-reported relative path against the folder root.

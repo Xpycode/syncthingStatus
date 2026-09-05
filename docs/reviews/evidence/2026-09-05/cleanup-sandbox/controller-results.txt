@@ -1,0 +1,62 @@
+EXACT_PICKER_CONTROLLER
+harness_pid=23593
+press=0
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+controllerGrant=true;obsolete=false;error=none
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/db/need"]
+
+EXACT_PERSISTED_CONTROLLER_DELETION
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+deleted=1;failed=0;blocked=false;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/system/version", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+sentinels=passed;intendedDeleted=True
+
+ANCESTOR_PICKER_CONTROLLER
+harness_pid=23607
+press=0
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+controllerGrant=true;obsolete=false;error=none
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/db/status", "GET /rest/system/connections", "GET /rest/db/need", "GET /rest/db/need"]
+
+ANCESTOR_PERSISTED_CONTROLLER_DELETION
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+deleted=1;failed=0;blocked=false;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/db/status", "GET /rest/system/connections", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+sentinels=passed;intendedDeleted=True
+
+OPEN_CONTROLLER_AUTHORITATIVE_PATH_CHANGED
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+deleted=0;failed=1;blocked=false;obsolete=true
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture"]
+
+sentinels=passed;intendedDeleted=False
+
+CLEAR_BOOKMARK
+before=denied;code=257
+statBefore=0;errno=1
+bookmark=cleared
+
+CLEARED_BOOKMARK_FRESH_CONTROLLER
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+deleted=0;failed=0;blocked=true;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need"]
+
+sentinels=passed;intendedDeleted=False

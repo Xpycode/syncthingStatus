@@ -1,0 +1,79 @@
+harness_pid=23622
+press=-25204
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+controllerGrant=true;obsolete=false;error=none
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/db/need"]
+
+DIALOG_CANCEL
+
+rootAndConsequencesText=Configured folder root:|/tmp/syncthingStatus-sandbox-probe/fixtures/Sync/Project||The folders listed below and everything inside them—including ignored files—will be permanently deleted. This cannot be undone.
+scrollArea=true
+selectionText=candidate
+deleteEnabled=true
+press=0
+
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+dialogAccepted=false
+deleted=0;failed=0;blocked=false;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need"]
+
+dialogAndSentinels=passed
+
+DIALOG_STALE
+
+rootAndConsequencesText=Configured folder root:|/tmp/syncthingStatus-sandbox-probe/fixtures/Sync/Project||The folders listed below and everything inside them—including ignored files—will be permanently deleted. This cannot be undone.
+scrollArea=true
+selectionText=candidate
+deleteEnabled=false
+press=0
+
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+dialogAccepted=false
+deleted=0;failed=0;blocked=false;obsolete=true
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/db/status", "GET /rest/system/connections", "GET /rest/db/need"]
+
+dialogAndSentinels=passed
+
+DIALOG_MANY
+
+rootAndConsequencesText=Configured folder root:|/tmp/syncthingStatus-sandbox-probe/fixtures/Sync/Project||The folders listed below and everything inside them—including ignored files—will be permanently deleted. This cannot be undone.
+scrollArea=true
+selectionText=candidate-001|candidate-002|candidate-003|candidate-004|candidate-005|candidate-006|candidate-007|candidate-008|candidate-009|candidate-010|candidate-011|candidate-012|candidate-013|candidate-014|candidate-015|candidate-016|candidate-017|candidate-018|candidate-019|candidate-020|candidate-021|candidate-022|candidate-023|candidate-024|candidate-025|candidate-026|candidate-027|candidate-028|candidate-029|candidate-030|candidate-031|candidate-032|candidate-033|candidate-034|candidate-035|candidate-036|candidate-037|candidate-038|candidate-039|candidate-040|candidate-041|candidate-042|candidate-043|candidate-044|candidate-045|candidate-046|candidate-047|candidate-048|candidate-049|candidate-050|candidate-051|candidate-052|candidate-053|candidate-054|candidate-055|candidate-056|candidate-057|candidate-058|candidate-059|candidate-060|candidate-061|candidate-062|candidate-063|candidate-064|candidate-065|candidate-066|candidate-067|candidate-068|candidate-069|candidate-070|candidate-071|candidate-072|candidate-073|candidate-074|candidate-075|candidate-076|candidate-077|candidate-078|candidate-079|candidate-080
+deleteEnabled=true
+press=0
+
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate-001", "candidate-002", "candidate-003", "candidate-004", "candidate-005", "candidate-006", "candidate-007", "candidate-008", "candidate-009", "candidate-010", "candidate-011", "candidate-012", "candidate-013", "candidate-014", "candidate-015", "candidate-016", "candidate-017", "candidate-018", "candidate-019", "candidate-020", "candidate-021", "candidate-022", "candidate-023", "candidate-024", "candidate-025", "candidate-026", "candidate-027", "candidate-028", "candidate-029", "candidate-030", "candidate-031", "candidate-032", "candidate-033", "candidate-034", "candidate-035", "candidate-036", "candidate-037", "candidate-038", "candidate-039", "candidate-040", "candidate-041", "candidate-042", "candidate-043", "candidate-044", "candidate-045", "candidate-046", "candidate-047", "candidate-048", "candidate-049", "candidate-050", "candidate-051", "candidate-052", "candidate-053", "candidate-054", "candidate-055", "candidate-056", "candidate-057", "candidate-058", "candidate-059", "candidate-060", "candidate-061", "candidate-062", "candidate-063", "candidate-064", "candidate-065", "candidate-066", "candidate-067", "candidate-068", "candidate-069", "candidate-070", "candidate-071", "candidate-072", "candidate-073", "candidate-074", "candidate-075", "candidate-076", "candidate-077", "candidate-078", "candidate-079", "candidate-080"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate-001", "candidate-002", "candidate-003", "candidate-004", "candidate-005", "candidate-006", "candidate-007", "candidate-008", "candidate-009", "candidate-010", "candidate-011", "candidate-012", "candidate-013", "candidate-014", "candidate-015", "candidate-016", "candidate-017", "candidate-018", "candidate-019", "candidate-020", "candidate-021", "candidate-022", "candidate-023", "candidate-024", "candidate-025", "candidate-026", "candidate-027", "candidate-028", "candidate-029", "candidate-030", "candidate-031", "candidate-032", "candidate-033", "candidate-034", "candidate-035", "candidate-036", "candidate-037", "candidate-038", "candidate-039", "candidate-040", "candidate-041", "candidate-042", "candidate-043", "candidate-044", "candidate-045", "candidate-046", "candidate-047", "candidate-048", "candidate-049", "candidate-050", "candidate-051", "candidate-052", "candidate-053", "candidate-054", "candidate-055", "candidate-056", "candidate-057", "candidate-058", "candidate-059", "candidate-060", "candidate-061", "candidate-062", "candidate-063", "candidate-064", "candidate-065", "candidate-066", "candidate-067", "candidate-068", "candidate-069", "candidate-070", "candidate-071", "candidate-072", "candidate-073", "candidate-074", "candidate-075", "candidate-076", "candidate-077", "candidate-078", "candidate-079", "candidate-080"]
+dialogAccepted=false
+deleted=0;failed=0;blocked=false;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need"]
+
+dialogAndSentinels=passed
+
+DIALOG_DELETE
+
+rootAndConsequencesText=Configured folder root:|/tmp/syncthingStatus-sandbox-probe/fixtures/Sync/Project||The folders listed below and everything inside them—including ignored files—will be permanently deleted. This cannot be undone.
+scrollArea=true
+selectionText=candidate
+deleteEnabled=true
+press=0
+
+before=denied;code=257
+statBefore=0;errno=1
+controllerCandidates=["candidate"];obsolete=false;error=none
+confirmationRootMatches=true;names=["candidate"]
+dialogAccepted=true
+deleted=1;failed=0;blocked=false;obsolete=false
+unexpectedHTTP=0;requests=["GET /rest/system/status", "GET /rest/system/config", "GET /rest/system/version", "GET /rest/system/connections", "GET /rest/db/status", "GET /rest/db/need", "GET /rest/system/status", "GET /rest/config/folders/fixture", "POST /rest/db/scan", "GET /rest/db/need"]
+
+dialogAndSentinels=passed

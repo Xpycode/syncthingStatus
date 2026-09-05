@@ -1,0 +1,155 @@
+
+/private/tmp/syncthingStatus-task1.2-red.log
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAlreadyGoneCandidateRemainsIdempotentAndPreservesSibling]' passed (0.022 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAncestorGrantDeletesConfiguredChildAndPreservesSameNamedSibling]' failed (0.563 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedConnectionWithReusedFolderIDInvalidatesOpenWindowImmediately]' failed (0.013 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedCredentialsInvalidateOpenWindowImmediately]' failed (0.012 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testDeletingDirectoryUnlinksNestedSymlinkAndPreservesExternalTarget]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testEmptyCandidateCannotBecomeSelectedDeletion]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testExactRootGrantDeletesOnlySelectedCandidateAndReloads]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testMissingBookmarkBlocksSelectedDeletion]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testObsoleteBookmarkCannotDeleteFromFormerRoot]' failed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testPrefixCollisionBookmarkCannotAuthorizeConfiguredRoot]' failed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRealBookmarkStoreMissingAndClearUseOnlyInjectedDefaults]' passed (0.004 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRemovedFolderCannotBeDeletedByOpenWindow]' failed (0.011 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReusedPathWithDifferentFolderIDCannotBeDeletedByOpenWindow]' failed (0.011 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRevokedBookmarkAfterCandidateLoadPreservesSelectedAndSibling]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testSelectedTraversalIsRejectedThroughProductionController]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleBookmarkRefreshesAndFalseScopeStartDoesNotImplyDenial]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleWindowCannotDeleteAfterConfiguredPathChangesUnderBroadGrant]' failed (0.012 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnsafeCandidatePathsAreRejectedWithoutLosingSentinels]' passed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testValidatePathRejectsTraversalOutsideTemporaryRoot]' passed (0.001 seconds).
+	 Executed 19 tests, with 37 failures (0 unexpected) in 0.729 (0.735) seconds
+	 Executed 19 tests, with 37 failures (0 unexpected) in 0.729 (0.735) seconds
+	 Executed 19 tests, with 37 failures (0 unexpected) in 0.729 (0.736) seconds
+** TEST FAILED **
+
+/private/tmp/syncthingStatus-access-snapshot-red.log
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingExactGrantWithAncestorInvalidatesReviewedConfirmation]' failed (0.633 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingGrantForSameScopeInvalidatesReviewedConfirmation]' failed (0.012 seconds).
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.645 (0.646) seconds
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.645 (0.646) seconds
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.645 (0.647) seconds
+** TEST FAILED **
+
+/private/tmp/syncthingStatus-access-snapshot-green.log
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAlreadyGoneCandidateRemainsIdempotentAndPreservesSibling]' passed (0.018 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAncestorGrantDeletesConfiguredChildAndPreservesSameNamedSibling]' passed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAuthoritativeConfigMismatchedIDCannotAuthorizeDeletion]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAuthoritativeConfigPathChangeBlocksDeletionBeforeCachedRefresh]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testCancellationWhilePreflightIsSuspendedPreservesSelectedCandidate]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testCanonicalPathAliasStillDeletesConfiguredCandidate]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedConnectionWithReusedFolderIDInvalidatesOpenWindowImmediately]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedCredentialsInvalidateOpenWindowImmediately]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedDaemonBehindSameAddressAndFolderIDCannotDeleteOldRoot]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testConfigurationChangeBetweenItemsPreservesRemainingOldAndNewTargets]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testConnectionChangeWhilePreflightIsSuspendedCannotDelete]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testDeletingDirectoryUnlinksNestedSymlinkAndPreservesExternalTarget]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testEmptyCandidateCannotBecomeSelectedDeletion]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testExactRootGrantDeletesOnlySelectedCandidateAndReloads]' passed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testExplicitConfirmationRejectsSelectionDriftAndNamesReviewedRoot]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testFailedPreflightRetainsReviewedCandidatesForRetry]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testFolderIDIsEncodedAsOnePreflightPathComponent]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testMissingBookmarkBlocksSelectedDeletion]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testObsoleteBookmarkCannotDeleteFromFormerRoot]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testOwnStaleBookmarkRefreshCanCompleteReviewedDeletion]' passed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testPartialOutcomeRemovesSuccessAndRetainsFailedCandidateAfterReload]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testPrefixCollisionBookmarkCannotAuthorizeConfiguredRoot]' passed (0.112 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRealBookmarkStoreMissingAndClearUseOnlyInjectedDefaults]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReloadAccessRequestAndCancelInvalidatePreviouslyReviewedConfirmation]' passed (0.018 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRemovedFolderCannotBeDeletedByOpenWindow]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingExactGrantWithAncestorInvalidatesReviewedConfirmation]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingGrantForSameScopeInvalidatesReviewedConfirmation]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRescanFailurePreservesDeletionOutcomeAndUnselectedCandidates]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReusedPathWithDifferentFolderIDCannotBeDeletedByOpenWindow]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRevokedBookmarkAfterCandidateLoadPreservesSelectedAndSibling]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testSameScopeGrantReplacementDuringSecondPreflightPreservesRemainingItem]' passed (0.012 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testSelectedTraversalIsRejectedThroughProductionController]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleBookmarkRefreshesAndFalseScopeStartDoesNotImplyDenial]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleWindowCannotDeleteAfterConfiguredPathChangesUnderBroadGrant]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnavailableAuthoritativeConfigCannotFallBackToCachedRoot]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnavailableDaemonIdentityCannotAuthorizeDeletion]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnsafeCandidatePathsAreRejectedWithoutLosingSentinels]' passed (0.021 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testValidatePathRejectsTraversalOutsideTemporaryRoot]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testWindowCancellationWhileConfigPreflightIsSuspendedPreservesSelection]' passed (0.009 seconds).
+	 Executed 39 tests, with 0 failures (0 unexpected) in 0.427 (0.438) seconds
+Test Case '-[syncthingStatusTests.ClientIsolationTests testPauseActionCapturesNotificationWithoutSystemCenter]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.ClientIsolationTests testRefreshUsesOnlyScriptedSessionAndSyntheticCredentials]' passed (0.022 seconds).
+Test Case '-[syncthingStatusTests.ClientIsolationTests testUnscriptedRequestFailsLocallyAndIsRecorded]' passed (0.005 seconds).
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.033 (0.034) seconds
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testCloseDrainsPendingSavesBeforeRemovingOnlyOwnedSuite]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testCompletedMigrationDoesNotOpenLegacySource]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testFlushPersistsLatestValuesAndDeletesEmptyCredential]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testInitializationPublishesInjectedCredentialAndReadsFakeLogin]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testMigrationReadsDisposableLegacySuiteWithoutMigratingBookmarks]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testResetUsesInjectedStoresAndLoginToggleUsesFakeSetter]' passed (0.005 seconds).
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.026 (0.028) seconds
+	 Executed 48 tests, with 0 failures (0 unexpected) in 0.487 (0.501) seconds
+	 Executed 48 tests, with 0 failures (0 unexpected) in 0.487 (0.502) seconds
+** TEST SUCCEEDED **
+
+/private/tmp/syncthingStatus-cleanup-build.log
+** BUILD SUCCEEDED **
+
+/private/tmp/syncthingStatus-cleanup-launch.log
+Quitting pid=4957, executable=/Applications/syncthingStatus.app/Contents/MacOS/syncthingStatus
+Confirmed all old instances exited.
+Fresh app launched pid=22975, executable=/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app/Contents/MacOS/syncthingStatus
+Verified exactly one running instance at the fresh executable path.
+
+/private/tmp/syncthingStatus-wave1-final-tests.log
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAlreadyGoneCandidateRemainsIdempotentAndPreservesSibling]' passed (0.019 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAncestorGrantDeletesConfiguredChildAndPreservesSameNamedSibling]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAuthoritativeConfigMismatchedIDCannotAuthorizeDeletion]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testAuthoritativeConfigPathChangeBlocksDeletionBeforeCachedRefresh]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testCancellationWhilePreflightIsSuspendedPreservesSelectedCandidate]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testCanonicalPathAliasStillDeletesConfiguredCandidate]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedConnectionWithReusedFolderIDInvalidatesOpenWindowImmediately]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedCredentialsInvalidateOpenWindowImmediately]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testChangedDaemonBehindSameAddressAndFolderIDCannotDeleteOldRoot]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testConfigurationChangeBetweenItemsPreservesRemainingOldAndNewTargets]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testConnectionChangeWhilePreflightIsSuspendedCannotDelete]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testDeletingDirectoryUnlinksNestedSymlinkAndPreservesExternalTarget]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testEmptyCandidateCannotBecomeSelectedDeletion]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testExactRootGrantDeletesOnlySelectedCandidateAndReloads]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testExplicitConfirmationRejectsSelectionDriftAndNamesReviewedRoot]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testFailedPreflightRetainsReviewedCandidatesForRetry]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testFolderIDIsEncodedAsOnePreflightPathComponent]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testMissingBookmarkBlocksSelectedDeletion]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testObsoleteBookmarkCannotDeleteFromFormerRoot]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testOwnStaleBookmarkRefreshCanCompleteReviewedDeletion]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testPartialOutcomeRemovesSuccessAndRetainsFailedCandidateAfterReload]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testPrefixCollisionBookmarkCannotAuthorizeConfiguredRoot]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRealBookmarkStoreMissingAndClearUseOnlyInjectedDefaults]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReloadAccessRequestAndCancelInvalidatePreviouslyReviewedConfirmation]' passed (0.016 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRemovedFolderCannotBeDeletedByOpenWindow]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingExactGrantWithAncestorInvalidatesReviewedConfirmation]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingGrantForSameScopeInvalidatesReviewedConfirmation]' passed (0.006 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReplacingRootDirectoryAtReviewedPathPreservesOldAndNewContents]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRescanFailurePreservesDeletionOutcomeAndUnselectedCandidates]' passed (0.008 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testReusedPathWithDifferentFolderIDCannotBeDeletedByOpenWindow]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testRevokedBookmarkAfterCandidateLoadPreservesSelectedAndSibling]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testSameScopeGrantReplacementDuringSecondPreflightPreservesRemainingItem]' passed (0.010 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testSelectedTraversalIsRejectedThroughProductionController]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleBookmarkRefreshesAndFalseScopeStartDoesNotImplyDenial]' passed (0.055 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testStaleWindowCannotDeleteAfterConfiguredPathChangesUnderBroadGrant]' passed (0.009 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnavailableAuthoritativeConfigCannotFallBackToCachedRoot]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnavailableDaemonIdentityCannotAuthorizeDeletion]' passed (0.007 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testUnsafeCandidatePathsAreRejectedWithoutLosingSentinels]' passed (0.015 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testValidatePathRejectsTraversalOutsideTemporaryRoot]' passed (0.001 seconds).
+Test Case '-[syncthingStatusTests.CleanupSafetyTests testWindowCancellationWhileConfigPreflightIsSuspendedPreservesSelection]' passed (0.007 seconds).
+	 Executed 40 tests, with 0 failures (0 unexpected) in 0.355 (0.365) seconds
+Test Case '-[syncthingStatusTests.ClientIsolationTests testPauseActionCapturesNotificationWithoutSystemCenter]' passed (0.019 seconds).
+Test Case '-[syncthingStatusTests.ClientIsolationTests testRefreshUsesOnlyScriptedSessionAndSyntheticCredentials]' passed (0.004 seconds).
+Test Case '-[syncthingStatusTests.ClientIsolationTests testUnscriptedRequestFailsLocallyAndIsRecorded]' passed (0.004 seconds).
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.027 (0.028) seconds
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testCloseDrainsPendingSavesBeforeRemovingOnlyOwnedSuite]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testCompletedMigrationDoesNotOpenLegacySource]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testFlushPersistsLatestValuesAndDeletesEmptyCredential]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testInitializationPublishesInjectedCredentialAndReadsFakeLogin]' passed (0.003 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testMigrationReadsDisposableLegacySuiteWithoutMigratingBookmarks]' passed (0.005 seconds).
+Test Case '-[syncthingStatusTests.SettingsIsolationTests testResetUsesInjectedStoresAndLoginToggleUsesFakeSetter]' passed (0.004 seconds).
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.023 (0.025) seconds
+	 Executed 49 tests, with 0 failures (0 unexpected) in 0.406 (0.419) seconds
+	 Executed 49 tests, with 0 failures (0 unexpected) in 0.406 (0.420) seconds
+** TEST SUCCEEDED **

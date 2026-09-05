@@ -179,6 +179,11 @@ final class StuckDeletesWindowController: NSWindowController {
         stuckController.dismissAction = { [weak window] in
             window?.close()
         }
+        stuckController.requestConfirmationAction = { [weak window, weak stuckController] review, completion in
+            guard let window, let stuckController else { completion(false); return }
+            CleanupConfirmationDialog.present(review, controller: stuckController, window: window,
+                                              completion: completion)
+        }
         stuckController.requestAccessAction = { [weak window, weak stuckController] in
             guard let stuckController else { return }
             let folder = stuckController.folder
@@ -702,6 +707,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             revertToAccessoryIfAppropriate(excluding: window)
             settingsWindow = nil
         } else if let entry = stuckDeletesWindowControllers.first(where: { $0.value.window === window }) {
+            entry.value.stuckController.cancelPendingWork()
             revertToAccessoryIfAppropriate(excluding: window)
             stuckDeletesWindowControllers.removeValue(forKey: entry.key)
         }
