@@ -224,6 +224,8 @@ struct RemoteNeedItem: Decodable, Identifiable, Equatable {
 /// them), but we merge all three buckets so a delete that briefly cycles
 /// through `progress`/`queued` isn't missed.
 struct DbNeedResponse: Decodable {
+    let page: Int
+    let perpage: Int
     let progress: [RemoteNeedItem]
     let queued: [RemoteNeedItem]
     let rest: [RemoteNeedItem]
@@ -232,13 +234,15 @@ struct DbNeedResponse: Decodable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        progress = (try? c.decode([RemoteNeedItem].self, forKey: .progress)) ?? []
-        queued = (try? c.decode([RemoteNeedItem].self, forKey: .queued)) ?? []
-        rest = (try? c.decode([RemoteNeedItem].self, forKey: .rest)) ?? []
+        page = try c.decode(Int.self, forKey: .page)
+        perpage = try c.decode(Int.self, forKey: .perpage)
+        progress = try c.decode([RemoteNeedItem].self, forKey: .progress)
+        queued = try c.decode([RemoteNeedItem].self, forKey: .queued)
+        rest = try c.decode([RemoteNeedItem].self, forKey: .rest)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case progress, queued, rest
+        case page, perpage, progress, queued, rest
     }
 }
 

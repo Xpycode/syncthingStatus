@@ -30,6 +30,14 @@ enum IconColorMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum FolderNotificationSelectionMode: String, CaseIterable, Identifiable {
+    case all
+    case selected
+
+    var id: String { rawValue }
+    var displayName: String { self == .all ? "All" : "Selected" }
+}
+
 final class SyncthingSettings: ObservableObject {
     @Published var useAutomaticDiscovery: Bool
     @Published var baseURLString: String
@@ -47,6 +55,7 @@ final class SyncthingSettings: ObservableObject {
     /// Set to 0 to disable throttling (notify on every completion). Prevents
     /// notification spam when a folder churns through many small syncs.
     @Published var syncNotificationCooldownMinutes: Double
+    @Published var folderNotificationSelectionMode: FolderNotificationSelectionMode
     @Published var notificationEnabledFolderIDs: [String]
     @Published var configBookmarkData: Data?
     @Published var configBookmarkPath: String?
@@ -90,6 +99,7 @@ final class SyncthingSettings: ObservableObject {
         static let showStalledSyncNotifications = "SyncthingSettings.showStalledSyncNotifications"
         static let stalledSyncTimeoutMinutes = "SyncthingSettings.stalledSyncTimeoutMinutes"
         static let syncNotificationCooldownMinutes = "SyncthingSettings.syncNotificationCooldownMinutes"
+        static let folderNotificationSelectionMode = "SyncthingSettings.folderNotificationSelectionMode"
         static let notificationEnabledFolderIDs = "SyncthingSettings.notificationEnabledFolderIDs"
         static let configBookmarkData = "SyncthingSettings.configBookmarkData"
         static let configBookmarkPath = "SyncthingSettings.configBookmarkPath"
@@ -128,7 +138,20 @@ final class SyncthingSettings: ObservableObject {
         showStalledSyncNotifications = defaults.object(forKey: Keys.showStalledSyncNotifications) as? Bool ?? false
         stalledSyncTimeoutMinutes = defaults.object(forKey: Keys.stalledSyncTimeoutMinutes) as? Double ?? AppConstants.Sync.defaultStalledTimeoutMinutes
         syncNotificationCooldownMinutes = defaults.object(forKey: Keys.syncNotificationCooldownMinutes) as? Double ?? 5.0
-        notificationEnabledFolderIDs = defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
+        let storedNotificationFolderIDs = Self.deduplicatedFolderIDs(
+            defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []
+        )
+        notificationEnabledFolderIDs = storedNotificationFolderIDs
+        let storedNotificationMode = defaults.string(forKey: Keys.folderNotificationSelectionMode)
+            .flatMap(FolderNotificationSelectionMode.init(rawValue:))
+            ?? (storedNotificationFolderIDs.isEmpty ? .all : .selected)
+        folderNotificationSelectionMode = storedNotificationMode
+        if defaults.string(forKey: Keys.folderNotificationSelectionMode) == nil {
+            defaults.set(storedNotificationMode.rawValue, forKey: Keys.folderNotificationSelectionMode)
+        }
+        if (defaults.object(forKey: Keys.notificationEnabledFolderIDs) as? [String] ?? []) != storedNotificationFolderIDs {
+            defaults.set(storedNotificationFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
+        }
         configBookmarkData = defaults.data(forKey: Keys.configBookmarkData)
         configBookmarkPath = defaults.string(forKey: Keys.configBookmarkPath)
         popoverMaxHeightPercentage = defaults.object(forKey: Keys.popoverMaxHeightPercentage) as? Double ?? AppConstants.UI.defaultPopoverMaxHeightPercentage
@@ -249,9 +272,9 @@ final class SyncthingSettings: ObservableObject {
             }
             .store(in: &cancellables)
 
-        $notificationEnabledFolderIDs
+        Publishers.CombineLatest($folderNotificationSelectionMode, $notificationEnabledFolderIDs)
             .dropFirst()
-            .sink { [weak self] _ in
+            .sink { [weak self] _, _ in
                 self?.scheduleSave()
             }
             .store(in: &cancellables)
@@ -334,7 +357,8 @@ final class SyncthingSettings: ObservableObject {
         defaults.set(showStalledSyncNotifications, forKey: Keys.showStalledSyncNotifications)
         defaults.set(stalledSyncTimeoutMinutes, forKey: Keys.stalledSyncTimeoutMinutes)
         defaults.set(syncNotificationCooldownMinutes, forKey: Keys.syncNotificationCooldownMinutes)
-        defaults.set(notificationEnabledFolderIDs, forKey: Keys.notificationEnabledFolderIDs)
+        defaults.set(folderNotificationSelectionMode.rawValue, forKey: Keys.folderNotificationSelectionMode)
+        defaults.set(Self.deduplicatedFolderIDs(notificationEnabledFolderIDs), forKey: Keys.notificationEnabledFolderIDs)
         defaults.set(popoverMaxHeightPercentage, forKey: Keys.popoverMaxHeightPercentage)
         defaults.set(iconColorMode.rawValue, forKey: Keys.iconColorMode)
         defaults.set(stuckDeletesAlertsEnabled, forKey: Keys.stuckDeletesAlertsEnabled)
@@ -347,6 +371,35 @@ final class SyncthingSettings: ObservableObject {
     var resolvedManualAPIKey: String? {
         let trimmed = manualAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    func folderNotificationsEnabled(for folderID: String) -> Bool {
+        folderNotificationSelectionMode == .all || notificationEnabledFolderIDs.contains(folderID)
+    }
+
+    func setFolderNotificationSelectionMode(_ mode: FolderNotificationSelectionMode, availableFolderIDs: [String]) {
+        folderNotificationSelectionMode = mode
+        notificationEnabledFolderIDs = mode == .all ? [] : Self.deduplicatedFolderIDs(availableFolderIDs)
+    }
+
+    func setFolderNotificationEnabled(_ enabled: Bool, folderID: String, availableFolderIDs: [String]) {
+        if folderNotificationSelectionMode == .all {
+            guard !enabled else { return }
+            folderNotificationSelectionMode = .selected
+            notificationEnabledFolderIDs = Self.deduplicatedFolderIDs(availableFolderIDs).filter { $0 != folderID }
+            return
+        }
+
+        if enabled {
+            notificationEnabledFolderIDs = Self.deduplicatedFolderIDs(notificationEnabledFolderIDs + [folderID])
+        } else {
+            notificationEnabledFolderIDs.removeAll { $0 == folderID }
+        }
+    }
+
+    private static func deduplicatedFolderIDs(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
     func resetToDefaults() {
@@ -363,6 +416,7 @@ final class SyncthingSettings: ObservableObject {
         showStalledSyncNotifications = false
         stalledSyncTimeoutMinutes = 5.0
         syncNotificationCooldownMinutes = 5.0
+        folderNotificationSelectionMode = .all
         notificationEnabledFolderIDs = []
         popoverMaxHeightPercentage = 70.0
         iconColorMode = .monochrome
@@ -468,6 +522,7 @@ final class SyncthingSettings: ObservableObject {
             Keys.showStalledSyncNotifications,
             Keys.stalledSyncTimeoutMinutes,
             Keys.syncNotificationCooldownMinutes,
+            Keys.folderNotificationSelectionMode,
             Keys.notificationEnabledFolderIDs,
             Keys.popoverMaxHeightPercentage,
             Keys.iconColorMode,

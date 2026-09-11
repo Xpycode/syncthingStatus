@@ -3,6 +3,51 @@ import Charts
 import AppKit
 import UniformTypeIdentifiers
 
+@MainActor
+private enum SyncthingConfigPicker {
+    enum Result { case selected, cancelled, failed(Error) }
+
+    static func present(settings: SyncthingSettings, completion: @escaping (Result) -> Void) {
+        let panel = NSOpenPanel()
+        panel.title = "Select Syncthing config.xml"
+        panel.prompt = "Grant Access"
+        let directory = defaultDirectory()
+        let suggestedURL = settings.configBookmarkPath.map(URL.init(fileURLWithPath:))
+            ?? directory?.appendingPathComponent("config.xml")
+        let path = suggestedURL.map { ($0.path as NSString).abbreviatingWithTildeInPath }
+            ?? "~/Library/Application Support/Syncthing/config.xml"
+        panel.message = "syncthingStatus needs access to Syncthing's config.xml (typically \(path)). Press ⌘⇧. to show hidden folders."
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.xml]
+        panel.directoryURL = suggestedURL?.deletingLastPathComponent() ?? directory
+        panel.nameFieldStringValue = suggestedURL?.lastPathComponent ?? "config.xml"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else {
+                completion(.cancelled)
+                return
+            }
+            do {
+                try settings.updateConfigBookmark(with: url)
+                completion(.selected)
+            } catch {
+                completion(.failed(error))
+            }
+        }
+    }
+
+    private static func defaultDirectory() -> URL? {
+        let fileManager = FileManager.default
+        let home = URL(fileURLWithPath: realHomeDirectoryPath() ?? fileManager.homeDirectoryForCurrentUser.path,
+                       isDirectory: true)
+        let primary = home.appendingPathComponent("Library/Application Support/Syncthing", isDirectory: true)
+        if fileManager.fileExists(atPath: primary.path) { return primary }
+        let alternate = home.appendingPathComponent(".config/syncthing", isDirectory: true)
+        return fileManager.fileExists(atPath: alternate.path) ? alternate : nil
+    }
+}
+
 // MARK: - PreferenceKey for dynamic height
 struct ViewHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -40,7 +85,7 @@ struct ContentView: View {
             Divider().padding(.vertical, AppConstants.UI.paddingS)
 
             if !syncthingClient.isConnected {
-                DisconnectedView(appDelegate: appDelegate, settings: settings)
+                DisconnectedView(appDelegate: appDelegate, settings: settings, syncthingClient: syncthingClient)
             } else {
                 // CRITICAL: Popover sizing structure - DO NOT MODIFY without testing!
                 // This specific arrangement is required for proper popover height calculation:
@@ -190,14 +235,23 @@ struct DisconnectedView: View {
     @Environment(\.openSettings) private var openSettings
     var appDelegate: AppDelegate  // Strong reference
     let settings: SyncthingSettings
+    @ObservedObject var syncthingClient: SyncthingClient
     
     var body: some View {
         VStack(spacing: AppConstants.UI.spacingL) {
             Spacer()
             Image(systemName: "wifi.slash").font(.largeTitle).foregroundColor(.red)
             Text("Syncthing Not Connected").font(.title3).fontWeight(.medium)
-            Text("Make sure Syncthing is running and the API key is set.")
-                .font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
+            Text(syncthingClient.lastErrorMessage ?? "Make sure Syncthing is running and the API key is set.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            if let recovery = syncthingClient.connectionRecovery {
+                Button(recoveryButtonTitle(recovery.action)) { performRecovery(recovery.action) }
+                    .buttonStyle(.borderedProminent)
+            }
             Button("Open Syncthing Web UI") {
                 if let url = URL(string: settings.baseURLString) { NSWorkspace.shared.open(url) }
             }.buttonStyle(.borderedProminent)
@@ -206,6 +260,28 @@ struct DisconnectedView: View {
             }
             .buttonStyle(.bordered)
             Spacer()
+        }
+        .padding(.horizontal)
+    }
+
+    private func recoveryButtonTitle(_ action: ConnectionRecoveryAction) -> String {
+        switch action {
+        case .selectConfig: return "Select Syncthing config.xml…"
+        case .openSettings: return "Open Connection Settings"
+        case .retry: return "Try Again"
+        }
+    }
+
+    private func performRecovery(_ action: ConnectionRecoveryAction) {
+        switch action {
+        case .selectConfig:
+            SyncthingConfigPicker.present(settings: settings) { result in
+                if case .selected = result { Task { await syncthingClient.refresh() } }
+            }
+        case .openSettings:
+            appDelegate.presentSettings(using: openSettings.callAsFunction)
+        case .retry:
+            Task { await syncthingClient.refresh() }
         }
     }
 }
@@ -228,8 +304,8 @@ struct FooterView: View {
                     Text(errorMessage)
                         .font(.caption)
                         .foregroundColor(.red)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
                         .help(errorMessage)
                 }
             }
@@ -1762,7 +1838,7 @@ struct StuckDeletesView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(selection.isEmpty || controller.deleting || controller.loading || controller.obsolete || controller.lastError != nil)
+                .disabled(selection.isEmpty || !controller.candidatesActionable || controller.deleting || controller.loading || controller.obsolete || controller.lastError != nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
 
@@ -1861,35 +1937,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("General") {
-                Toggle("Launch at Login", isOn: $settings.launchAtLogin)
-
-                VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
-                    HStack {
-                        Text("Popover Max Height:")
-                        Spacer()
-                        Text("\(Int(settings.popoverMaxHeightPercentage))% of screen")
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $settings.popoverMaxHeightPercentage, in: 30...100, step: 5)
-                    Text("Controls how tall the status popover can grow before showing scrollbars")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Section("Status Icon") {
-                Picker("Icon style", selection: $settings.iconColorMode) {
-                    ForEach(IconColorMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                Text("Monochrome uses the classic icon set. Traffic-Light adds an amber warning icon for soft states (paused devices, partial sync).")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             Section("Connection Mode") {
                 Toggle("Discover API key from Syncthing config.xml", isOn: $settings.useAutomaticDiscovery)
                 Text("Turn this off to point the app at a different Syncthing instance.")
@@ -1941,6 +1988,35 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
             .disabled(!isManualMode)
+
+            Section("General") {
+                Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+
+                VStack(alignment: .leading, spacing: AppConstants.UI.spacingS) {
+                    HStack {
+                        Text("Popover Max Height:")
+                        Spacer()
+                        Text("\(Int(settings.popoverMaxHeightPercentage))% of screen")
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $settings.popoverMaxHeightPercentage, in: 30...100, step: 5)
+                    Text("Controls how tall the status popover can grow before showing scrollbars")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Status Icon") {
+                Picker("Icon style", selection: $settings.iconColorMode) {
+                    ForEach(IconColorMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                Text("Monochrome uses the classic icon set. Traffic-Light adds an amber warning icon for soft states (paused devices, partial sync).")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Section("Sync Completion") {
                 Text("Up to date means no pending files, directories, symlinks, deletions or bytes. Scanning and unavailable status are shown separately; offline devices do not imply a connection failure to Syncthing.")
@@ -2014,18 +2090,42 @@ struct SettingsView: View {
                 }
                 
                 DisclosureGroup("Per-folder sync completion notifications") {
+                    HStack {
+                        Text("Folders")
+                        Spacer()
+                        NotificationFolderScopeControl(
+                            selection: settings.folderNotificationSelectionMode,
+                            onSelect: { mode in
+                                settings.setFolderNotificationSelectionMode(
+                                    mode,
+                                    availableFolderIDs: syncthingClient.folders.map(\.id)
+                                )
+                            }
+                        )
+                        .frame(width: 150, height: 24)
+                    }
+
+                    Text(settings.folderNotificationSelectionMode == .all
+                         ? "Every folder, including folders added later."
+                         : (settings.notificationEnabledFolderIDs.isEmpty
+                            ? "No per-folder completion notifications. The separate All Synced notice remains enabled above."
+                            : "Only selected folders. The separate All Synced notice remains enabled above."))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     if syncthingClient.folders.isEmpty {
                         EmptyStateText(message: "No folders configured")
                     } else {
                         ForEach(syncthingClient.folders) { folder in
                             Toggle(folder.label, isOn: Binding(
-                                get: { settings.notificationEnabledFolderIDs.contains(folder.id) },
+                                get: { settings.folderNotificationsEnabled(for: folder.id) },
                                 set: { isOn in
-                                    if isOn {
-                                        settings.notificationEnabledFolderIDs.append(folder.id)
-                                    } else {
-                                        settings.notificationEnabledFolderIDs.removeAll { $0 == folder.id }
-                                    }
+                                    settings.setFolderNotificationEnabled(
+                                        isOn,
+                                        folderID: folder.id,
+                                        availableFolderIDs: syncthingClient.folders.map(\.id)
+                                    )
                                 }
                             ))
                         }
@@ -2098,79 +2198,58 @@ struct SettingsView: View {
         }
     }
 
-    private func selectSyncthingConfig() {
-        guard !isSelectingConfig else { return }
-        isSelectingConfig = true
+    private struct NotificationFolderScopeControl: NSViewRepresentable {
+        let selection: FolderNotificationSelectionMode
+        let onSelect: (FolderNotificationSelectionMode) -> Void
 
-        let panel = NSOpenPanel()
-        panel.title = "Select Syncthing config.xml"
-        panel.prompt = "Grant Access"
+        func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
 
-        let suggestedURL: URL?
-        if let existingPath = settings.configBookmarkPath {
-            suggestedURL = URL(fileURLWithPath: existingPath)
-        } else {
-            suggestedURL = defaultSyncthingConfigDirectory()?.appendingPathComponent("config.xml")
+        func makeNSView(context: Context) -> NSSegmentedControl {
+            let control = NSSegmentedControl(labels: FolderNotificationSelectionMode.allCases.map(\.displayName),
+                                             trackingMode: .selectOne,
+                                             target: context.coordinator,
+                                             action: #selector(Coordinator.changed(_:)))
+            control.segmentStyle = .rounded
+            updateNSView(control, context: context)
+            return control
         }
 
-        let pathDescription: String
-        if let suggestedURL {
-            pathDescription = (suggestedURL.path as NSString).abbreviatingWithTildeInPath
-        } else {
-            pathDescription = "~/Library/Application Support/Syncthing/config.xml"
-        }
-        panel.message = "syncthingStatus needs access to Syncthing's config.xml (typically \(pathDescription)). Press ⌘⇧. to show hidden folders."
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        if #available(macOS 11.0, *) {
-            panel.allowedContentTypes = [.xml]
-        } else {
-            panel.allowedFileTypes = ["xml"]
-        }
-        if let existing = settings.configBookmarkPath {
-            let url = URL(fileURLWithPath: existing)
-            panel.directoryURL = url.deletingLastPathComponent()
-            panel.nameFieldStringValue = url.lastPathComponent
-        } else if let directory = defaultSyncthingConfigDirectory() {
-            panel.directoryURL = directory
-            panel.nameFieldStringValue = "config.xml"
-        } else {
-            panel.nameFieldStringValue = "config.xml"
+        func updateNSView(_ control: NSSegmentedControl, context: Context) {
+            context.coordinator.onSelect = onSelect
+            control.selectedSegment = FolderNotificationSelectionMode.allCases.firstIndex(of: selection) ?? 0
         }
 
-        panel.begin { response in
-            defer { isSelectingConfig = false }
+        @MainActor
+        final class Coordinator: NSObject {
+            var onSelect: (FolderNotificationSelectionMode) -> Void
+            init(onSelect: @escaping (FolderNotificationSelectionMode) -> Void) { self.onSelect = onSelect }
 
-            guard response == .OK, let url = panel.url else {
-                if !settings.hasConfigBookmark {
-                    settings.useAutomaticDiscovery = false
-                }
-                return
-            }
-
-            do {
-                try settings.updateConfigBookmark(with: url)
-                configSelectionError = nil
-                if settings.useAutomaticDiscovery {
-                    Task { await syncthingClient.refresh() }
-                }
-            } catch {
-                configSelectionError = error.localizedDescription
+            @objc func changed(_ sender: NSSegmentedControl) {
+                guard FolderNotificationSelectionMode.allCases.indices.contains(sender.selectedSegment) else { return }
+                onSelect(FolderNotificationSelectionMode.allCases[sender.selectedSegment])
             }
         }
     }
 
-    private func defaultSyncthingConfigDirectory() -> URL? {
-        let fileManager = FileManager.default
-        // Real home — under sandbox homeDirectoryForCurrentUser is the app
-        // container, which never holds Syncthing's config.
-        let home = URL(fileURLWithPath: realHomeDirectoryPath() ?? fileManager.homeDirectoryForCurrentUser.path, isDirectory: true)
-        let primary = home.appendingPathComponent("Library/Application Support/Syncthing", isDirectory: true)
-        if fileManager.fileExists(atPath: primary.path) { return primary }
-        let alternate = home.appendingPathComponent(".config/syncthing", isDirectory: true)
-        if fileManager.fileExists(atPath: alternate.path) { return alternate }
-        return nil
+    private func selectSyncthingConfig() {
+        guard !isSelectingConfig else { return }
+        isSelectingConfig = true
+        SyncthingConfigPicker.present(settings: settings) { result in
+            defer { isSelectingConfig = false }
+            switch result {
+            case .cancelled:
+                if !settings.hasConfigBookmark {
+                    settings.useAutomaticDiscovery = false
+                }
+            case .selected:
+                configSelectionError = nil
+                if settings.useAutomaticDiscovery {
+                    Task { await syncthingClient.refresh() }
+                }
+            case .failed(let error):
+                configSelectionError = error.localizedDescription
+            }
+        }
     }
 
     private func exportDiagnosticLog() {

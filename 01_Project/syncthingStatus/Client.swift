@@ -75,6 +75,67 @@ enum SyncthingClientError: LocalizedError {
     }
 }
 
+enum ConnectionRecoveryKind: Equatable {
+    case configAccess
+    case credentials
+    case url
+    case transport
+}
+
+enum ConnectionRecoveryAction: Equatable {
+    case selectConfig
+    case openSettings
+    case retry
+}
+
+struct ConnectionRecovery: Equatable {
+    let kind: ConnectionRecoveryKind
+    let action: ConnectionRecoveryAction
+}
+
+enum NotificationAuthorizationTrigger {
+    case firstSuccessfulConnection
+    case explicitIntent
+}
+
+struct NotificationAuthorizationPolicy {
+    static func shouldRequest(status: UNAuthorizationStatus,
+                              trigger: NotificationAuthorizationTrigger,
+                              notificationsEnabled: Bool) -> Bool {
+        guard status == .notDetermined else { return false }
+        switch trigger {
+        case .firstSuccessfulConnection: return notificationsEnabled
+        case .explicitIntent: return true
+        }
+    }
+}
+
+@MainActor
+final class NotificationAuthorizationCoordinator {
+    typealias StatusProvider = () async -> UNAuthorizationStatus
+    typealias RequestAuthorization = () async throws -> Bool
+    private let statusProvider: StatusProvider
+    private let requestAuthorization: RequestAuthorization
+    private var requestInFlight = false
+    private var didAttemptAuthorization = false
+
+    init(statusProvider: @escaping StatusProvider, requestAuthorization: @escaping RequestAuthorization) {
+        self.statusProvider = statusProvider
+        self.requestAuthorization = requestAuthorization
+    }
+
+    func handle(_ trigger: NotificationAuthorizationTrigger, notificationsEnabled: Bool) async throws {
+        guard !requestInFlight, !didAttemptAuthorization else { return }
+        let status = await statusProvider()
+        guard NotificationAuthorizationPolicy.shouldRequest(status: status, trigger: trigger,
+                                                             notificationsEnabled: notificationsEnabled) else { return }
+        requestInFlight = true
+        didAttemptAuthorization = true
+        defer { requestInFlight = false }
+        _ = try await requestAuthorization()
+    }
+}
+
 // MARK: - API Key XML Parser
 class ApiKeyParserDelegate: NSObject, XMLParserDelegate {
     private var isApiKeyTag = false
@@ -161,6 +222,9 @@ class SyncthingClient: ObservableObject {
     private var baseURL: URL?
     private var apiKey: String?
     private var cachedAutomaticAPIKey: String?
+    private var pendingFolderPauseIntents: [String: Bool] = [:]
+    private var foldersWithPauseMutationInFlight = Set<String>()
+    private var folderPauseMutationErrors: [String: String] = [:]
     /// Changes immediately on connection settings edits, before the refresh debounce.
     @Published private(set) var cleanupConnectionRevision = UUID()
     private var cancellables = Set<AnyCancellable>()
@@ -223,6 +287,7 @@ class SyncthingClient: ObservableObject {
     @Published var totalTransferHistory_published = DeviceTransferHistory()
     @Published var localDeviceName: String = ""
     @Published var lastErrorMessage: String?
+    @Published private(set) var connectionRecovery: ConnectionRecovery?
     @Published var syncthingVersion: String?
     @Published var lastGlobalSyncNotificationSentAt: Date?
 
@@ -495,8 +560,11 @@ class SyncthingClient: ObservableObject {
     
     private func prepareCredentials() -> Bool {
         let trimmedBase = settings.trimmedBaseURL
-        guard let resolvedBaseURL = URL(string: trimmedBase), !trimmedBase.isEmpty else {
+        guard let resolvedBaseURL = URL(string: trimmedBase), !trimmedBase.isEmpty,
+              ["http", "https"].contains(resolvedBaseURL.scheme?.lowercased() ?? ""),
+              resolvedBaseURL.host != nil else {
             self.lastErrorMessage = "Syncthing base URL is invalid or empty."
+            self.connectionRecovery = ConnectionRecovery(kind: .url, action: .openSettings)
             return false
         }
         baseURL = resolvedBaseURL
@@ -520,6 +588,7 @@ class SyncthingClient: ObservableObject {
                         self.lastErrorMessage = error.localizedDescription
                     }
                     cachedAutomaticAPIKey = nil
+                    connectionRecovery = Self.recovery(for: error, automaticDiscovery: true)
                     return false
                 }
             }
@@ -528,6 +597,7 @@ class SyncthingClient: ObservableObject {
         } else {
             guard let manualKey = settings.resolvedManualAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines), !manualKey.isEmpty else {
                 self.lastErrorMessage = "Manual API key is empty."
+                self.connectionRecovery = ConnectionRecovery(kind: .credentials, action: .openSettings)
                 return false
             }
             apiKey = manualKey
@@ -743,6 +813,33 @@ class SyncthingClient: ObservableObject {
             throw SyncthingClientError.httpStatus(code: code, endpoint: endpoint)
         }
     }
+
+    private func patchJSON(path: String, lastPathComponent: String, body: [String: Bool]) async throws {
+        guard let base = endpointURL(path: path),
+              var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw URLError(.badURL)
+        }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        guard let encoded = lastPathComponent.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            throw URLError(.badURL)
+        }
+        components.percentEncodedPath += "/" + encoded
+        guard let url = components.url, let apiKey else { throw SyncthingClientError.missingAPIKey }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+
+        let (_, response) = try await loadData(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...204).contains(httpResponse.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw SyncthingClientError.httpStatus(code: code, endpoint: path)
+        }
+    }
     
     func fetchStatus(generation: UUID? = nil) async {
         let generation = generation ?? refreshGeneration
@@ -753,6 +850,7 @@ class SyncthingClient: ObservableObject {
             self.systemStatus = status
             self.isConnected = true
             self.lastErrorMessage = nil
+            self.connectionRecovery = nil
         } catch {
             guard canPublish(generation), !isCancellationError(error) else { return }
             handleDisconnectedState()
@@ -782,7 +880,30 @@ class SyncthingClient: ObservableObject {
             }
 
             self.lastErrorMessage = "Failed to connect to Syncthing: \(message)"
+            self.connectionRecovery = Self.recovery(for: error, automaticDiscovery: settings.useAutomaticDiscovery)
         }
+    }
+
+    static func recovery(for error: Error, automaticDiscovery: Bool) -> ConnectionRecovery {
+        if let error = error as? SyncthingClientError {
+            switch error {
+            case .configAccessDenied, .configNotFound, .configReadFailed:
+                return ConnectionRecovery(kind: .configAccess, action: .selectConfig)
+            case .configMissingKey, .missingAPIKey:
+                return ConnectionRecovery(kind: .credentials,
+                                          action: automaticDiscovery ? .selectConfig : .openSettings)
+            case .httpStatus(let code, _):
+                if code == 401 || code == 403 {
+                    return ConnectionRecovery(kind: .credentials,
+                                              action: automaticDiscovery ? .selectConfig : .openSettings)
+                }
+                return ConnectionRecovery(kind: .transport, action: .retry)
+            }
+        }
+        if let error = error as? URLError, error.code == .badURL {
+            return ConnectionRecovery(kind: .url, action: .openSettings)
+        }
+        return ConnectionRecovery(kind: .transport, action: .retry)
     }
     
 
@@ -1216,8 +1337,7 @@ class SyncthingClient: ObservableObject {
                 recentSyncEvents = syncEvents.reversed()
 
                 // Send notification for sync completion
-                let folderNotificationsEnabled = settings.notificationEnabledFolderIDs.isEmpty ||
-                    settings.notificationEnabledFolderIDs.contains(folder.id)
+                let folderNotificationsEnabled = settings.folderNotificationsEnabled(for: folder.id)
                 
                 if event.eventType == .syncCompleted && settings.showSyncNotifications && folderNotificationsEnabled {
                     // Per-folder cooldown: skip if we sent a sync-complete
@@ -1582,12 +1702,13 @@ class SyncthingClient: ObservableObject {
     /// Syncthing wants gone but can't remove. **Not** called from the poll loop:
     /// the Syncthing docs explicitly warn this endpoint is expensive
     /// ("increasing CPU and RAM usage on the device. Use sparingly.").
-    func fetchDbNeed(folder: String) async throws -> DbNeedResponse {
+    func fetchDbNeed(folder: String, page: Int, perpage: Int = 1000) async throws -> DbNeedResponse {
         return try await makeRequest(
             path: "db/need",
             queryItems: [
                 URLQueryItem(name: "folder", value: folder),
-                URLQueryItem(name: "perpage", value: "1000")
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "perpage", value: String(perpage))
             ],
             responseType: DbNeedResponse.self
         )
@@ -1658,48 +1779,33 @@ class SyncthingClient: ObservableObject {
     }
 
     private func setFolderPausedState(folderID: String, paused: Bool) async {
-        do {
-            // 1. Get the current config as raw JSON data
-            let configData = try await makeRawRequest(endpoint: "system/config")
+        pendingFolderPauseIntents[folderID] = paused
+        guard !foldersWithPauseMutationInFlight.contains(folderID) else { return }
+        foldersWithPauseMutationInFlight.insert(folderID)
+        defer { foldersWithPauseMutationInFlight.remove(folderID) }
 
-            // 2. Deserialize to a dictionary
-            guard var configJSON = try JSONSerialization.jsonObject(with: configData, options: []) as? [String: Any] else {
-                configLog.error("Failed to deserialize config JSON")
-                return
-            }
-
-            // 3. Find and modify the folder
-            guard var folders = configJSON["folders"] as? [[String: Any]],
-                  let folderIndex = folders.firstIndex(where: { ($0["id"] as? String) == folderID }) else {
-                configLog.error("Folder with ID \(folderID, privacy: .public) not found in config JSON")
-                return
-            }
-            folders[folderIndex]["paused"] = paused
-            configJSON["folders"] = folders
-
-            // 4. Serialize the modified dictionary back to data
-            let modifiedConfigData = try JSONSerialization.data(withJSONObject: configJSON, options: [])
-
-            // 5. Post the modified config back
-            try await postRawRequest(endpoint: "system/config", body: modifiedConfigData)
-
-            // Capture name for notification
-            let folderName = self.folders.first { $0.id == folderID }?.label ?? folderID
-            sendPauseResumeNotification(target: .folder(id: folderID, name: folderName), paused: paused)
-
-            // 6. Update local state immediately
-            if let localIndex = self.folders.firstIndex(where: { $0.id == folderID }) {
-                    self.folders[localIndex].paused = paused
+        while let intendedState = pendingFolderPauseIntents.removeValue(forKey: folderID) {
+            do {
+                try await patchJSON(path: "config/folders", lastPathComponent: folderID,
+                                    body: ["paused": intendedState])
+                let folderName = folders.first { $0.id == folderID }?.label ?? folderID
+                if let localIndex = folders.firstIndex(where: { $0.id == folderID }) {
+                    folders[localIndex].paused = intendedState
                 }
-
-            // 7. Poll for Syncthing availability with exponential backoff
-            await waitForSyncthingAvailability()
-
-        } catch {
-            configLog.error("Failed to set folder paused state for \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            guard !isCancellationError(error), !demoMode else { return }
-            let folderName = folders.first { $0.id == folderID }?.label ?? folderID
-            lastErrorMessage = "Failed to \(paused ? "pause" : "resume") \(folderName): \(error.localizedDescription)"
+                folderPauseMutationErrors.removeValue(forKey: folderID)
+                sendPauseResumeNotification(target: .folder(id: folderID, name: folderName), paused: intendedState)
+                await refresh()
+                if let mutationError = folderPauseMutationErrors.values.first {
+                    lastErrorMessage = mutationError
+                }
+            } catch {
+                configLog.error("Failed to set folder paused state for \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                guard !isCancellationError(error), !demoMode else { continue }
+                let folderName = folders.first { $0.id == folderID }?.label ?? folderID
+                let message = "Failed to \(intendedState ? "pause" : "resume") \(folderName): \(error.localizedDescription)"
+                folderPauseMutationErrors[folderID] = message
+                lastErrorMessage = message
+            }
         }
     }
 
@@ -2123,6 +2229,23 @@ struct CleanupConfirmation: Identifiable, Equatable {
     fileprivate let authorizationToken: Data?
 }
 
+private enum CleanupPaginationError: LocalizedError {
+    case invalidMetadata(expectedPage: Int, actualPage: Int, expectedPerPage: Int, actualPerPage: Int)
+    case conflictingDuplicate(String)
+    case nonprogressingPage(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidMetadata(let expectedPage, let actualPage, let expectedPerPage, let actualPerPage):
+            return "Syncthing returned invalid cleanup pagination metadata (expected page \(expectedPage)/\(expectedPerPage), received \(actualPage)/\(actualPerPage)). Retry the load."
+        case .conflictingDuplicate(let name):
+            return "Syncthing returned conflicting cleanup entries for \(name). Retry the load before deleting anything."
+        case .nonprogressingPage(let page):
+            return "Syncthing cleanup pagination stopped making progress at page \(page). Retry the load."
+        }
+    }
+}
+
 @MainActor
 final class StuckDeletesController: ObservableObject {
     @Published private(set) var candidates: [RemoteNeedItem] = []
@@ -2133,6 +2256,7 @@ final class StuckDeletesController: ObservableObject {
     @Published private(set) var accessBlocked = false
     @Published private(set) var confirmation: CleanupConfirmation?
     @Published private(set) var obsolete = false
+    @Published private(set) var candidatesActionable = false
 
     let folder: SyncthingFolder
     private let client: SyncthingClient
@@ -2187,6 +2311,7 @@ final class StuckDeletesController: ObservableObject {
     private func invalidateIdentity() {
         if !obsolete { stuckDeletesLog.notice("Cleanup invalidated: folder or connection changed") }
         obsolete = true
+        candidatesActionable = false
         invalidateConfirmation()
         permit?.invalidate()
         lastError = CleanupSafetyError.obsolete.localizedDescription
@@ -2218,20 +2343,51 @@ final class StuckDeletesController: ObservableObject {
         invalidateConfirmation()
         let token = UUID()
         loadRevision = token
+        candidatesActionable = false
+        candidates = []
         loading = true
         defer { if loadRevision == token { loading = false } }
         do {
             try checkIdentity()
             lastError = nil
-            let response = try await client.fetchDbNeed(folder: folder.id)
+            let perpage = 1000
+            var page = 1
+            var accumulated: [String: RemoteNeedItem] = [:]
+            while true {
+                try Task.checkCancellation()
+                guard token == loadRevision else { throw CancellationError() }
+                let response = try await client.fetchDbNeed(folder: folder.id, page: page, perpage: perpage)
+                try checkIdentity()
+                guard response.page == page, response.perpage == perpage,
+                      page > 0, response.perpage > 0 else {
+                    throw CleanupPaginationError.invalidMetadata(expectedPage: page, actualPage: response.page,
+                                                                 expectedPerPage: perpage, actualPerPage: response.perpage)
+                }
+                let rawItems = response.allItems
+                let before = accumulated.count
+                for item in rawItems where !item.name.isEmpty {
+                    let identity = (item.name as NSString).standardizingPath.precomposedStringWithCanonicalMapping
+                    if let existing = accumulated[identity], existing != item {
+                        throw CleanupPaginationError.conflictingDuplicate(item.name)
+                    }
+                    accumulated[identity] = item
+                }
+                if rawItems.count >= perpage, accumulated.count == before {
+                    throw CleanupPaginationError.nonprogressingPage(page)
+                }
+                if rawItems.count < perpage { break }
+                page += 1
+            }
             try checkIdentity()
             guard token == loadRevision else { return }
-            candidates = response.allItems
-                .filter { $0.deleted && $0.isDirectory && !$0.name.isEmpty }
+            candidates = accumulated.values
+                .filter { $0.deleted && $0.isDirectory }
                 .sorted { $0.name < $1.name }
+            candidatesActionable = true
             stuckDeletesLog.info("Loaded \(self.candidates.count, privacy: .public) cleanup candidates")
         } catch {
             guard token == loadRevision, !isCancellationError(error) else { return }
+            candidatesActionable = false
             lastError = error.localizedDescription
         }
     }
@@ -2240,6 +2396,7 @@ final class StuckDeletesController: ObservableObject {
         permit?.invalidate()
         invalidateConfirmation()
         loadRevision = UUID()
+        candidatesActionable = false
     }
 
     func close() {
@@ -2336,7 +2493,7 @@ final class StuckDeletesController: ObservableObject {
     }
 
     func prepareDeletion(selected: Set<String>) -> CleanupConfirmation? {
-        guard !loading, !deleting, !selected.isEmpty else { return nil }
+        guard candidatesActionable, !loading, !deleting, !selected.isEmpty else { return nil }
         do { try checkIdentity() } catch { return nil }
         let names = candidates.filter { selected.contains($0.id) }.map(\.name)
         guard Set(names) == selected else { return nil }

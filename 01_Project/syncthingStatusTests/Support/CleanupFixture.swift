@@ -76,6 +76,7 @@ final class CleanupFixture {
         let items: [[String: Any]] = names.map { ["name": $0, "deleted": true, "type": "FILE_INFO_TYPE_DIRECTORY"] }
         // Include non-candidates to verify production filtering remains in the path.
         let payload: [String: Any] = [
+            "page": 1, "perpage": 1000,
             "progress": [], "queued": [],
             "rest": items + [["name": "ordinary-file", "deleted": true, "type": "FILE_INFO_TYPE_FILE"],
                              ["name": "live-directory", "deleted": false, "type": "FILE_INFO_TYPE_DIRECTORY"]]

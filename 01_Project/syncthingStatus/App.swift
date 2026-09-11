@@ -161,6 +161,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     let updateController = UpdateController()
     private var cancellables = Set<AnyCancellable>()
     private var lastContentHeight: CGFloat = 0
+    private lazy var notificationAuthorizationCoordinator = NotificationAuthorizationCoordinator(
+        statusProvider: {
+            await withCheckedContinuation { continuation in
+                UNUserNotificationCenter.current().getNotificationSettings {
+                    continuation.resume(returning: $0.authorizationStatus)
+                }
+            }
+        },
+        requestAuthorization: {
+            try await withCheckedThrowingContinuation { continuation in
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume(returning: granted) }
+                }
+            }
+        }
+    )
     
     override init() {
         let settings = SyncthingSettings()
@@ -193,17 +210,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         setupPopover()
         UNUserNotificationCenter.current().delegate = self
         configureNotificationCategories()
-        requestNotificationPermissions()
         NSApp.setActivationPolicy(.accessory)
         startMonitoring()
-    }
-    
-    private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error = error {
-                appLifecycleLog.error("Notification permission error: \(error.localizedDescription, privacy: .public)")
-            }
-        }
     }
 
     private func configureNotificationCategories() {
@@ -564,8 +572,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private func bindClient() {
         syncthingClient.$isConnected
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .sink { [weak self] connected in
+                guard let self else { return }
+                self.updateStatusIcon()
+                guard connected else { return }
+                Task {
+                    do {
+                        try await self.notificationAuthorizationCoordinator.handle(
+                            .firstSuccessfulConnection,
+                            notificationsEnabled: self.anyNotificationsEnabled
+                        )
+                    } catch {
+                        appLifecycleLog.error("Notification permission error: \(error.localizedDescription, privacy: .public)")
+                    }
+                }
+            }
             .store(in: &cancellables)
+
+        Publishers.MergeMany([
+            settings.$showSyncNotifications.dropFirst().eraseToAnyPublisher(),
+            settings.$showDeviceConnectNotifications.dropFirst().eraseToAnyPublisher(),
+            settings.$showDeviceDisconnectNotifications.dropFirst().eraseToAnyPublisher(),
+            settings.$showPauseResumeNotifications.dropFirst().eraseToAnyPublisher(),
+            settings.$showStalledSyncNotifications.dropFirst().eraseToAnyPublisher()
+        ])
+        .filter { $0 }
+        .sink { [weak self] _ in
+            guard let self else { return }
+            Task {
+                try? await self.notificationAuthorizationCoordinator.handle(
+                    .explicitIntent, notificationsEnabled: true
+                )
+            }
+        }
+        .store(in: &cancellables)
 
         syncthingClient.$deviceCompletions
             .receive(on: RunLoop.main)
@@ -620,6 +660,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
+    }
+
+    private var anyNotificationsEnabled: Bool {
+        settings.showSyncNotifications || settings.showDeviceConnectNotifications ||
+        settings.showDeviceDisconnectNotifications || settings.showPauseResumeNotifications ||
+        settings.showStalledSyncNotifications
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {

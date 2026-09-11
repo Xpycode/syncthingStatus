@@ -119,7 +119,20 @@ final class HTTPFixture {
     fileprivate func consume(_ request: URLRequest) -> Reply? {
         lock.lock()
         defer { lock.unlock() }
-        recorded.append(request)
+        var captured = request
+        if captured.httpBody == nil, let stream = captured.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                guard count > 0 else { break }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+            captured.httpBody = data
+        }
+        recorded.append(captured)
         let key = "\(request.httpMethod ?? "GET") \(request.url?.path ?? "")"
         guard var queue = replies[key], !queue.isEmpty else {
             unhandled.append(key)
