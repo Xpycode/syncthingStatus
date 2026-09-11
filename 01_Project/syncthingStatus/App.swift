@@ -159,9 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
     let updateController = UpdateController()
-    private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
-    private var globalSyncCompletion = GlobalSyncCompletionTracker()
     private var lastContentHeight: CGFloat = 0
     
     override init() {
@@ -342,37 +340,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     private func startMonitoring() {
-        // Invalidate existing timer first
-        timer?.invalidate()
-        timer = nil
-
-        // Perform initial refresh
-        Task {
-            await syncthingClient.refresh()
-            await MainActor.run {
-                self.updateStatusIcon()
-
-                // Start timer AFTER initial refresh completes
-                self.timer = Timer.scheduledTimer(withTimeInterval: self.settings.refreshInterval, repeats: true) { [weak self] _ in
-                    guard let self = self else { return }
-                    Task {
-                        await self.syncthingClient.refresh()
-                        await MainActor.run { self.updateStatusIcon() }
-                    }
-                }
-            }
-        }
+        syncthingClient.startMonitoring()
     }
-    
+
+    func applicationWillTerminate(_ notification: Notification) {
+        syncthingClient.stopMonitoring()
+    }
+
     func updateStatusIcon() {
         guard let icon = statusIcon else { return }
 
         let button = icon.statusItem.button
         let resolver = StatusIconStateResolver()
         let displayState = resolver.resolveState(client: syncthingClient, settings: settings)
-
-        let shouldNotify = globalSyncCompletion.observe(displayState,
-            hasPendingWork: syncthingClient.hasPendingSyncWork, isRefreshing: syncthingClient.isRefreshing)
 
         // Mapping preserves soft warnings by style; unavailable always has a warning icon.
         icon.set(state: displayState.iconState(for: settings.iconColorMode))
@@ -413,7 +393,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             button?.toolTip = "Out of sync"
             button?.setAccessibilityTitle("Out of sync")
         }
-        if shouldNotify { syncthingClient.handleGlobalSyncComplete() }
     }
     
     @objc func statusItemClicked() {
@@ -563,7 +542,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     func quit() {
-        timer?.invalidate()
+        syncthingClient.stopMonitoring()
         NSApplication.shared.terminate(nil)
     }
     
@@ -622,6 +601,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
 
+        syncthingClient.$isRefreshing
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &cancellables)
+
         syncthingClient.$configurationAvailable
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
@@ -632,11 +616,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &cancellables)
         
-        settings.$refreshInterval
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.startMonitoring() }
-            .store(in: &cancellables)
-
         settings.$iconColorMode
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }

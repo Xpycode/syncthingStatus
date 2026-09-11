@@ -1,0 +1,23 @@
+open popover=0
+Refresh status: enabled=1 result=0
+Refresh status: enabled=1 result=0
+Refresh status: enabled=1 result=0
+Window: enabled=1 result=0
+syncthingStatus: enabled=false result=-25206
+About syncthingStatus: enabled=1 result=0
+[
+  {
+    "enabled" : true,
+    "role" : "AXStaticText",
+    "value" : "syncthingStatus"
+  },
+  {
+    "enabled" : true,
+    "role" : "AXStaticText",
+    "value" : "Version 1.6.1 (163)"
+  },
+  {
+    "role" : "AXTextArea",
+    "value" : "Syncthing v2.1.2"
+  }
+]

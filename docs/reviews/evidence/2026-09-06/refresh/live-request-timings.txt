@@ -1,0 +1,39 @@
+2026-09-06 02:01:10.560 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 1 started system/status, active=1
+2026-09-06 02:01:10.591 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 1 finished system/status, outcome=http-200, seconds=0.030426, active=0
+2026-09-06 02:01:10.591 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 2 started system/config, active=1
+2026-09-06 02:01:10.593 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 2 finished system/config, outcome=http-200, seconds=0.002246, active=0
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 3 started system/version, active=1
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 4 started system/connections, active=2
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 5 started db/status, active=3
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 6 started db/status, active=4
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 7 started db/completion, active=5
+2026-09-06 02:01:10.594 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 8 started db/completion, active=6
+2026-09-06 02:01:10.597 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 3 finished system/version, outcome=http-200, seconds=0.002619, active=5
+2026-09-06 02:01:10.598 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 4 finished system/connections, outcome=http-200, seconds=0.003799, active=4
+2026-09-06 02:01:10.598 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 5 finished db/status, outcome=http-200, seconds=0.004111, active=3
+2026-09-06 02:01:10.598 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 9 started db/status, active=4
+2026-09-06 02:01:10.599 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 6 finished db/status, outcome=http-200, seconds=0.004613, active=3
+2026-09-06 02:01:10.599 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 10 started db/status, active=4
+2026-09-06 02:01:10.603 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 10 finished db/status, outcome=http-200, seconds=0.003638, active=3
+2026-09-06 02:01:10.604 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 9 finished db/status, outcome=http-200, seconds=0.005670, active=2
+2026-09-06 02:01:11.426 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 7 finished db/completion, outcome=http-200, seconds=0.831546, active=1
+2026-09-06 02:01:20.600 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 8 finished db/completion, outcome=failed, seconds=10.005624, active=0
+2026-09-06 02:01:20.619 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 11 started system/status, active=1
+2026-09-06 02:01:20.821 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 11 finished system/status, outcome=http-200, seconds=0.202565, active=0
+2026-09-06 02:01:20.822 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 12 started system/config, active=1
+2026-09-06 02:01:20.895 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 12 finished system/config, outcome=http-200, seconds=0.072837, active=0
+2026-09-06 02:01:20.905 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 13 started system/version, active=1
+2026-09-06 02:01:20.905 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 14 started system/connections, active=2
+2026-09-06 02:01:20.906 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 15 started db/status, active=3
+2026-09-06 02:01:20.906 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 16 started db/status, active=4
+2026-09-06 02:01:20.906 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 17 started db/completion, active=5
+2026-09-06 02:01:20.907 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 18 started db/completion, active=6
+2026-09-06 02:01:20.966 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 16 finished db/status, outcome=http-200, seconds=0.059742, active=5
+2026-09-06 02:01:20.974 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 15 finished db/status, outcome=http-200, seconds=0.068052, active=4
+2026-09-06 02:01:20.974 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 14 finished system/connections, outcome=http-200, seconds=0.069393, active=3
+2026-09-06 02:01:20.981 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 19 started db/status, active=4
+2026-09-06 02:01:20.989 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 20 started db/status, active=5
+2026-09-06 02:01:20.999 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 13 finished system/version, outcome=http-200, seconds=0.094368, active=4
+2026-09-06 02:01:21.007 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 20 finished db/status, outcome=http-200, seconds=0.017385, active=3
+2026-09-06 02:01:21.062 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 19 finished db/status, outcome=http-200, seconds=0.080593, active=2
+2026-09-06 02:01:24.920 I  syncthingStatus[22902:ec0221] [com.lucesumbrarum.syncthingStatus:Network] Request 17 finished db/completion, outcome=http-200, seconds=4.013201, active=1

@@ -1,0 +1,28 @@
+## refresh-red.log
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:112: error: -[syncthingStatusTests.RefreshTests testDemoEntryRejectsLateSuccessfulStatus] : XCTAssertNil failed: "SyncthingSystemStatus(myID: "local", tilde: nil, uptime: 123, version: nil)" - Late real results cannot publish into demo
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:113: error: -[syncthingStatusTests.RefreshTests testDemoEntryRejectsLateSuccessfulStatus] : XCTAssertEqual failed: ("4") is not equal to ("1")
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:92: error: -[syncthingStatusTests.RefreshTests testReplacementWaitsForActivePassAndIsNotDropped] : XCTAssertEqual failed: ("1") is not equal to ("2") - Replacement refresh must survive cancellation unwind
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:93: error: -[syncthingStatusTests.RefreshTests testReplacementWaitsForActivePassAndIsNotDropped] : XCTAssertEqual failed: ("nil") is not equal to ("Optional("current")")
+** TEST FAILED **
+
+## refresh-fairness-red.log
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:137: error: -[syncthingStatusTests.RefreshTests testSlowFirstMiddleAndLastEntriesDoNotHoldFastEntries] : Asynchronous wait failed: Exceeded timeout of 2 seconds, with unfulfilled expectations: "all fast folders publish with slow 0 held", "all fast peers publish with slow 0 held".
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:137: error: -[syncthingStatusTests.RefreshTests testSlowFirstMiddleAndLastEntriesDoNotHoldFastEntries] : Asynchronous wait failed: Exceeded timeout of 2 seconds, with unfulfilled expectations: "all fast folders publish with slow 2 held", "all fast peers publish with slow 2 held".
+** TEST FAILED **
+
+## refresh-review-red.log
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:109: error: -[syncthingStatusTests.RefreshTests testConnectionEditsDuringDemoPreserveSyntheticPresentation] : XCTAssertEqual failed: ("[:]") is not equal to ("["DUMMY2-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG": syncthingStatusTests.SyncthingDeviceCompletion(completion: 50.0, globalBytes: 1000, needBytes: 500, needDeletes: 0, needItems: 1), "DUMMY1-AAAA-BBBB-CCCC-DDDDEEEEFFFFGGGG": syncthingStatusTests.SyncthingDeviceCompletion(completion: 50.0, globalBytes: 1000, needBytes: 500, needDeletes: 0, needItems: 1)]")
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:110: error: -[syncthingStatusTests.RefreshTests testConnectionEditsDuringDemoPreserveSyntheticPresentation] : XCTAssertEqual failed: ("0.0") is not equal to ("810960942.8476136")
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:111: error: -[syncthingStatusTests.RefreshTests testConnectionEditsDuringDemoPreserveSyntheticPresentation] : XCTAssertEqual failed: ("0.0") is not equal to ("370545713.9767627")
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:144: error: -[syncthingStatusTests.RefreshTests testGlobalCompletionIsDeliveredAtPassBoundaryWithFollowUpPending] : XCTAssertEqual failed: ("0") is not equal to ("1")
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:147: error: -[syncthingStatusTests.RefreshTests testGlobalCompletionIsDeliveredAtPassBoundaryWithFollowUpPending] : XCTAssertEqual failed: ("0") is not equal to ("1")
+** TEST FAILED **
+
+## refresh-outage-red.log
+/Users/sim/ProgrammingProjects/1-macOS/_Published/syncthingStatus/01_Project/syncthingStatusTests/RefreshTests.swift:120: error: -[syncthingStatusTests.RefreshTests testGlobalCompletionForgetsPendingAcrossConnectionFailure] : XCTAssertFalse failed
+** TEST FAILED **
+
+## refresh-final-repeated.log
+	 Executed 255 tests, with 0 failures (0 unexpected) in 1.917 (1.986) seconds
+	 Executed 255 tests, with 0 failures (0 unexpected) in 1.917 (1.987) seconds
+** TEST SUCCEEDED **

@@ -20,6 +20,20 @@ This file tracks the WHY behind technical and design decisions.
 
 ## Decisions
 
+### 2026-09-06 — One refresh owner and bounded entry workers
+
+**Context:** the app installed timers after untracked initial-refresh tasks, while the client cancelled and replaced active refreshes. A replacement could encounter `isRefreshing` before cancellation unwound and disappear. Sequential folder/device requests delayed later entries; a read-only offline-peer request took 16.7808 s against a 10 s polling interval. Moving to continuous queued work also exposed that notifications tied to an idle icon-rendering boundary could be suppressed indefinitely.
+
+**Options considered:** keep cancel-and-replace and alter timing guards (leaves distributed lifecycle/publication ownership); increase polling intervals/timeouts (masks rather than repairs cancellation and fairness); or give the client one owner with current-generation publication checks and bounded per-entry workers. Unbounded fan-out was rejected because status requests can be expensive for the daemon.
+
+**Decision:** client-owned timer/drain, one coalesced follow-up, immediate generation invalidation on identity/demo/shutdown transitions, and cancellation unwind before replacement. Global completion is evaluated after each completed current-generation pass, independently of icon rendering and subsequent queued work. Use two workers per folder/device list; at most four expensive requests plus version/connections. Preserve existing 10 s request / 30 s resource deadlines and polling cadence.
+
+**Rationale:** one owner can guarantee replacement liveness and manual waiter completion while preventing obsolete success, failure, history and notifications from publishing. Two workers are the smallest per-list bound that lets fast entries pass one held request. Controlled tests establish fairness without misrepresenting the specific live timeout cause.
+
+**Consequences:** identity changes clear real connection baselines, while demo retains its full synthetic snapshot. Manual Refresh remains usable during work. Admission under fully occupied slots is bounded by preceding two-entry waves and production resource deadlines, not constant time for arbitrary list size. The confirmed overrun remains distinct from the unconfirmed 30 s resource-timeout hypothesis. 85 tests ×3 and independent review passed; the user interrupted the repeated About/version runtime check, so full Wave 3 closure remains pending. [Evidence](reviews/evidence/2026-09-06/refresh.md).
+
+---
+
 ### 2026-09-05 — Plan isolated production regressions before cleanup repair
 
 **Status:** implemented and verified by task 1.1 on 2026-09-05: 15 hostless production

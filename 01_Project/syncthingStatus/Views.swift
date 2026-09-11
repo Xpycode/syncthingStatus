@@ -177,7 +177,8 @@ struct HeaderView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .disabled(syncthingClient.isRefreshing)
+                        .help("Refresh status")
+                        .accessibilityLabel("Refresh status")
                     }
                 }
             }

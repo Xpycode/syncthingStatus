@@ -13,6 +13,10 @@ enum AppConstants {
         /// Total resource timeout in seconds
         static let resourceTimeoutSeconds: TimeInterval = 30
 
+        /// Bounded workers for each folder-status/device-completion list.
+        /// Together with version/connections, a pass has at most six requests.
+        static let monitoringRequestsPerKind = 2
+
         /// Default refresh interval in seconds
         static let defaultRefreshIntervalSeconds: Double = 10.0
     }

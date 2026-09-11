@@ -1,0 +1,39 @@
+{
+  "observation": "measured",
+  "peer_count": 2,
+  "offline_count": 2,
+  "measurements": [
+    {
+      "endpoint": "system/status",
+      "seconds": 0.023,
+      "result": "success"
+    },
+    {
+      "endpoint": "system/config",
+      "seconds": 0.0012,
+      "result": "success"
+    },
+    {
+      "endpoint": "system/connections",
+      "seconds": 0.0006,
+      "result": "success"
+    },
+    {
+      "endpoint": "db/completion",
+      "seconds": 0.5353,
+      "result": "success",
+      "offline_peer_index": 0
+    },
+    {
+      "endpoint": "db/completion",
+      "seconds": 16.7808,
+      "result": "success",
+      "offline_peer_index": 1
+    },
+    {
+      "endpoint": "db/status",
+      "seconds": 0.0151,
+      "result": "success"
+    }
+  ]
+}

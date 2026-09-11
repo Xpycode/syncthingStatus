@@ -152,8 +152,10 @@ final class SyncthingServerTrustDelegate: NSObject, URLSessionDelegate {
 @MainActor
 class SyncthingClient: ObservableObject {
     typealias NotificationDelivery = (UNNotificationRequest, @escaping @Sendable (Error?) -> Void) -> Void
+    typealias RequestData = (URLRequest) async throws -> (Data, URLResponse)
 
     private let session: URLSession
+    private let requestData: RequestData?
     private let deliverNotification: NotificationDelivery
     private let settings: SyncthingSettings
     private var baseURL: URL?
@@ -171,6 +173,7 @@ class SyncthingClient: ObservableObject {
     private var connectionHistory: [String: ConnectionHistory] = [:]
 
     // Sync event tracking
+    private var globalSyncCompletion = GlobalSyncCompletionTracker()
     private var previousFolderStates: [String: String] = [:] // folderID -> state
     private var lastSyncNotificationDates: [String: Date] = [:] // folderID -> last sent
     private var syncEvents: [SyncEvent] = []
@@ -183,6 +186,18 @@ class SyncthingClient: ObservableObject {
 
     // Task management for cancellation
     private var activeRefreshTask: Task<Void, Never>?
+    private var refreshWorker: Task<Void, Never>?
+    private var refreshRequested = false
+    private var refreshWaiters: [() -> Void] = []
+    private var refreshGeneration = UUID()
+    private var isShutdown = false
+    private var monitoring = false
+    private var monitoringTimer: AnyCancellable?
+    private var timerRevision = UUID()
+    typealias TimerFactory = (TimeInterval, @escaping @MainActor () -> Void) -> AnyCancellable
+    private let makeTimer: TimerFactory
+    private var requestSequence = 0
+    private var inFlightRequests = 0
     
     private struct StalledSyncTracker {
         var syncStart: Date
@@ -234,10 +249,19 @@ class SyncthingClient: ObservableObject {
     private var realTotalTransferHistory = DeviceTransferHistory()
     
     init(settings: SyncthingSettings, session: URLSession? = nil,
+         requestData: RequestData? = nil,
+         makeTimer: @escaping TimerFactory = { interval, fire in
+             let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+                 Task { @MainActor in fire() }
+             }
+             return AnyCancellable { timer.invalidate() }
+         },
          deliverNotification: @escaping NotificationDelivery = { request, completion in
              UNUserNotificationCenter.current().add(request, withCompletionHandler: completion)
          }) {
         self.settings = settings
+        self.requestData = requestData
+        self.makeTimer = makeTimer
         self.deliverNotification = deliverNotification
 
         // Configure URLSession with appropriate timeouts if not provided
@@ -314,41 +338,97 @@ class SyncthingClient: ObservableObject {
         Publishers.CombineLatest4(settings.$useAutomaticDiscovery, settings.$baseURLString,
                                   settings.$manualAPIKey, settings.$configBookmarkData)
             .dropFirst()
-            .sink { [weak self] _ in self?.cleanupConnectionRevision = UUID() }
-            .store(in: &cancellables)
-
-        Publishers.CombineLatest3(
-            settings.$useAutomaticDiscovery,
-            settings.$baseURLString,
-            settings.$manualAPIKey
-        )
-        .dropFirst()
-        .debounce(for: .milliseconds(AppConstants.Debounce.settingsChangeDelayMs), scheduler: RunLoop.main)
-        .sink { [weak self] useAuto, _, _ in
-            guard let self else { return }
-            if useAuto {
-                self.cachedAutomaticAPIKey = nil
-            }
-            Task { @MainActor [weak self] in
-                await self?.refresh()
-            }
-        }
-        .store(in: &cancellables)
-
-        settings.$configBookmarkData
-            .dropFirst()
-            .debounce(for: .milliseconds(AppConstants.Debounce.settingsChangeDelayMs), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                // @Published emits before assignment. Invalidate now; the drain
+                // task prepares credentials on a later actor turn.
+                self.cleanupConnectionRevision = UUID()
                 self.cachedAutomaticAPIKey = nil
-                guard self.settings.useAutomaticDiscovery else { return }
-                Task { @MainActor [weak self] in
-                    await self?.refresh()
-                }
+                self.invalidateRefresh()
+                self.clearConnectionState()
+                if self.monitoring || self.refreshWorker != nil { self.requestRefresh() }
             }
             .store(in: &cancellables)
+
+        settings.$refreshInterval
+            .dropFirst()
+            .sink { [weak self] interval in self?.installMonitoringTimer(interval: interval) }
+            .store(in: &cancellables)
     }
-    
+
+    func startMonitoring() {
+        guard !isShutdown, !monitoring else { return }
+        monitoring = true
+        installMonitoringTimer(interval: settings.refreshInterval)
+        requestRefresh()
+    }
+
+    private func installMonitoringTimer(interval: TimeInterval) {
+        timerRevision = UUID()
+        monitoringTimer = nil
+        guard monitoring, !isShutdown, !demoMode else { return }
+        let revision = timerRevision
+        monitoringTimer = makeTimer(max(1, interval)) { [weak self] in
+            guard let self, self.timerRevision == revision else { return }
+            self.requestRefresh()
+        }
+    }
+
+    /// Terminal shutdown: no queued timer/settings callback may restart work.
+    func stopMonitoring() {
+        isShutdown = true
+        monitoring = false
+        installMonitoringTimer(interval: settings.refreshInterval)
+        invalidateRefresh()
+        refreshRequested = false
+        let waiters = refreshWaiters
+        refreshWaiters.removeAll()
+        waiters.forEach { $0() }
+    }
+
+    func waitForRefreshToFinish() async { await refreshWorker?.value }
+
+    private func invalidateRefresh() {
+        globalSyncCompletion = GlobalSyncCompletionTracker()
+        refreshGeneration = UUID()
+        activeRefreshTask?.cancel()
+    }
+
+    private func canPublish(_ generation: UUID) -> Bool {
+        generation == refreshGeneration && !Task.isCancelled && !isShutdown && !demoMode
+    }
+
+    private func clearConnectionState() {
+        realDevices = []
+        realFolders = []
+        realConnections = [:]
+        realFolderStatuses = [:]
+        realTransferHistory = [:]
+        realTotalTransferHistory = DeviceTransferHistory()
+        previousConnections = [:]
+        lastUpdateTime = nil
+        connectionHistory = [:]
+        previousFolderStates = [:]
+        stalledSyncTrackers = [:]
+        lastSyncNotificationDates = [:]
+        lastGlobalSyncNotificationSentAt = nil
+        syncEvents = []
+        // Demo owns a complete synthetic presentation, including its metrics.
+        // Settings invalidate only the real cache until demo exits.
+        guard !demoMode else { return }
+        handleDisconnectedState()
+        lastErrorMessage = nil
+        localDeviceName = ""
+        syncthingVersion = nil
+        deviceHistory = [:]
+        transferRates = [:]
+        transferHistory = [:]
+        totalTransferHistory = DeviceTransferHistory()
+        totalTransferHistory_published = DeviceTransferHistory()
+        deviceTransferHistory = [:]
+        recentSyncEvents = []
+    }
+
     private func extractAPIKey(from data: Data) -> String? {
         let parser = XMLParser(data: data)
         let delegate = ApiKeyParserDelegate()
@@ -488,6 +568,37 @@ class SyncthingClient: ObservableObject {
         return components.url
     }
     
+    private func loadData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try Task.checkCancellation()
+        requestSequence += 1
+        let sequence = requestSequence
+        // Only endpoint families are logged: no URL, query, key, identifier or body.
+        let parts = request.url?.pathComponents ?? []
+        let rest = parts.lastIndex(of: "rest")
+        let endpoint = rest.map { parts.dropFirst($0 + 1).prefix(2).joined(separator: "/") } ?? "request"
+        let start = ProcessInfo.processInfo.systemUptime
+        inFlightRequests += 1
+        networkLog.info("Request \(sequence) started \(endpoint, privacy: .public), active=\(self.inFlightRequests)")
+        var outcome = "failed"
+        defer {
+            inFlightRequests -= 1
+            let elapsed = ProcessInfo.processInfo.systemUptime - start
+            networkLog.info("Request \(sequence) finished \(endpoint, privacy: .public), outcome=\(outcome, privacy: .public), seconds=\(elapsed), active=\(self.inFlightRequests)")
+        }
+        do {
+            let result: (Data, URLResponse)
+            if let requestData { result = try await requestData(request) }
+            else { result = try await session.data(for: request) }
+            try Task.checkCancellation()
+            let code = (result.1 as? HTTPURLResponse)?.statusCode ?? -1
+            outcome = "http-\(code)"
+            return result
+        } catch {
+            if isCancellationError(error) { outcome = "cancelled" }
+            throw error
+        }
+    }
+
     private func makeRequest<T: Decodable>(endpoint: String, responseType: T.Type,
                                            lastPathComponent: String? = nil,
                                            requiresFreshResponse: Bool = false) async throws -> T {
@@ -512,7 +623,7 @@ class SyncthingClient: ObservableObject {
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -536,7 +647,7 @@ class SyncthingClient: ObservableObject {
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -560,7 +671,7 @@ class SyncthingClient: ObservableObject {
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.setValue("0", forHTTPHeaderField: "Content-Length")
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -583,7 +694,7 @@ class SyncthingClient: ObservableObject {
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.setValue("0", forHTTPHeaderField: "Content-Length")
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -604,7 +715,7 @@ class SyncthingClient: ObservableObject {
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -624,7 +735,7 @@ class SyncthingClient: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await loadData(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -633,20 +744,18 @@ class SyncthingClient: ObservableObject {
         }
     }
     
-    func fetchStatus() async {
+    func fetchStatus(generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation) else { return }
         do {
             let status = try await makeRequest(endpoint: "system/status", responseType: SyncthingSystemStatus.self)
+            guard canPublish(generation) else { return }
             self.systemStatus = status
             self.isConnected = true
             self.lastErrorMessage = nil
         } catch {
-            // A cancelled refresh is not a lost connection — a newer refresh
-            // superseded this one. Mutating state here would flash a false
-            // "Disconnected" icon between the cancel and the fresh result.
-            guard !isCancellationError(error) else { return }
-
-            self.isConnected = false
-            self.systemStatus = nil
+            guard canPublish(generation), !isCancellationError(error) else { return }
+            handleDisconnectedState()
 
             let message: String
             if let clientError = error as? SyncthingClientError {
@@ -676,23 +785,28 @@ class SyncthingClient: ObservableObject {
         }
     }
     
-    func fetchVersion() async {
+
+    func fetchVersion(generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation) else { return }
         do {
             let versionInfo = try await makeRequest(endpoint: "system/version", responseType: SyncthingVersion.self)
+            guard canPublish(generation) else { return }
             self.syncthingVersion = versionInfo.version
         } catch {
-            // A superseded refresh cancels in-flight requests every cycle when the
-            // group overruns the refresh interval (e.g. offline-device completion
-            // fetches) — keep the last-known version, like the folder-status path.
-            guard !isCancellationError(error) else { return }
+            guard canPublish(generation), !isCancellationError(error) else { return }
             networkLog.error("Failed to fetch system/version: \(error.localizedDescription, privacy: .public)")
             self.syncthingVersion = nil
         }
     }
     
-    func fetchConfig(localDeviceID: String) async {
+
+    func fetchConfig(localDeviceID: String, generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation) else { return }
         do {
             let config = try await makeRequest(endpoint: "system/config", responseType: SyncthingConfig.self)
+            guard canPublish(generation) else { return }
             
             if let localDevice = config.devices.first(where: { $0.deviceID == localDeviceID }) {
                 self.localDeviceName = localDevice.name
@@ -723,6 +837,7 @@ class SyncthingClient: ObservableObject {
                 self.deviceCompletions = self.deviceCompletions.filter { validDeviceIDs.contains($0.key) }
             }
         } catch {
+            guard canPublish(generation), !isCancellationError(error) else { return }
             realFolderStatuses = [:]
             previousFolderStates.removeAll()
             if !demoMode {
@@ -730,9 +845,6 @@ class SyncthingClient: ObservableObject {
                 folderStatuses = [:]
                 deviceCompletions = [:]
             }
-            // Skip cancelled errors - these are transient and happen during refresh
-            guard !isCancellationError(error) else { return }
-
             let errorMessage = "Failed to fetch config: \(error.localizedDescription)"
             networkLog.error("\(errorMessage, privacy: .public)")
             // Only update UI-facing properties if not in demo mode
@@ -747,9 +859,13 @@ class SyncthingClient: ObservableObject {
         }
     }
     
-    func fetchConnections() async {
+
+    func fetchConnections(generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation) else { return }
         do {
             let connectionsResponse = try await makeRequest(endpoint: "system/connections", responseType: SyncthingConnections.self)
+            guard canPublish(generation) else { return }
             
             // Always cache the real data
             self.realConnections = connectionsResponse.connections
@@ -761,14 +877,12 @@ class SyncthingClient: ObservableObject {
                 self.connections = connectionsResponse.connections
             }
         } catch {
+            guard canPublish(generation), !isCancellationError(error) else { return }
             realConnections = [:]
             if !demoMode {
                 connections = [:]
                 transferRates = [:]
             }
-            // Skip cancelled errors - these are transient and happen during refresh
-            guard !isCancellationError(error) else { return }
-
             let errorMessage = "Failed to fetch connections: \(error.localizedDescription)"
             networkLog.error("\(errorMessage, privacy: .public)")
             if !demoMode {
@@ -874,43 +988,71 @@ class SyncthingClient: ObservableObject {
         }
     }
 
-    func fetchFolderStatus() async {
-        let foldersToFetch = self.realFolders // Always fetch status for real folders
-        for folder in foldersToFetch {
-            do {
-                let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
-                if configurationAvailable { self.realFolderStatuses[folder.id] = status }
+    func fetchFolderStatus(generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation), configurationAvailable else { return }
+        await forEachMonitoringEntry(realFolders, generation: generation) { folder in
+            await self.fetchFolderStatus(folder: folder, generation: generation)
+        }
+        guard canPublish(generation) else { return }
+        updateStuckDeletesSignal()
+    }
 
-                if !demoMode && configurationAvailable {
-                    self.folderStatuses[folder.id] = status
-                    self.trackSyncEvent(folder: folder, status: status)
-                }
-            } catch {
-                // Discard cached success on every unsuccessful observation, including cancellation.
-                // Missing status is explicitly rendered unavailable by the shared policy.
-                realFolderStatuses.removeValue(forKey: folder.id)
-                if !demoMode {
-                    folderStatuses.removeValue(forKey: folder.id)
-                    previousFolderStates.removeValue(forKey: folder.id)
-                }
-                // Skip cancelled errors - these are transient and happen during refresh
-                guard !isCancellationError(error) else { continue }
+    private func fetchFolderStatus(folder: SyncthingFolder, generation: UUID) async {
+        guard canPublish(generation) else { return }
+        do {
+            let status = try await makeRequest(path: "db/status", queryItems: [URLQueryItem(name: "folder", value: folder.id)], responseType: SyncthingFolderStatus.self)
+            guard canPublish(generation) else { return }
+            if configurationAvailable { self.realFolderStatuses[folder.id] = status }
 
-                let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
-                folderStatusLog.error("\(errorMessage, privacy: .public)")
-                if !demoMode {
-                    self.lastErrorMessage = errorMessage
-                    if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                        if code == 401 || code == 403 {
-                            self.isConnected = false
-                        }
+            if !demoMode && configurationAvailable {
+                self.folderStatuses[folder.id] = status
+                self.trackSyncEvent(folder: folder, status: status)
+            }
+        } catch {
+            guard canPublish(generation), !isCancellationError(error) else { return }
+            // A genuine failed observation invalidates cached success.
+            // Obsolete or cancelled passes returned before touching state.
+            realFolderStatuses.removeValue(forKey: folder.id)
+            if !demoMode {
+                folderStatuses.removeValue(forKey: folder.id)
+                previousFolderStates.removeValue(forKey: folder.id)
+            }
+            let errorMessage = "Failed to fetch folder status for \(folder.id): \(error.localizedDescription)"
+            folderStatusLog.error("\(errorMessage, privacy: .public)")
+            if !demoMode {
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
                     }
                 }
             }
         }
+    }
 
-        if !demoMode {
-            updateStuckDeletesSignal()
+    /// Two requests per entry kind, four expensive requests in a full pass.
+    /// Refill a completed slot without waiting for its slow sibling. The
+    /// production URLSession resource timeout bounds occupied slots.
+    private func forEachMonitoringEntry<Entry: Sendable>(
+        _ entries: [Entry], generation: UUID,
+        operation: @escaping @MainActor (Entry) async -> Void
+    ) async {
+        await withTaskGroup(of: Void.self) { group in
+            var next = 0
+            for entry in entries.prefix(AppConstants.Network.monitoringRequestsPerKind) {
+                guard canPublish(generation) else { return }
+                group.addTask { await operation(entry) }
+                next += 1
+            }
+            while await group.next() != nil {
+                guard canPublish(generation) else { group.cancelAll(); return }
+                if next < entries.count {
+                    let entry = entries[next]
+                    next += 1
+                    group.addTask { await operation(entry) }
+                }
+            }
         }
     }
 
@@ -929,6 +1071,7 @@ class SyncthingClient: ObservableObject {
     ///   folder pauses, or the alert toggle flips off.
     ///
     /// Paused folders are excluded from both stages.
+
     private func updateStuckDeletesSignal() {
         guard settings.stuckDeletesAlertsEnabled else {
             if !stuckDeleteCounts.isEmpty {
@@ -1286,37 +1429,45 @@ class SyncthingClient: ObservableObject {
         }
     }
     
-    func fetchDeviceCompletions() async {
-        let devicesToFetch = self.realDevices // Always fetch for real devices
-        for device in devicesToFetch {
-            do {
-                let completion = try await makeRequest(path: "db/completion", queryItems: [URLQueryItem(name: "device", value: device.deviceID)], responseType: SyncthingDeviceCompletion.self)
-                // No separate cache for completions, as they are keyed by real device IDs.
-                // We can just update the main dictionary.
-                if !demoMode && configurationAvailable {
-                    self.deviceCompletions[device.deviceID] = completion
-                }
-            } catch {
-                if !demoMode { deviceCompletions.removeValue(forKey: device.deviceID) }
-                // Skip cancelled errors - these are transient and happen during refresh
-                guard !isCancellationError(error) else { continue }
+    func fetchDeviceCompletions(generation: UUID? = nil) async {
+        let generation = generation ?? refreshGeneration
+        guard canPublish(generation), configurationAvailable else { return }
+        await forEachMonitoringEntry(realDevices, generation: generation) { device in
+            await self.fetchDeviceCompletion(device: device, generation: generation)
+        }
+    }
 
-                let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
-                networkLog.error("\(errorMessage, privacy: .public)")
-                if !demoMode {
-                    self.lastErrorMessage = errorMessage
-                    if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
-                        if code == 401 || code == 403 {
-                            self.isConnected = false
-                        }
+    private func fetchDeviceCompletion(device: SyncthingDevice, generation: UUID) async {
+        guard canPublish(generation) else { return }
+        do {
+            let completion = try await makeRequest(path: "db/completion", queryItems: [URLQueryItem(name: "device", value: device.deviceID)], responseType: SyncthingDeviceCompletion.self)
+            guard canPublish(generation) else { return }
+            // No separate cache for completions, as they are keyed by real device IDs.
+            // We can just update the main dictionary.
+            if !demoMode && configurationAvailable {
+                self.deviceCompletions[device.deviceID] = completion
+            }
+        } catch {
+            guard canPublish(generation), !isCancellationError(error) else { return }
+            if !demoMode { deviceCompletions.removeValue(forKey: device.deviceID) }
+            let errorMessage = "Failed to fetch device completion for \(device.deviceID): \(error.localizedDescription)"
+            networkLog.error("\(errorMessage, privacy: .public)")
+            if !demoMode {
+                self.lastErrorMessage = errorMessage
+                if let clientError = error as? SyncthingClientError, case .httpStatus(let code, _) = clientError {
+                    if code == 401 || code == 403 {
+                        self.isConnected = false
                     }
                 }
             }
         }
     }
-    
-    @MainActor
+
     private func handleDisconnectedState() {
+        globalSyncCompletion = GlobalSyncCompletionTracker()
+        previousFolderStates.removeAll()
+        realFolderStatuses.removeAll()
+        configurationAvailable = false
         isConnected = false
         if !demoMode {
             devices = []
@@ -1331,49 +1482,69 @@ class SyncthingClient: ObservableObject {
         lastLoggedStuckState.removeAll()
     }
     
-    func refresh() async {
-        // Cancel any previous refresh task
-        activeRefreshTask?.cancel()
-
-        activeRefreshTask = Task {
-            await performRefresh()
+    /// Timer and action triggers share one pending pass. Completions belong to
+    /// that pass, so manual callers need not wait for an endless timer drain.
+    func requestRefresh(completion: (() -> Void)? = nil) {
+        guard !isShutdown, !demoMode else { completion?(); return }
+        refreshRequested = true
+        if let completion { refreshWaiters.append(completion) }
+        guard refreshWorker == nil else { return }
+        isRefreshing = true
+        refreshWorker = Task { [weak self] in
+            guard let self else { return }
+            while self.refreshRequested && !self.isShutdown && !self.demoMode {
+                self.refreshRequested = false
+                let waiters = self.refreshWaiters
+                self.refreshWaiters.removeAll()
+                let generation = self.refreshGeneration
+                let pass = Task { await self.performRefresh(generation: generation) }
+                self.activeRefreshTask = pass
+                await pass.value
+                self.activeRefreshTask = nil
+                if generation != self.refreshGeneration && !self.isShutdown && !self.demoMode {
+                    self.refreshWaiters.insert(contentsOf: waiters, at: 0)
+                    self.refreshRequested = true
+                } else {
+                    waiters.forEach { $0() }
+                }
+            }
+            self.refreshWorker = nil
+            self.isRefreshing = false
+            let waiters = self.refreshWaiters
+            self.refreshWaiters.removeAll()
+            waiters.forEach { $0() }
         }
-        await activeRefreshTask?.value
     }
 
-    private func performRefresh() async {
-        guard !isRefreshing else {
-            networkLog.debug("Refresh already in progress")
-            return
+    func refresh() async {
+        await withCheckedContinuation { continuation in
+            requestRefresh { continuation.resume() }
         }
-        isRefreshing = true
-        defer { isRefreshing = false }
+    }
 
-        guard prepareCredentials() else {
-            self.handleDisconnectedState()
-            return
-        }
+    private func performRefresh(generation: UUID) async {
+        guard canPublish(generation) else { return }
+        let prepared = prepareCredentials()
+        // Refreshing a stale bookmark can itself invalidate this generation.
+        guard canPublish(generation) else { return }
+        guard prepared else { handleDisconnectedState(); return }
 
-        // Check for cancellation
-        guard !Task.isCancelled else { return }
+        await fetchStatus(generation: generation)
+        guard canPublish(generation), let systemStatus else { return }
+        await fetchConfig(localDeviceID: systemStatus.myID, generation: generation)
+        guard canPublish(generation) else { return }
 
-        await fetchStatus()
-
-        // Check for cancellation
-        guard !Task.isCancelled else { return }
-
-        if let systemStatus = self.systemStatus {
-            await fetchConfig(localDeviceID: systemStatus.myID)
-
-            // Check for cancellation
-            guard !Task.isCancelled else { return }
-
-            async let versionTask: () = fetchVersion()
-            async let connectionsTask: () = fetchConnections()
-            async let folderStatusTask: () = fetchFolderStatus()
-            async let deviceCompletionTask: () = fetchDeviceCompletions()
-
-            _ = await [versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
+        async let versionTask: () = fetchVersion(generation: generation)
+        async let connectionsTask: () = fetchConnections(generation: generation)
+        async let folderStatusTask: () = fetchFolderStatus(generation: generation)
+        async let deviceCompletionTask: () = fetchDeviceCompletions(generation: generation)
+        _ = await [versionTask, connectionsTask, folderStatusTask, deviceCompletionTask]
+        guard canPublish(generation) else { return }
+        // A completed pass is observable even if the next timer pass is queued.
+        // Notification ownership follows data publication, not icon rendering.
+        let state = StatusIconStateResolver().resolveState(client: self, settings: settings)
+        if globalSyncCompletion.observe(state, hasPendingWork: hasPendingSyncWork, isRefreshing: false) {
+            deliverGlobalCompletionIfAllowed()
         }
     }
 
@@ -1466,7 +1637,12 @@ class SyncthingClient: ObservableObject {
     }
 
     func handleGlobalSyncComplete() {
-        guard settings.showSyncNotifications, !demoMode, !isRefreshing,
+        guard !isRefreshing else { return }
+        deliverGlobalCompletionIfAllowed()
+    }
+
+    private func deliverGlobalCompletionIfAllowed() {
+        guard settings.showSyncNotifications, !demoMode, !isShutdown,
               StatusIconStateResolver().resolveState(client: self, settings: settings) == .inSync else { return }
 
         let now = Date()
@@ -1543,7 +1719,7 @@ class SyncthingClient: ObservableObject {
                 request.httpMethod = "GET"
                 request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
-                let (_, response) = try await session.data(for: request)
+                let (_, response) = try await loadData(for: request)
                 if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
                     // Syncthing is available, do a full refresh
                     await refresh()
@@ -1579,6 +1755,8 @@ class SyncthingClient: ObservableObject {
             return
         }
 
+        invalidateRefresh()
+        refreshRequested = false
         let shouldSaveReal = !demoMode
 
         // Generate dummy data FIRST (before touching any state)
@@ -1597,6 +1775,7 @@ class SyncthingClient: ObservableObject {
 
         // Update all state together to minimize race condition window
         demoMode = true
+        installMonitoringTimer(interval: settings.refreshInterval)
         demoDeviceCount = deviceCount
         demoFolderCount = folderCount
         demoScenario = scenario
@@ -1844,27 +2023,17 @@ class SyncthingClient: ObservableObject {
 
     func disableDemoMode() {
         guard demoMode else { return }
+        invalidateRefresh()
         demoMode = false
         demoDeviceCount = 0
         demoFolderCount = 0
         demoScenario = .mixed  // Reset to default
 
-        // Restore real data from the cache
-        devices = realDevices
-        folders = realFolders
-        connections = realConnections
-        folderStatuses = realFolderStatuses
-        transferHistory = realTransferHistory
-        totalTransferHistory = realTotalTransferHistory
-        totalTransferHistory_published = realTotalTransferHistory
-        deviceTransferHistory = realTransferHistory
-
-        // Clear any lingering demo state and trigger a refresh for other data
-        deviceCompletions = [:]
-        transferRates = [:]
-        deviceHistory = [:]
-
-        Task { await refresh() }
+        // Cached pre-demo observations are no longer current. Reconnect before
+        // restoring real rows or completion/notification baselines.
+        clearConnectionState()
+        installMonitoringTimer(interval: settings.refreshInterval)
+        requestRefresh()
     }
 }
 

@@ -1,6 +1,6 @@
 # Implementation plan — v1.7 review fixes
 
-Updated: 2026-09-06. **Cleanup safety (1.1–1.5) and truthful status (2.1–2.3) complete; A1–A4 passed.** The user authorized the next planned phase on 2026-09-06; GitHub follow-ups remain deferred. This is the active plan; older plans describe historical work.
+Updated: 2026-09-11. **Waves 1–3 are complete; A1–A5 passed.** Wave 4 is queued but has not started. GitHub follow-ups remain deferred. This is the active plan; older plans describe historical work.
 
 ## Goal and scope
 
@@ -31,7 +31,7 @@ On 2026-09-05 the user authorized continuing only the cleanup safety sprint. Git
 
 ## Execution and validation
 
-- Cleanup sprint **1.1–1.5** is complete. The user authorized the next phase on 2026-09-06: **2.1–2.3**. Promote subsequent waves after predecessor gates pass. Tasks in one wave are not automatically safe for parallel edits: `Client.swift`, `Views.swift` and `App.swift` overlap. Delegate bounded fixture work/review to Sol or Luna with explicit ownership. Split a numbered task further if it cannot fit a short implementation pass.
+- Waves **1–3** are complete and A1–A5 passed. Wave 4 is dependency-ready but has not been selected for execution. Tasks in one wave are not automatically safe for parallel edits: `Client.swift`, `Views.swift` and `App.swift` overlap. Delegate bounded fixture work/review to Sol or Luna with explicit ownership. Split a numbered task further if it cannot fit a short implementation pass.
 - Source paths below are relative to `01_Project/syncthingStatus/`; test classes are proposed files in `01_Project/syncthingStatusTests/`. New filenames/test commands describe work to create, not existing infrastructure.
 - Use a hostless XCTest bundle compiling the same production files or narrowly extracted production components as the app. Exclude `App.swift`/`Views.swift` and app startup; move the status resolver out of `App.swift` when needed. No copied methods, app-hosted lifecycle, or general framework. Controller tests can compile the real `Client.swift` and its dependencies with injected external effects; helper-only tests are insufficient to close the cleanup gate.
 - Use unique temporary roots, defaults suites, credential storage, stubbed HTTP and captured notifications. `SyncthingSettings` starts asynchronous Keychain work, so defaults injection alone is insufficient. `FolderAccessBookmarks` already accepts defaults, but the controller constructs its own default store: inject it. Tests must not touch real preferences, bookmarks, Keychain, login items, daemon configuration or notifications.
@@ -100,23 +100,24 @@ Depends on Wave 1. Establish status semantics before refresh publication and not
 
 ### Wave 3 — refresh ownership and bounded progress
 
-Depends on Wave 2. Scheduler cancellation is reproduced; the specific offline-peer timeout remains a hypothesis.
+Depends on Wave 2. Scheduler and fairness defects are repaired; 85 tests ×3 and independent review passed. A real offline-peer completion took 16.7808 s; the specific 30-second timeout remains unconfirmed. [Evidence and interrupted gate](reviews/evidence/2026-09-06/refresh.md).
 
-- [ ] **3.1 — Add deterministic scheduler regressions.** Targets: `Client.swift` refresh seams, `RefreshTests.swift`.
+- [x] **3.1 — Add deterministic scheduler regressions.** Targets: `Client.swift` refresh seams, `RefreshTests.swift`.
   - Success: controlled gates reproduce cancellation unwind dropping the replacement. Cover timer/manual bursts, URL/key/config-grant changes, late old results, interval changes, shutdown and demo transitions; count active passes and published generations without sleeps.
   - Backpressure: T(RefreshTests); record the known failure before repair.
 
-- [ ] **3.2 — Give monitoring one owner.** Depends on 3.1. Targets: `Client.swift` refresh/settings subscriptions, `App.swift` monitoring/timer triggers.
+- [x] **3.2 — Give monitoring one owner.** Depends on 3.1. Targets: `Client.swift` refresh/settings subscriptions, `App.swift` monitoring/timer triggers.
   - Success: ordinary triggers join/coalesce active work into at most one follow-up. Connection changes cancel/await old work and start the latest generation; only that generation publishes state/notifications. No duplicate timers or false-disconnected cancellation; manual refresh eventually completes (A5).
   - Backpressure: T(RefreshTests), B, independent concurrency review.
 
-- [ ] **3.3 — Measure request costs and settle the offline observation.** Depends on 3.2. Targets: existing OSLog request paths, new measurement evidence, TASKS Inbox.
+- [x] **3.3 — Measure request costs and settle the offline observation.** Depends on 3.2. Targets: existing OSLog request paths, new measurement evidence, TASKS Inbox.
   - Success: record endpoint duration, cancellation and entry order using delayed stubs and a read-only offline-peer observation when available; exclude credentials/bodies. Explicitly record reproduced, not reproduced, or unavailable. Keep the Inbox observation if real evidence is unavailable; do not block the confirmed scheduler fix.
   - Backpressure: documented measurement run and T(RefreshTests) for timing/cancellation behavior. No timeout diagnosis from stubbed delay alone.
 
-- [ ] **3.4 — Keep slow entries from starving later entries.** Depends on 3.2–3.3. Targets: `Client.swift` folder/completion loops and request cancellation, `RefreshTests.swift`.
+- [x] **3.4 — Keep slow entries from starving later entries.** Depends on 3.2–3.3. Targets: `Client.swift` folder/completion loops and request cancellation, `RefreshTests.swift`.
   - Success: select and record a small concurrency/deadline bound from measured costs before implementing it. Delayed first/middle/last entries do not prevent fast entries publishing within that bound; failures affect relevant status only. No unbounded fan-out or polling-interval workaround. Stub evidence can validate fairness without proving the offline hypothesis.
   - Backpressure: T(RefreshTests) asserting request cap, bounded progress and generation isolation; V for responsive refresh and stable About version.
+  - Completed 2026-09-11: two workers per kind; failures stay local; 85 tests passed three iterations; fresh-context review found no blockers. A fresh sandboxed build retained both app and Syncthing versions for 25 samples across multiple real timer refresh boundaries. [Evidence](reviews/evidence/2026-09-06/refresh.md). A5 passed.
 
 ### Wave 4 — notifications, daemon actions and recovery
 
@@ -215,11 +216,13 @@ Verified 2026-09-05 against official documentation:
 
 Plan expanded with Sol/Luna source inspection on 2026-09-05. No application fixes, tests, builds, runtime preference changes or publication occurred during planning.
 
+Wave 3 closed on 2026-09-11. The coordinator owned the serial native gate and integration records; one fresh-context agent independently reviewed the full diff without editing it. A fresh sandboxed Debug build passed and launched, 25 About/version samples stayed stable across multiple real timer refresh boundaries, the full 85-test suite passed again with zero failures/skips, and `git diff --check` passed. No source repair was needed. The accumulated validated Wave 1–3 implementation was recorded as one scoped local commit because earlier waves remained uncommitted; push and release are not authorized.
+
 | Wave | State | Completion evidence |
 |---|---|---|
 | 1 — cleanup | Complete: 1.1–1.5; A1–A3 passed | [Cleanup verification](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests, independent review, real sandbox/UI, Debug build/launch |
 | 2 — status | Complete: 2.1–2.3; A4 passed | [Status evidence](reviews/evidence/2026-09-06/sync-status.md): 70 tests, independent review, native compact/detailed/Settings fixtures and icon mapping, Debug build/launch |
-| 3 — refresh | Queued | Pending |
+| 3 — refresh | Complete: 3.1–3.4; A5 passed | [Refresh evidence](reviews/evidence/2026-09-06/refresh.md): 85 tests ×3, two independent reviews, read-only timings, Debug build/launch, Refresh UI and 25-sample About stability observation passed |
 | 4 — controls/recovery | Queued | Pending |
 | 5 — UI/accessibility | Queued | Pending |
 | 6 — maintenance | Queued; separately deferrable | Pending |

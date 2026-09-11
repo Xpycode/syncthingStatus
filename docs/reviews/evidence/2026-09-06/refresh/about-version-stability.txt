@@ -1,0 +1,38 @@
+Wave 3 About/version stability observation — 2026-09-11
+
+Fresh artifact:
+/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app
+
+Build: Debug, ad-hoc signed, App Sandbox entitlement true
+Running executable verified: exact fresh artifact above (PID 66471 at launch)
+Configured refresh interval: key absent, so production default 10 seconds
+Observation: 25 Accessibility samples over 26 seconds
+Result: all 25 samples stable; timer-driven timeout cycles were logged at 12:58:29 and 12:58:39 inside the observation window
+
+01 12:58:20 Version 1.6.1 (163) | Syncthing v2.1.2
+02 12:58:21 Version 1.6.1 (163) | Syncthing v2.1.2
+03 12:58:22 Version 1.6.1 (163) | Syncthing v2.1.2
+04 12:58:23 Version 1.6.1 (163) | Syncthing v2.1.2
+05 12:58:24 Version 1.6.1 (163) | Syncthing v2.1.2
+06 12:58:25 Version 1.6.1 (163) | Syncthing v2.1.2
+07 12:58:26 Version 1.6.1 (163) | Syncthing v2.1.2
+08 12:58:27 Version 1.6.1 (163) | Syncthing v2.1.2
+09 12:58:28 Version 1.6.1 (163) | Syncthing v2.1.2
+10 12:58:30 Version 1.6.1 (163) | Syncthing v2.1.2
+11 12:58:31 Version 1.6.1 (163) | Syncthing v2.1.2
+12 12:58:32 Version 1.6.1 (163) | Syncthing v2.1.2
+13 12:58:33 Version 1.6.1 (163) | Syncthing v2.1.2
+14 12:58:34 Version 1.6.1 (163) | Syncthing v2.1.2
+15 12:58:35 Version 1.6.1 (163) | Syncthing v2.1.2
+16 12:58:36 Version 1.6.1 (163) | Syncthing v2.1.2
+17 12:58:37 Version 1.6.1 (163) | Syncthing v2.1.2
+18 12:58:39 Version 1.6.1 (163) | Syncthing v2.1.2
+19 12:58:40 Version 1.6.1 (163) | Syncthing v2.1.2
+20 12:58:41 Version 1.6.1 (163) | Syncthing v2.1.2
+21 12:58:42 Version 1.6.1 (163) | Syncthing v2.1.2
+22 12:58:43 Version 1.6.1 (163) | Syncthing v2.1.2
+23 12:58:44 Version 1.6.1 (163) | Syncthing v2.1.2
+24 12:58:45 Version 1.6.1 (163) | Syncthing v2.1.2
+25 12:58:46 Version 1.6.1 (163) | Syncthing v2.1.2
+
+The observation was read-only. It changed no app preference, Syncthing configuration, peer state, or files.

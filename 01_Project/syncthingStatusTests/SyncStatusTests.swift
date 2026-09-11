@@ -335,12 +335,11 @@ final class SyncStatusTests: XCTestCase {
         fixture.client.connections = [Self.peer.id: Self.connection()]
         fixture.http.enqueue("/rest/system/config", json: "{}", status: 503)
         await fixture.client.fetchConfig(localDeviceID: "local")
-        // performRefresh still runs the status endpoints after config failure.
-        // Their responses cannot certify the stale folder/device universe.
-        fixture.http.enqueue("/rest/db/status", json: try Self.payload())
-        fixture.http.enqueue("/rest/db/completion", json: #"{"completion":100,"globalBytes":1000,"needBytes":0,"needDeletes":0,"needItems":0}"#)
+        // A failed configuration cannot authorize requests for a stale universe.
+        let requestCount = fixture.http.requests.count
         await fixture.client.fetchFolderStatus()
         await fixture.client.fetchDeviceCompletions()
+        XCTAssertEqual(fixture.http.requests.count, requestCount)
         XCTAssertNil(fixture.client.folderStatuses[Self.folder.id])
         XCTAssertNil(fixture.client.deviceCompletions[Self.peer.id])
         XCTAssertFalse(fixture.client.folderStatisticsAvailable)
