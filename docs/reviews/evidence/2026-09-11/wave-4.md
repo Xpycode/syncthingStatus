@@ -89,3 +89,20 @@ The production app cannot safely provide a whole-app isolated matrix in the curr
 - combined reconnect/cleanup/notification/action flows.
 
 The controlled production-controller pagination checks are strong integration evidence, but they are not claimed as the required live cleanup-window UI gate.
+
+## Unique-bundle UI fixture checkpoint
+
+Execution resumed with an isolated acceptance app rather than the production identity. `tools/build-wave4-acceptance-fixture.sh` compiles the production app under `WAVE4_ACCEPTANCE_FIXTURE` as `com.lucesumbrarum.syncthingStatus.wave4fixture`, with its own defaults and fixture credential store, fake launch-at-login state and Sparkle startup disabled. `tools/wave4-fixture-server.py` supplies a disposable loopback Syncthing API/config/root, including later-page failure, malformed-page and slow-page scenarios. `tools/wave4-ax.swift` provides narrow accessibility dump/action support.
+
+The fixture built ad-hoc with App Sandbox, user-selected read/write and network-client entitlements. Starting from a nonexistent fixture defaults domain, live accessibility inspection confirmed:
+
+- the full missing-config error and typed “Select Syncthing config.xml…” recovery action;
+- production `NSOpenPanel` presentation with the real-home hint;
+- cancellation returned to the error state with the recovery action still available;
+- selecting only `/private/tmp/syncthingStatus-wave4-ui-live/config.xml` connected the app to `127.0.0.1:28484`;
+- the fixture folder and Resolve alert appeared; and
+- Settings opened with Connection first, the selected fixture path and notification controls.
+
+The user stopped execution before notification disclosure/scope interaction could be completed. All/one/selected-none relaunch persistence, cleanup-window pagination/retry/cancel presentation, notification TCC denied/granted recovery and combined flows remain open. Tasks 4.1, 4.3–4.5 and A6/A8/A9 therefore remain unchecked. The fixture app and responder were stopped.
+
+Checkpoint validation passed: 114/114 hostless tests, a normal non-fixture unsigned Debug compile, the isolated fixture build/signing/entitlement checks, shell/Python/Swift tool checks and `git diff --check`. The live fixture used only its unique defaults/credential identity and disposable loopback files; production preferences, Keychain credentials, bookmarks and daemon state were not changed.

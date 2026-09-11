@@ -9,18 +9,18 @@
 ## Now
 - **Phase:** v1.7 implementation. Current public release remains v1.6.1 (build 163).
 <!-- Phase changed: 2026-09-06 -->
-- **Focus:** finish Wave 4's isolated notification, cleanup-window, picker and TCC UI acceptance without touching production user state.
-- **Execution:** Wave 4 is [partially accepted](reviews/evidence/2026-09-11/wave-4.md): 4.2/A7 passed; 4.1, 4.3–4.5 and A6/A8/A9 await isolated UI/TCC acceptance. Commits `5633ec3` + `f7bc4dc`, 114 tests, independent review, Debug build/launch, disposable daemon and controlled responder pass.
-- **Blockers:** production startup shares fixed defaults, Keychain and TCC identities, so the remaining whole-app matrix needs a unique injected fixture or disposable macOS account/VM. Full Homebrew audit still awaits supported Xcode tools.
-- **Next:** build/run the unique-bundle injected UI fixture (or use a disposable account/VM) for the remaining cases in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
+- **Focus:** finish Wave 4's notification-scope relaunch, cleanup-window pagination and notification-TCC UI matrix with the isolated fixture.
+- **Execution:** Wave 4 is [partially accepted](reviews/evidence/2026-09-11/wave-4.md): 4.2/A7 passed. A unique sandboxed bundle, isolated defaults/credentials, loopback Syncthing responder and AX driver now exist; clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings passed live. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain open.
+- **Blockers:** the fixture's notification disclosure/scope interaction and remaining relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted cases were not completed before the user stopped execution. Full Homebrew audit still awaits supported Xcode tools.
+- **Next:** restart the loopback responder and unique-bundle fixture, then complete notification scope/relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined flows in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
 - **Updated:** 2026-09-11.
 
 ## Recent
+- **2026-09-11:** checkpointed the isolated Wave 4 UI harness after live clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings checks; remaining scope/relaunch, cleanup-window and TCC cases stay open.
 - **2026-09-11:** partially accepted Wave 4: 4.2/A7 passed with a disposable daemon; 114 tests, controlled pagination, independent review and a fresh Debug launch pass, while isolated UI/TCC cases remain.
 - **2026-09-11:** closed Wave 3 after a fresh build, another clean 85-test run, independent review and 25 stable About/version samples across live refreshes; also explained healthy device-local file-count differences, recorded a UI clarification, and tightened Wave 4 after readiness review. The unchanged 85-test baseline passed again before Wave 4 execution.
 - **2026-09-06:** implemented refresh ownership and bounded workers; 85 tests ×3 and independent review passed. Fresh sandboxed app launched; three Refresh clicks and About version checked. Stopped during repeated About observation; changes remain uncommitted.
 - **2026-09-06:** completed truthful sync status (2.1–2.3/A4): 70 tests, independent review and native row/Settings checks and icon mapping passed; final sandboxed Debug app built and launched. Pending/unknown status cannot emit completion, and failed configuration invalidates cached metrics/history.
-- **2026-09-06:** wrapped cleanup safety: 49 tests, independent review and real sandbox/UI checks passed; five tasks archived, fresh Debug app handed off, GitHub issues recorded for later.
 
 ## Backlog
 - **Review queue:** eight archived tasks, three active Wave 4 acceptance tasks, nine deferred backlog items and two Inbox observations are tracked in [Tasks](TASKS.md). Overall progress: 8/20 (40%).
@@ -56,10 +56,10 @@
 
 ## Resume
 - Execution incomplete: Waves 1–3/A1–A5 and Wave 4 task 4.2/A7 passed. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain unchecked for their isolated live UI/TCC matrix.
-- Next pickup: build/run a unique-bundle injected component fixture, or use a disposable macOS account/VM, for notification relaunch, picker/TCC, cleanup-window and combined reconnect cases in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
-- Git: `fix/isolated-production-tests`; five local commits ahead of its remote after the Wave 4 source and documentation checkpoints. Push, merge and release remain unauthorized.
+- Next pickup: restart `tools/wave4-fixture-server.py`, build/launch via `tools/build-wave4-acceptance-fixture.sh`, then complete notification disclosure/scope relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined cases. The fixture defaults currently point to the disposable loopback configuration.
+- Git: `fix/isolated-production-tests`; this incomplete fixture checkpoint is committed and pushed. Merge and release remain unauthorized.
 - Tasks: eight archived, three active acceptance tasks, nine deferred backlog items and two Inbox observations; 8/20 (40%). GitHub #2/#5/#6 remain deferred individually.
-- App handoff: `/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app`; exact final executable verified at launch (PID 27785). The intentional fresh testing build remains running under the standing user preference.
-- Validation: 114/114 tests, ad-hoc Debug build, independent review, disposable pause daemon, controlled pagination responder and `git diff --check` passed. Fixture listeners were stopped; no real user state was mutated by fixtures.
-- Model fit: deep capability + high reasoning — next action designs and executes an isolated macOS UI/TCC fixture. Current setting is not reliably exposed.
+- App handoff: the unique fixture and loopback responder were stopped; the temporary Debug app was retired and `/Applications/syncthingStatus.app` was launched and verified as PID 96274.
+- Validation: 114/114 tests, normal unsigned Debug compile, isolated fixture build/signing/entitlements, tool syntax/compile checks, live clean-recovery/picker/connection/Settings checks and `git diff --check` passed. No production defaults, Keychain credentials, bookmarks or daemon state were mutated.
+- Model fit: deep capability + high reasoning — next action completes several stateful macOS UI/TCC flows. Current setting is not reliably exposed.
 - Public release stays v1.6.1 (163). Follow [Release maintenance](homebrew.md#release-maintenance) and run `/check ship` before a separately requested release.

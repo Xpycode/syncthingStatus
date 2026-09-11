@@ -10,13 +10,13 @@ final class UpdateController: ObservableObject {
     /// Whether the updater is currently able to check for updates.
     @Published var canCheckForUpdates = false
 
-    init() {
+    init(startingUpdater: Bool = true) {
         // Initialize Sparkle with default configuration
         // startingUpdater: true means it will start checking for updates according to settings
         // updaterDelegate: nil uses default behavior
         // userDriverDelegate: nil uses default UI
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: startingUpdater,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )

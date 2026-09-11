@@ -35,7 +35,11 @@ enum AppConstants {
         /// How long the stuck-delete fingerprint must persist before the
         /// popover badge fires. Avoids flapping during routine
         /// `cleaning → idle` transitions on a normal sync.
+#if WAVE4_ACCEPTANCE_FIXTURE
+        static let stuckDeletesDebounceSeconds: TimeInterval = 0
+#else
         static let stuckDeletesDebounceSeconds: TimeInterval = 30.0
+#endif
     }
 
     // MARK: - UI Configuration

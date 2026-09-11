@@ -1,6 +1,6 @@
 # Implementation plan — v1.7 review fixes
 
-Updated: 2026-09-11. **Waves 1–3 are complete; A1–A5 passed. Wave 4 is partially accepted: 4.2/A7 passed.** Production code is in `5633ec3` and review fixes in `f7bc4dc`; 114 tests, the Debug build, independent review, disposable-daemon pause, and controlled pagination checks pass. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain open for isolated live UI/TCC acceptance. GitHub follow-ups remain deferred. This is the active plan; older plans describe historical work.
+Updated: 2026-09-11. **Waves 1–3 are complete; A1–A5 passed. Wave 4 is partially accepted: 4.2/A7 passed.** Production code is in `5633ec3` and review fixes in `f7bc4dc`; 114 tests, the Debug build, independent review, disposable-daemon pause, and controlled pagination checks pass. A unique-bundle UI fixture has also passed clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings checks. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain open for the rest of the isolated UI/TCC matrix. GitHub follow-ups remain deferred. This is the active plan; older plans describe historical work.
 
 ## Goal and scope
 
@@ -227,12 +227,14 @@ Wave 4 implementation checkpointed on 2026-09-11. Tasks 4.1–4.4 were executed 
 
 Wave 4 acceptance advanced later on 2026-09-11. Independent review found authorization reentrancy, denied-state recovery, and daemon-mutation connection-lifetime defects; all were repaired with regressions in `f7bc4dc`, and the final review found no blockers. The final 114-test suite and ad-hoc Debug build passed. Final-source production harnesses passed targeted pause/resume against a hardened disposable daemon and strict pagination success/failure/malformed/cancellation against a controlled responder; all listeners were torn down. This closes 4.2/A7. Whole-app isolation is unsafe in the current login because production startup shares fixed defaults/Keychain/TCC identities, so 4.1, 4.3–4.5 and A6/A8/A9 remain open for a unique injected fixture or disposable account/VM. [Evidence](reviews/evidence/2026-09-11/wave-4.md). No push or release is authorized.
 
+Wave 4 UI-fixture work was checkpointed later on 2026-09-11 after the user stopped execution. A compile-time acceptance mode now produces a uniquely identified sandboxed app with isolated defaults/credentials, Sparkle disabled, fake login-item state, a loopback responder and an AX helper. Live checks passed clean missing-config recovery, picker cancellation with recovery retained, selection of only the disposable config, loopback connection, the Resolve alert and Connection-first Settings. Notification disclosure/scope relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined cases remain unperformed, so no additional task or acceptance criterion closes. The 114-test suite, normal unsigned Debug compile, fixture build and tooling checks pass. [Evidence](reviews/evidence/2026-09-11/wave-4.md).
+
 | Wave | State | Completion evidence |
 |---|---|---|
 | 1 — cleanup | Complete: 1.1–1.5; A1–A3 passed | [Cleanup verification](reviews/evidence/2026-09-05/cleanup-safety.md): 49 tests, independent review, real sandbox/UI, Debug build/launch |
 | 2 — status | Complete: 2.1–2.3; A4 passed | [Status evidence](reviews/evidence/2026-09-06/sync-status.md): 70 tests, independent review, native compact/detailed/Settings fixtures and icon mapping, Debug build/launch |
 | 3 — refresh | Complete: 3.1–3.4; A5 passed | [Refresh evidence](reviews/evidence/2026-09-06/refresh.md): 85 tests ×3, two independent reviews, read-only timings, Debug build/launch, Refresh UI and 25-sample About stability observation passed |
-| 4 — controls/recovery | Partially accepted: 4.2/A7 complete; UI/TCC gate remains | [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md): 114 tests, no-blocker independent review, Debug build/launch, disposable daemon and controlled responder passed; isolated UI/TCC cases remain |
+| 4 — controls/recovery | Partially accepted: 4.2/A7 complete; UI/TCC gate remains | [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md): 114 tests, no-blocker independent review, builds, disposable daemon and controlled responder passed; unique fixture passed recovery/picker/connection/Settings, with remaining scope/relaunch, cleanup-window and TCC cases open |
 | 5 — UI/accessibility | Queued | Pending |
 | 6 — maintenance | Queued; separately deferrable | Pending |
 | 7 — verification/readiness | Queued | Pending |

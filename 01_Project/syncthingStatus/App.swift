@@ -8,6 +8,32 @@ import OSLog
 
 private let appLifecycleLog = Logger(subsystem: "com.lucesumbrarum.syncthingStatus", category: "AppLifecycle")
 
+#if WAVE4_ACCEPTANCE_FIXTURE
+/// Fixture-only credential storage. The fixture is built with a unique bundle ID, so
+/// its standard defaults domain cannot read or modify the production app's Keychain.
+private final class Wave4FixtureCredentialStore: SettingsCredentialStore, @unchecked Sendable {
+    private let defaults: UserDefaults
+    private let key = "Wave4AcceptanceFixture.manualAPIKey"
+    private let lock = NSLock()
+
+    init(defaults: UserDefaults) { self.defaults = defaults }
+
+    func read() -> String? {
+        lock.withLock { defaults.string(forKey: key) }
+    }
+
+    func save(_ value: String) -> Bool {
+        lock.withLock { defaults.set(value, forKey: key) }
+        return true
+    }
+
+    func delete() -> Bool {
+        lock.withLock { defaults.removeObject(forKey: key) }
+        return true
+    }
+}
+#endif
+
 // MARK: - Window Controller
 class MainWindowController: NSWindowController {
     convenience init(syncthingClient: SyncthingClient, settings: SyncthingSettings, appDelegate: AppDelegate) {
@@ -158,7 +184,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private var stuckDeletesWindowControllers: [String: StuckDeletesWindowController] = [:]
     let settings: SyncthingSettings
     let syncthingClient: SyncthingClient
-    let updateController = UpdateController()
+    let updateController: UpdateController
     private var cancellables = Set<AnyCancellable>()
     private var lastContentHeight: CGFloat = 0
     private lazy var notificationAuthorizationCoordinator = NotificationAuthorizationCoordinator(
@@ -183,7 +209,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     )
     
     override init() {
+#if WAVE4_ACCEPTANCE_FIXTURE
+        let defaults = UserDefaults.standard
+        let settings = SyncthingSettings(
+            defaults: defaults,
+            credentialStore: Wave4FixtureCredentialStore(defaults: defaults),
+            legacyDefaultsProvider: { nil },
+            readLaunchAtLogin: { false },
+            writeLaunchAtLogin: { _ in }
+        )
+        updateController = UpdateController(startingUpdater: false)
+#else
         let settings = SyncthingSettings()
+        updateController = UpdateController()
+#endif
         self.settings = settings
         self.syncthingClient = SyncthingClient(settings: settings)
         super.init()
@@ -193,6 +232,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     init(settings: SyncthingSettings) {
         self.settings = settings
         self.syncthingClient = SyncthingClient(settings: settings)
+        self.updateController = UpdateController()
         super.init()
         bindClient()
     }
@@ -214,7 +254,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         UNUserNotificationCenter.current().delegate = self
         configureNotificationCategories()
         Task { await notificationAuthorizationCoordinator.refreshStatus() }
+#if WAVE4_ACCEPTANCE_FIXTURE
+        // A fixture build opens the production Details UI directly so an AX driver
+        // can exercise it without manipulating the user's real menu-bar item.
+        NSApp.setActivationPolicy(.regular)
+        openMainWindow()
+#else
         NSApp.setActivationPolicy(.accessory)
+#endif
         startMonitoring()
     }
 

@@ -29,7 +29,7 @@ User confirmed 2026-09-05: continue the cleanup safety sprint; handle these sepa
 - [ ] **4.3** Verify fail-closed cleanup pagination through the live UI. Automated suites and production-controller success/failure/malformed/cancellation checks pass against a controlled responder; the cleanup-window UI gate remains.
 - [ ] **4.4–4.5** Verify isolated picker/error/TCC recovery and combined A6–A9 flows. Typed recovery and concurrency tests, the full 114-test suite, independent review and Debug build pass.
 
-Wave 4 is partially accepted: 4.2/A7 passed with a disposable daemon. Remaining UI/TCC acceptance needs a uniquely isolated fixture or disposable account/VM. This is not release approval.
+Wave 4 is partially accepted: 4.2/A7 passed with a disposable daemon. The unique-bundle fixture now passes clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings. Notification-scope relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined UI cases remain; no additional task is checked. This is not release approval.
 
 ## Inbox
 
