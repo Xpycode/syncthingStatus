@@ -9,21 +9,22 @@
 ## Now
 - **Phase:** v1.7 implementation. Current public release remains v1.6.1 (build 163).
 <!-- Phase changed: 2026-09-06 -->
-- **Focus:** Wave 2 complete: one status policy now drives rows, icons and completion notifications; invalid/missing data stays unavailable. Cleanup safety remains verified. [Status evidence](reviews/evidence/2026-09-06/sync-status.md).
-- **Blockers:** none for the next implementation phase. Full Homebrew audit still awaits supported Xcode tools.
-- **Next:** Wave 3: reproduce refresh cancellation with deterministic gates, then give refresh scheduling one owner. It has not started; GitHub #2, #5 and #6 remain deferred.
-- **Updated:** 2026-09-06.
+- **Focus:** finish Wave 4's isolated notification, cleanup-window, picker and TCC UI acceptance without touching production user state.
+- **Execution:** Wave 4 is [partially accepted](reviews/evidence/2026-09-11/wave-4.md): 4.2/A7 passed; 4.1, 4.3–4.5 and A6/A8/A9 await isolated UI/TCC acceptance. Commits `5633ec3` + `f7bc4dc`, 114 tests, independent review, Debug build/launch, disposable daemon and controlled responder pass.
+- **Blockers:** production startup shares fixed defaults, Keychain and TCC identities, so the remaining whole-app matrix needs a unique injected fixture or disposable macOS account/VM. Full Homebrew audit still awaits supported Xcode tools.
+- **Next:** build/run the unique-bundle injected UI fixture (or use a disposable account/VM) for the remaining cases in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
+- **Updated:** 2026-09-11.
 
 ## Recent
+- **2026-09-11:** partially accepted Wave 4: 4.2/A7 passed with a disposable daemon; 114 tests, controlled pagination, independent review and a fresh Debug launch pass, while isolated UI/TCC cases remain.
+- **2026-09-11:** closed Wave 3 after a fresh build, another clean 85-test run, independent review and 25 stable About/version samples across live refreshes; also explained healthy device-local file-count differences, recorded a UI clarification, and tightened Wave 4 after readiness review. The unchanged 85-test baseline passed again before Wave 4 execution.
+- **2026-09-06:** implemented refresh ownership and bounded workers; 85 tests ×3 and independent review passed. Fresh sandboxed app launched; three Refresh clicks and About version checked. Stopped during repeated About observation; changes remain uncommitted.
 - **2026-09-06:** completed truthful sync status (2.1–2.3/A4): 70 tests, independent review and native row/Settings checks and icon mapping passed; final sandboxed Debug app built and launched. Pending/unknown status cannot emit completion, and failed configuration invalidates cached metrics/history.
 - **2026-09-06:** wrapped cleanup safety: 49 tests, independent review and real sandbox/UI checks passed; five tasks archived, fresh Debug app handed off, GitHub issues recorded for later.
-- **2026-09-05:** completed task 1.1: hostless production target, isolated system effects and 15 tests passing three times; independent isolation review passed. Built and launched the fresh sandboxed Debug app. [Evidence](reviews/evidence/2026-09-05/task-1.1-isolation.md).
-- **2026-09-05:** expanded the review handoff into seven implementation waves with Sol/Luna source checks and a five-task cleanup sprint; subsequently detailed task 1.1 against production source, covering test membership and isolated system effects. Application source unchanged.
-- **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 
 ## Backlog
-- **Review queue:** five archived cleanup tasks, one completed status sprint task, 13 backlog items (eight review follow-ups, two Homebrew checks and three deferred GitHub follow-ups), and two observations awaiting reproduction are tracked in [Tasks](TASKS.md). See the [review](reviews/2026-09-05-usability-code-review.md) for evidence and priority.
-- **v1.7 priority:** investigate refresh overruns with offline devices. Requests can outlast the 10-second refresh interval and be cancelled by the next cycle; suspect disconnected-device `db/completion` reaching the 30-second resource timeout. About-version flickering is already fixed.
+- **Review queue:** eight archived tasks, three active Wave 4 acceptance tasks, nine deferred backlog items and two Inbox observations are tracked in [Tasks](TASKS.md). Overall progress: 8/20 (40%).
+- **v1.7 priority:** Wave 4 implementation is complete but its live gate remains. Offline-peer overrun was measured at 16.7808 s; the separate 30 s resource-timeout hypothesis remains unconfirmed. Timer/manual refreshes now coalesce and slow entries use bounded workers.
 - **GitHub issues:** #2 genuine monochrome icons, #5 long-path layout reproduction/fix and #6 Homebrew response are explicitly deferred until after cleanup safety; linked tasks are recorded in `TASKS.md` (user decision 2026-09-05).
 - **v1.7 polish:** Feedback / Donate / Help, window frame autosave, CHANGELOG, split the large Views and Client files, refresh About credits on reconnect.
 - **Remote HTTPS:** consider opt-in certificate pinning if more NAS / remote-host reports arrive; self-signed certificate auto-trust is restricted to loopback.
@@ -54,9 +55,11 @@
 - [Homebrew distribution](homebrew.md) — cask validation, publication, and release maintenance.
 
 ## Resume
-- Cleanup safety (1.1–1.5/A1–A3) and truthful status (2.1–2.3/A4) are complete on `fix/isolated-production-tests`. This is not whole-release approval. Next planned implementation is Wave 3; later waves and deferred GitHub fixes have not started.
-- Sprint: status task 1/1 complete (awaiting ordinary log archival); five cleanup tasks archived. Tracked progress: 6/19 (32%). Deferred: 13 backlog items and two unconfirmed observations.
-- Git handoff: continue on `fix/isolated-production-tests`; no merge or release is part of this handoff.
-- Running app handoff: `/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app`; old app instances quit gracefully and the exact fresh executable was verified on September 6.
-- Model fit: deep capability + high reasoning for the upcoming refresh ownership/concurrency work; use bounded independent validation.
-- For every public app release, follow [Release maintenance](homebrew.md#release-maintenance): GitHub DMG first, then Sparkle + cask metadata, website deployment, and live checks. Run `/check ship` before a separately requested release.
+- Execution incomplete: Waves 1–3/A1–A5 and Wave 4 task 4.2/A7 passed. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain unchecked for their isolated live UI/TCC matrix.
+- Next pickup: build/run a unique-bundle injected component fixture, or use a disposable macOS account/VM, for notification relaunch, picker/TCC, cleanup-window and combined reconnect cases in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
+- Git: `fix/isolated-production-tests`; five local commits ahead of its remote after the Wave 4 source and documentation checkpoints. Push, merge and release remain unauthorized.
+- Tasks: eight archived, three active acceptance tasks, nine deferred backlog items and two Inbox observations; 8/20 (40%). GitHub #2/#5/#6 remain deferred individually.
+- App handoff: `/private/tmp/syncthingStatus-v17-build/Build/Products/Debug/syncthingStatus.app`; exact final executable verified at launch (PID 27785). The intentional fresh testing build remains running under the standing user preference.
+- Validation: 114/114 tests, ad-hoc Debug build, independent review, disposable pause daemon, controlled pagination responder and `git diff --check` passed. Fixture listeners were stopped; no real user state was mutated by fixtures.
+- Model fit: deep capability + high reasoning — next action designs and executes an isolated macOS UI/TCC fixture. Current setting is not reliably exposed.
+- Public release stays v1.6.1 (163). Follow [Release maintenance](homebrew.md#release-maintenance) and run `/check ship` before a separately requested release.

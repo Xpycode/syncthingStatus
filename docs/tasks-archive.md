@@ -1,9 +1,11 @@
 # Completed Tasks
 
-Total archived: 7
+Total archived: 8
 Last updated: 2026-09-11
 
 ## Completed
+
+- **4.2** Verify targeted pause/resume against a disposable Syncthing daemon: final-source production harness, connection-transition regressions, independent review, and unrelated-state preservation passed. (2026-09-11) — [Evidence](reviews/evidence/2026-09-11/wave-4.md).
 
 - **3.1–3.4** Make refresh ownership and progress predictable: one coalescing scheduler, generation-isolated publication, bounded folder/device workers, 85 tests ×4 total closing runs, two independent reviews, native Refresh smoke and 25 stable About/version samples across live refresh boundaries. (2026-09-11) — [Evidence](reviews/evidence/2026-09-06/refresh.md).
 

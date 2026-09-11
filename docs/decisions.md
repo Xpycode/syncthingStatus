@@ -209,6 +209,16 @@ the plan is not evidence that the defect is fixed or that a release is ready.
 ---
 *Add decisions as they are made. Future-you will thank present-you.*
 
+### 2026-09-11 — Wave 4 uses explicit notification scope and fail-closed action state
+
+**Context:** readiness review found four places where broad task wording could produce internally consistent code that still violated the UI promise: “None” did not say whether it included the global completion notice; cancelling an in-flight pause PATCH could not prove the daemon had not applied it; malformed cleanup buckets could decode as empty and make an incomplete page look terminal; and recovery controls had only localized error text from which to choose an action.
+
+**Alternatives considered:** let implementation infer each behavior from nearby code; make folder selection govern every sync-completion notice; cancel and replace pause requests; retain permissive `db/need` decoding; or branch recovery UI on message strings. These were rejected because they leave observable behavior ambiguous, make remote mutation outcome unknowable, weaken a destructive workflow, or couple logic to mutable/localized copy.
+
+**Decision:** All/Selected governs per-folder completion notices only; Selected with no IDs means no per-folder notices, while the global “All Synced” notice remains under the master toggle. An in-flight pause mutation resolves before the latest queued same-folder intent is applied and reconciled. Cleanup pagination strictly decodes every page, accumulates privately and exposes candidates only from a completed current generation. Connection failures publish a typed recovery kind/action, and notification authorization is decided by an injected production policy rather than directly in App/UI code.
+
+**Consequences:** Wave 4 tests must cover both notification channels, old-bundle/current-default migration, ambiguous mutation completion, malformed/mismatched pagination and stale-list non-actionability, typed recovery mapping, and allowed/denied/not-determined notification states. The hostless target must include any extracted recovery/authorization policy. Existing global notification behavior is preserved and UI labels must make its separate scope clear.
+
 ## Condensed Log (migrated from PROJECT_STATE.md, 2026-09-05)
 
 - **`db/need`** (receiver vantage) over `db/remoteneed` (sender vantage) for candidate listing — see `decisions.md`.
