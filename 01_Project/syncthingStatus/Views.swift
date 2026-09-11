@@ -2044,6 +2044,20 @@ struct SettingsView: View {
             Section("Notifications") {
                 Toggle("Show sync completion notifications", isOn: $settings.showSyncNotifications)
 
+                if settings.notificationAuthorizationDenied {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Notifications are denied in System Settings.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        NotificationSettingsButton {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+
                 if settings.showSyncNotifications {
                     VStack(alignment: .leading, spacing: AppConstants.UI.spacingM) {
                         HStack {
@@ -2108,8 +2122,8 @@ struct SettingsView: View {
                     Text(settings.folderNotificationSelectionMode == .all
                          ? "Every folder, including folders added later."
                          : (settings.notificationEnabledFolderIDs.isEmpty
-                            ? "No per-folder completion notifications. The separate All Synced notice remains enabled above."
-                            : "Only selected folders. The separate All Synced notice remains enabled above."))
+                            ? "No per-folder completion notifications. The separate All Synced notice follows the master toggle above."
+                            : "Only selected folders. The separate All Synced notice follows the master toggle above."))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -2228,6 +2242,34 @@ struct SettingsView: View {
                 guard FolderNotificationSelectionMode.allCases.indices.contains(sender.selectedSegment) else { return }
                 onSelect(FolderNotificationSelectionMode.allCases[sender.selectedSegment])
             }
+        }
+    }
+
+    private struct NotificationSettingsButton: NSViewRepresentable {
+        let action: () -> Void
+
+        func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+
+        func makeNSView(context: Context) -> NSButton {
+            let button = NSButton(
+                title: "Open Notification Settings",
+                target: context.coordinator,
+                action: #selector(Coordinator.clicked)
+            )
+            button.bezelStyle = .rounded
+            return button
+        }
+
+        func updateNSView(_ button: NSButton, context: Context) {
+            context.coordinator.action = action
+            button.title = "Open Notification Settings"
+        }
+
+        @MainActor
+        final class Coordinator: NSObject {
+            var action: () -> Void
+            init(action: @escaping () -> Void) { self.action = action }
+            @objc func clicked() { action() }
         }
     }
 

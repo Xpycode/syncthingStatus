@@ -116,23 +116,37 @@ final class NotificationAuthorizationCoordinator {
     typealias RequestAuthorization = () async throws -> Bool
     private let statusProvider: StatusProvider
     private let requestAuthorization: RequestAuthorization
+    private let observeStatus: (UNAuthorizationStatus) -> Void
     private var requestInFlight = false
     private var didAttemptAuthorization = false
 
-    init(statusProvider: @escaping StatusProvider, requestAuthorization: @escaping RequestAuthorization) {
+    init(statusProvider: @escaping StatusProvider,
+         requestAuthorization: @escaping RequestAuthorization,
+         observeStatus: @escaping (UNAuthorizationStatus) -> Void = { _ in }) {
         self.statusProvider = statusProvider
         self.requestAuthorization = requestAuthorization
+        self.observeStatus = observeStatus
+    }
+
+    func refreshStatus() async {
+        observeStatus(await statusProvider())
     }
 
     func handle(_ trigger: NotificationAuthorizationTrigger, notificationsEnabled: Bool) async throws {
-        guard !requestInFlight, !didAttemptAuthorization else { return }
+        guard !didAttemptAuthorization else { return }
         let status = await statusProvider()
+        observeStatus(status)
         guard NotificationAuthorizationPolicy.shouldRequest(status: status, trigger: trigger,
                                                              notificationsEnabled: notificationsEnabled) else { return }
+        // Re-check after the awaited status lookup. This serializes competing
+        // eligible triggers without dropping a user intent behind an ineligible
+        // connection-trigger lookup.
+        guard !requestInFlight, !didAttemptAuthorization else { return }
         requestInFlight = true
-        didAttemptAuthorization = true
         defer { requestInFlight = false }
-        _ = try await requestAuthorization()
+        let granted = try await requestAuthorization()
+        didAttemptAuthorization = true
+        observeStatus(granted ? .authorized : .denied)
     }
 }
 
@@ -222,7 +236,11 @@ class SyncthingClient: ObservableObject {
     private var baseURL: URL?
     private var apiKey: String?
     private var cachedAutomaticAPIKey: String?
-    private var pendingFolderPauseIntents: [String: Bool] = [:]
+    private struct FolderPauseIntent {
+        let paused: Bool
+        let connectionRevision: UUID
+    }
+    private var pendingFolderPauseIntents: [String: FolderPauseIntent] = [:]
     private var foldersWithPauseMutationInFlight = Set<String>()
     private var folderPauseMutationErrors: [String: String] = [:]
     /// Changes immediately on connection settings edits, before the refresh debounce.
@@ -478,6 +496,8 @@ class SyncthingClient: ObservableObject {
         lastSyncNotificationDates = [:]
         lastGlobalSyncNotificationSentAt = nil
         syncEvents = []
+        pendingFolderPauseIntents.removeAll()
+        folderPauseMutationErrors.removeAll()
         // Demo owns a complete synthetic presentation, including its metrics.
         // Settings invalidate only the real cache until demo exits.
         guard !demoMode else { return }
@@ -849,7 +869,7 @@ class SyncthingClient: ObservableObject {
             guard canPublish(generation) else { return }
             self.systemStatus = status
             self.isConnected = true
-            self.lastErrorMessage = nil
+            self.lastErrorMessage = folderPauseMutationErrors.values.first
             self.connectionRecovery = nil
         } catch {
             guard canPublish(generation), !isCancellationError(error) else { return }
@@ -1779,30 +1799,37 @@ class SyncthingClient: ObservableObject {
     }
 
     private func setFolderPausedState(folderID: String, paused: Bool) async {
-        pendingFolderPauseIntents[folderID] = paused
+        guard prepareCredentials() else { return }
+        pendingFolderPauseIntents[folderID] = FolderPauseIntent(
+            paused: paused,
+            connectionRevision: cleanupConnectionRevision
+        )
         guard !foldersWithPauseMutationInFlight.contains(folderID) else { return }
         foldersWithPauseMutationInFlight.insert(folderID)
         defer { foldersWithPauseMutationInFlight.remove(folderID) }
 
-        while let intendedState = pendingFolderPauseIntents.removeValue(forKey: folderID) {
+        while let intent = pendingFolderPauseIntents.removeValue(forKey: folderID) {
+            guard intent.connectionRevision == cleanupConnectionRevision else { continue }
             do {
                 try await patchJSON(path: "config/folders", lastPathComponent: folderID,
-                                    body: ["paused": intendedState])
+                                    body: ["paused": intent.paused])
+                guard intent.connectionRevision == cleanupConnectionRevision else { continue }
                 let folderName = folders.first { $0.id == folderID }?.label ?? folderID
                 if let localIndex = folders.firstIndex(where: { $0.id == folderID }) {
-                    folders[localIndex].paused = intendedState
+                    folders[localIndex].paused = intent.paused
                 }
                 folderPauseMutationErrors.removeValue(forKey: folderID)
-                sendPauseResumeNotification(target: .folder(id: folderID, name: folderName), paused: intendedState)
+                sendPauseResumeNotification(target: .folder(id: folderID, name: folderName), paused: intent.paused)
                 await refresh()
                 if let mutationError = folderPauseMutationErrors.values.first {
                     lastErrorMessage = mutationError
                 }
             } catch {
                 configLog.error("Failed to set folder paused state for \(folderID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                guard !isCancellationError(error), !demoMode else { continue }
+                guard !isCancellationError(error), !demoMode,
+                      intent.connectionRevision == cleanupConnectionRevision else { continue }
                 let folderName = folders.first { $0.id == folderID }?.label ?? folderID
-                let message = "Failed to \(intendedState ? "pause" : "resume") \(folderName): \(error.localizedDescription)"
+                let message = "Failed to \(intent.paused ? "pause" : "resume") \(folderName): \(error.localizedDescription)"
                 folderPauseMutationErrors[folderID] = message
                 lastErrorMessage = message
             }

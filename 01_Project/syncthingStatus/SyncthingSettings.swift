@@ -57,6 +57,8 @@ final class SyncthingSettings: ObservableObject {
     @Published var syncNotificationCooldownMinutes: Double
     @Published var folderNotificationSelectionMode: FolderNotificationSelectionMode
     @Published var notificationEnabledFolderIDs: [String]
+    /// Ephemeral system authorization state. This is never persisted as a preference.
+    @Published private(set) var notificationAuthorizationDenied: Bool
     @Published var configBookmarkData: Data?
     @Published var configBookmarkPath: String?
     @Published var launchAtLogin: Bool {
@@ -146,6 +148,7 @@ final class SyncthingSettings: ObservableObject {
             .flatMap(FolderNotificationSelectionMode.init(rawValue:))
             ?? (storedNotificationFolderIDs.isEmpty ? .all : .selected)
         folderNotificationSelectionMode = storedNotificationMode
+        notificationAuthorizationDenied = false
         if defaults.string(forKey: Keys.folderNotificationSelectionMode) == nil {
             defaults.set(storedNotificationMode.rawValue, forKey: Keys.folderNotificationSelectionMode)
         }
@@ -375,6 +378,10 @@ final class SyncthingSettings: ObservableObject {
 
     func folderNotificationsEnabled(for folderID: String) -> Bool {
         folderNotificationSelectionMode == .all || notificationEnabledFolderIDs.contains(folderID)
+    }
+
+    func setNotificationAuthorizationDenied(_ denied: Bool) {
+        notificationAuthorizationDenied = denied
     }
 
     func setFolderNotificationSelectionMode(_ mode: FolderNotificationSelectionMode, availableFolderIDs: [String]) {

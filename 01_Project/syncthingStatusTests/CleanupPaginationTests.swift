@@ -60,11 +60,30 @@ final class CleanupPaginationTests: XCTestCase {
     }
 
     @MainActor
+    func testFullPageWithoutCandidatesStillLoadsNextPage() async throws {
+        let (fixture, controller) = try await fixtureAndController()
+        addTeardownBlock { @MainActor in try await fixture.close() }
+        fixture.connection.http.enqueue(
+            "/rest/db/need",
+            json: try payload(rest: (0..<1000).map { item("file-\($0)", type: "FILE_INFO_TYPE_FILE") })
+        )
+        fixture.connection.http.enqueue("/rest/db/need", json: try payload(page: 2, rest: [item("candidate")]))
+
+        await controller.loadCandidates()
+
+        XCTAssertEqual(controller.candidates.map(\.name), ["candidate"])
+        XCTAssertTrue(controller.candidatesActionable)
+    }
+
+    @MainActor
     func testMalformedBucketsAndMetadataFailClosed() async throws {
         for json in [
             #"{"page":1,"perpage":1000,"progress":[],"queued":[]}"#,
             #"{"page":1,"perpage":1000,"progress":{},"queued":[],"rest":[]}"#,
-            try payload(page: 2)
+            #"{"perpage":1000,"progress":[],"queued":[],"rest":[]}"#,
+            #"{"page":1,"progress":[],"queued":[],"rest":[]}"#,
+            try payload(page: 2),
+            try payload(perpage: 999)
         ] {
             let (fixture, controller) = try await fixtureAndController()
             fixture.connection.http.enqueue("/rest/db/need", json: json)

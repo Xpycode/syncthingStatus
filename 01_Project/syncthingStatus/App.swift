@@ -176,6 +176,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                     else { continuation.resume(returning: granted) }
                 }
             }
+        },
+        observeStatus: { [weak self] status in
+            self?.settings.setNotificationAuthorizationDenied(status == .denied)
         }
     )
     
@@ -210,8 +213,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         setupPopover()
         UNUserNotificationCenter.current().delegate = self
         configureNotificationCategories()
+        Task { await notificationAuthorizationCoordinator.refreshStatus() }
         NSApp.setActivationPolicy(.accessory)
         startMonitoring()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { await notificationAuthorizationCoordinator.refreshStatus() }
     }
 
     private func configureNotificationCategories() {

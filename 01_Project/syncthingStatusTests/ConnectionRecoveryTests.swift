@@ -72,4 +72,96 @@ final class ConnectionRecoveryTests: XCTestCase {
         try await coordinator.handle(.firstSuccessfulConnection, notificationsEnabled: true)
         XCTAssertEqual(requests, 1)
     }
+
+    @MainActor
+    func testDeniedPermissionPublishesSettingsRecoveryWithoutRequestingAgain() async throws {
+        var requests = 0
+        var observed: [UNAuthorizationStatus] = []
+        let coordinator = NotificationAuthorizationCoordinator(
+            statusProvider: { .denied },
+            requestAuthorization: { requests += 1; return true },
+            observeStatus: { observed.append($0) }
+        )
+
+        await coordinator.refreshStatus()
+        try await coordinator.handle(.explicitIntent, notificationsEnabled: true)
+
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(observed, [.denied, .denied])
+    }
+
+    @MainActor
+    func testConcurrentEligibleEventsRequestAuthorizationOnlyOnce() async throws {
+        var firstStatusContinuation: CheckedContinuation<UNAuthorizationStatus, Never>?
+        var statusChecks = 0
+        var requests = 0
+        let firstStatusCheckStarted = expectation(description: "first status check started")
+        let coordinator = NotificationAuthorizationCoordinator(
+            statusProvider: {
+                statusChecks += 1
+                guard statusChecks == 1 else { return .notDetermined }
+                firstStatusCheckStarted.fulfill()
+                return await withCheckedContinuation { firstStatusContinuation = $0 }
+            },
+            requestAuthorization: { requests += 1; return true }
+        )
+
+        let first = Task {
+            try await coordinator.handle(.firstSuccessfulConnection, notificationsEnabled: true)
+        }
+        let second = Task {
+            try await coordinator.handle(.explicitIntent, notificationsEnabled: true)
+        }
+
+        await fulfillment(of: [firstStatusCheckStarted], timeout: 1)
+        try await second.value
+        firstStatusContinuation?.resume(returning: .notDetermined)
+        try await first.value
+
+        XCTAssertEqual(requests, 1)
+    }
+
+    @MainActor
+    func testExplicitIntentIsNotDroppedBehindIneligibleConnectionStatusLookup() async throws {
+        var firstStatusContinuation: CheckedContinuation<UNAuthorizationStatus, Never>?
+        var statusChecks = 0
+        var requests = 0
+        let firstStatusCheckStarted = expectation(description: "first status check started")
+        let coordinator = NotificationAuthorizationCoordinator(
+            statusProvider: {
+                statusChecks += 1
+                guard statusChecks == 1 else { return .notDetermined }
+                firstStatusCheckStarted.fulfill()
+                return await withCheckedContinuation { firstStatusContinuation = $0 }
+            },
+            requestAuthorization: { requests += 1; return true }
+        )
+
+        let connection = Task {
+            try await coordinator.handle(.firstSuccessfulConnection, notificationsEnabled: false)
+        }
+        await fulfillment(of: [firstStatusCheckStarted], timeout: 1)
+        try await coordinator.handle(.explicitIntent, notificationsEnabled: true)
+        firstStatusContinuation?.resume(returning: .notDetermined)
+        try await connection.value
+
+        XCTAssertEqual(requests, 1)
+    }
+
+    @MainActor
+    func testRefreshStatusClearsPreviouslyObservedDenialAfterSettingsGrant() async {
+        var status: UNAuthorizationStatus = .denied
+        var observed: [UNAuthorizationStatus] = []
+        let coordinator = NotificationAuthorizationCoordinator(
+            statusProvider: { status },
+            requestAuthorization: { true },
+            observeStatus: { observed.append($0) }
+        )
+
+        await coordinator.refreshStatus()
+        status = .authorized
+        await coordinator.refreshStatus()
+
+        XCTAssertEqual(observed, [.denied, .authorized])
+    }
 }
