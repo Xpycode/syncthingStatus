@@ -51,9 +51,7 @@ struct ContentView: View {
                 // Breaking this structure will cause popover to collapse to minimal height.
                 // See commits 4ddba8e and cd9695f for context.
                 let statusContent = VStack(spacing: AppConstants.UI.spacingXL) {
-                    StuckDeletesAlertRow(syncthingClient: syncthingClient) { folder in
-                        appDelegate.openStuckDeletesResolution(for: folder)
-                    }
+                    StuckDeletesAlertRow(syncthingClient: syncthingClient)
 
                     if let status = syncthingClient.systemStatus {
                         SystemStatusView(status: status, deviceName: syncthingClient.localDeviceName, version: syncthingClient.syncthingVersion, isPopover: isPopover)
@@ -274,7 +272,6 @@ struct FooterView: View {
 /// stable across the on/off transition.
 struct StuckDeletesAlertRow: View {
     @ObservedObject var syncthingClient: SyncthingClient
-    let onResolve: (SyncthingFolder) -> Void
 
     private var affectedFolders: [SyncthingFolder] {
         syncthingClient.folders.filter {
@@ -299,16 +296,14 @@ struct StuckDeletesAlertRow: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .lineLimit(2)
+                            Text("Cleanup temporarily unavailable in 1.6.2")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
 
                         Spacer()
 
-                        Button("Resolve…") {
-                            onResolve(folder)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .tint(.orange)
+
                     }
                     .padding(AppConstants.UI.paddingS)
                     .background(
@@ -2017,7 +2012,7 @@ struct SettingsView: View {
                 }
 
                 Toggle("Detect stuck deletions", isOn: $settings.stuckDeletesAlertsEnabled)
-                Text("Surface an alert when Syncthing can't remove folders that contain ignored files (.git, .build, etc.). Click \"Resolve…\" in the popover to inspect and clean up.")
+                Text("Surface an alert when Syncthing can't remove folders that contain ignored files (.git, .build, etc.). Cleanup is temporarily unavailable in 1.6.2.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

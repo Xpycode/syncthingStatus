@@ -6,7 +6,8 @@
 - Long folder names and paths no longer squeeze file counts and sync status into unreadable columns or stretch folder rows in the menu bar dropdown ([#5](https://github.com/Xpycode/syncthingStatus/issues/5)).
 - Folder names and paths truncate within the available space, with full text on hover. Pending-work summaries use at most two lines, with the full summary on hover.
 
-This release changes only the compact folder-row layout, on the v1.6.1 baseline.
+### Security
+- Temporarily disabled stuck-deletion cleanup because an existing folder-selection issue could delete from the wrong folder. Monitoring and stuck-deletion alerts remain available.
 
 ## [1.6.1] — 2026-08-10
 

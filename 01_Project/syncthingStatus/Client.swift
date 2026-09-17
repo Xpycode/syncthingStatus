@@ -1803,13 +1803,8 @@ struct DeletionOutcome: Equatable {
 }
 
 // MARK: - Stuck Deletes Controller
-/// Per-window controller for the stuck-deletes cleanup view. One instance is
-/// constructed when the user clicks "Resolve…" on a folder; it owns the fetch
-/// state, the candidate list, the deletion pipeline, and an FDA gate flag.
-///
-/// Threading: marked `@MainActor` for SwiftUI binding safety; FS-mutating work
-/// runs on a detached background task using a fresh `FileManager()` instance
-/// (the documented thread-safe choice — `FileManager.default` is per-thread).
+/// Retained cleanup controller for a future safety repair. Its window is not
+/// reachable in 1.6.2, and its deletion entry point always refuses the operation.
 @MainActor
 final class StuckDeletesController: ObservableObject {
     @Published private(set) var candidates: [RemoteNeedItem] = []
@@ -2052,118 +2047,12 @@ final class StuckDeletesController: ObservableObject {
         }
     }
 
-    /// Deletes the user-selected candidates. Steps:
-    ///   1. Per-item: validate path, then `removeItem` on a detached task.
-    ///   2. Trigger Syncthing rescan (`POST /rest/db/scan`).
-    ///   3. Wait briefly for the daemon to ingest the FS change.
-    ///   4. Reload candidates so the UI reflects the new state — failed items
-    ///      stay in the list (they weren't deleted), succeeded items disappear.
-    ///
-    /// Access pre-flight runs first; if it fails (no bookmark / stale / I/O
-    /// error), we surface the gate UI instead of attempting any deletes. The
-    /// security-scoped URL from a successful probe wraps the whole delete
-    /// loop so each per-item operation runs inside the granted access.
-    /// Idempotent on ENOENT (treat already-gone as success, so concurrent
-    /// windows / concurrent Finder cleanups don't produce spurious "failed"
-    /// entries).
+    /// Cleanup is disabled for this release; never mutate the filesystem.
     func performDeletion(selected: Set<String>) async {
-        guard !deleting else { return }
-        let toDelete = candidates.filter { selected.contains($0.id) }
-        guard !toDelete.isEmpty else { return }
-
-        // Pre-flight: only block when there's no usable bookmark. Other errors
-        // (path missing, etc.) get surfaced through `lastError` so the user
-        // sees the real problem instead of a misleading grant-access gate.
-        let probe = probeFolderAccess()
-        applyProbeResult(probe)
-        guard case .granted(let folderRoot) = probe else { return }
-
-        deleting = true
-        defer { deleting = false }
+        // Disabled in 1.6.2: the previous bookmark root could target the wrong folder.
+        // Keep this entry point fail-closed even if an old UI action calls it.
         lastOutcome = nil
-
-        stuckDeletesLog.notice("Deletion start: \(toDelete.count, privacy: .public) candidate(s) on folder \(self.folder.id, privacy: .public)")
-
-        // Security-scoped access spans the whole delete loop. Sub-paths
-        // constructed via appendingPathComponent inherit the parent scope, so
-        // detached per-item tasks work without re-acquiring access.
-        let started = folderRoot.startAccessingSecurityScopedResource()
-        defer {
-            if started { folderRoot.stopAccessingSecurityScopedResource() }
-        }
-
-        var succeededCount = 0
-        var failed: [DeletionOutcome.FailedItem] = []
-
-        for item in toDelete {
-            switch await deleteOne(item: item, folderRoot: folderRoot) {
-            case .success:
-                succeededCount += 1
-                stuckDeletesLog.notice("Deleted: \(item.name, privacy: .public)")
-            case .failure(let err):
-                failed.append(.init(name: item.name, reason: err.humanReadable))
-                stuckDeletesLog.error("Deletion failed for \(item.name, privacy: .public): \(err.humanReadable, privacy: .public)")
-            }
-        }
-
-        lastOutcome = DeletionOutcome(succeededCount: succeededCount, failed: failed)
-        stuckDeletesLog.info("Deletion complete: \(succeededCount, privacy: .public) ok, \(failed.count, privacy: .public) failed")
-
-        // Nudge Syncthing to reconcile; rescan is fire-and-forget.
-        do {
-            try await client.rescan(folder: folder.id)
-            stuckDeletesLog.info("Rescan triggered for folder \(self.folder.id, privacy: .public)")
-        } catch {
-            stuckDeletesLog.error("Rescan request failed: \(error.localizedDescription, privacy: .public)")
-        }
-
-        // Give Syncthing 2 s to ingest filesystem changes, then refresh the
-        // candidate list. Successful deletions disappear; failed items remain
-        // and the user can retry without reopening the window.
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-        await loadCandidates()
-    }
-
-    private func deleteOne(item: RemoteNeedItem, folderRoot: URL) async -> Result<Void, DeletionError> {
-        guard let target = Self.validatePath(item.name, folderRoot: folderRoot) else {
-            return .failure(.invalidPath)
-        }
-
-        return await Task.detached(priority: .userInitiated) {
-            let fm = FileManager()  // fresh instance: thread-safe per Apple guidance
-
-            // Probe attributes without following symlinks. `attributesOfItem`
-            // queries the symlink itself, not its target — important for the
-            // "directory containing a symlink to /" defense. We don't actually
-            // *use* the type here; the call is a sanity probe whose error path
-            // tells us whether the file is missing/permission-denied.
-            do {
-                _ = try fm.attributesOfItem(atPath: target.path)
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                // Already gone — treat as success (idempotent).
-                return .success(())
-            } catch let error as CocoaError where error.code == .fileReadNoPermission {
-                return .failure(.permissionDenied)
-            } catch {
-                return .failure(.osError(error.localizedDescription))
-            }
-
-            // Recursive removal. Foundation's removeItem unlinks symlinks for
-            // the *top-level* item without following, and unlinks (not follows)
-            // any nested symlinks during recursion. Documented POSIX behavior.
-            do {
-                try fm.removeItem(at: target)
-                return .success(())
-            } catch let error as CocoaError where
-                error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
-                return .success(())  // Race: deleted between probe and removal.
-            } catch let error as CocoaError where
-                error.code == .fileWriteNoPermission || error.code == .fileReadNoPermission {
-                return .failure(.permissionDenied)
-            } catch {
-                return .failure(.osError(error.localizedDescription))
-            }
-        }.value
+        lastError = "Cleanup is temporarily unavailable in 1.6.2. No files were deleted."
     }
 
     /// Validates a Syncthing-reported relative path against the folder root.

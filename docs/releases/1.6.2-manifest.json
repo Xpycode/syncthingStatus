@@ -1,13 +1,13 @@
 {
   "version": "1.6.2",
-  "build": 164,
-  "sha256": "cd1e15a706605726edf613e9411829e8296d5cf2d0430c6e4362465dc6320f47",
-  "length": 3657481,
-  "edSignature": "tvSdbb7vuYzz8tVdvKeO6ssH3jhjWfwmy+08oKgJyM68EAcfg4Kdgvmx8NRGM+1AUoh9yDW/hqgC9PexS2XbBA==",
+  "build": 165,
+  "sha256": "51641e72c54458147b8ca3c8133b017db3d3b6ad6b24a7366fdbcbe71caf09fe",
+  "length": 3542329,
+  "edSignature": "2AAG6AZ3kSkLVHl3at+e9ggLgN1+rKQIxvJZ9fyzcpPvMBppJPPmBh8xKZg7owHQNQMpvwM2kIntygDqeslpDw==",
   "minimumSystemVersion": "15.5",
   "architectures": [
     "x86_64",
     "arm64"
   ],
-  "publication": "prepared, not published"
+  "publication": "verified for publication"
 }

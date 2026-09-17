@@ -20,7 +20,7 @@
 - **Long folder names no longer distort the menu bar dropdown.** Folder names and paths truncate to fit while file counts, sizes, and sync status remain readable. Hover over a name or path to see its full text.
 - **Pending-work summaries stay compact**, with the full summary available on hover.
 
-This is a focused layout fix based on v1.6.1. See the [changelog](CHANGELOG.md) for release history.
+This release is based on v1.6.1 and also temporarily disables stuck-deletion cleanup to prevent an existing folder-selection safety issue. Monitoring and stuck-deletion alerts remain available. See the [changelog](CHANGELOG.md) for release history.
 
 ## What's New in Version 1.6.1
 
@@ -110,7 +110,7 @@ This is a focused layout fix based on v1.6.1. See the [changelog](CHANGELOG.md) 
   - ![Disconnected](github/screenshots/icon-disconnected.png) **Out of sync / Disconnected** — Syncthing is unreachable, in a folder error, or genuinely behind
 - **Device Monitoring**: Track connection status, sync progress, and transfer rates for all remote devices
 - **Folder Status**: View sync state, file counts, and data sizes for each shared folder
-- **Stuck-Deletion Detection & Cleanup**: Spot deletions Syncthing can't finish and clear them safely from a dedicated cleanup window — with per-item Reveal, sandbox-safe folder access, and an automatic rescan
+- **Stuck-Deletion Detection**: Spot deletions Syncthing cannot finish. Cleanup is temporarily disabled in 1.6.2 while a folder-selection safety issue is corrected.
 - **Inline Rescan**: One-click rescan on any out-of-sync folder row
 - **Diagnostic Export**: Export the app's recent logs from Settings for troubleshooting or bug reports
 - **System Information**: Display device name, uptime, and version information

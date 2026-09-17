@@ -8,13 +8,13 @@
 
 ## Now
 - **Phase:** post-release; v1.6.1 (build 163) released 2026-08-10.
-- **Focus:** v1.6.2 layout hotfix prepared; publication awaits the inherited cleanup-risk decision. v1.7 work remains on `fix/isolated-production-tests`.
-- **Blockers:** cleanup can delete below an ancestor or obsolete bookmark root instead of the configured folder; isolated fixtures reproduce data loss. Fix before release. Full Homebrew audit also awaits Xcode 27.0 (26.6 installed).
+- **Focus:** v1.6.2 (165) release: verified layout hotfix with cleanup disabled; publishing all channels. v1.7 work remains on `fix/isolated-production-tests`.
+- **Blockers:** The inherited cleanup blocker is mitigated in 1.6.2 by disabling cleanup; permanent repair remains in v1.7. Full Homebrew audit also awaits Xcode 27.0 (26.6 installed).
 - **Next:** follow the active review-fix plan: separate cleanup access scope from the current folder root and add production regression tests before changing the remaining review findings.
 - **Updated:** 2026-09-17.
 
 ## Recent
-- **2026-09-17:** accepted the focused dropdown hotfix; built/notarized 1.6.2, prepared every release channel and updated README/changelog. Publication awaits cleanup-risk decision; restored installed 1.6.1 for updater testing.
+- **2026-09-17:** accepted the focused dropdown hotfix; built/notarized 1.6.2, prepared every release channel and updated README/changelog. Cleanup disabled by user decision; publication authorized; restored installed 1.6.1 for updater testing.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 - **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.

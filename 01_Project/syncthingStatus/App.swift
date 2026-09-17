@@ -564,24 +564,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         windowController?.window?.makeKeyAndOrderFront(nil)
     }
 
-    /// Opens the per-folder stuck-deletes cleanup window (Phase 3). Repeated
-    /// invocations for the same folder focus the existing window rather than
-    /// stacking new copies. Multiple folders → multiple independent windows.
+    /// Refuses any legacy request to open cleanup while it is disabled.
     func openStuckDeletesResolution(for folder: SyncthingFolder) {
-        closePopover()
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-
-        if let existing = stuckDeletesWindowControllers[folder.id], existing.window != nil {
-            existing.window?.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        let controller = StuckDeletesWindowController(folder: folder, syncthingClient: syncthingClient)
-        controller.window?.delegate = self
-        stuckDeletesWindowControllers[folder.id] = controller
-        controller.showWindow(nil)
-        controller.window?.makeKeyAndOrderFront(nil)
+        // Defense in depth: no caller may open the unsafe cleanup flow in 1.6.2.
+        let alert = NSAlert()
+        alert.messageText = "Cleanup temporarily unavailable"
+        alert.informativeText = "Cleanup is disabled in 1.6.2 while a folder-selection safety issue is corrected. No files were deleted."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func showAboutPanel() {
