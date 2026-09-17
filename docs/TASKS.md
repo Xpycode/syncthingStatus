@@ -15,7 +15,6 @@
 - [ ] [Review] Put folder/device status before idle charts, clarify API reachability versus peer availability, reduce redundant footer controls, and rename Window to Details.
 - [ ] [Review] Give global and per-item pause/selection controls explicit accessible scope; verify cleanup selection labels and focused main-menu action discoverability.
 - [ ] [Review] Separate cleanup/demo and Settings/view responsibilities, consolidate HTTP helpers, and reduce developer scenario/unused animation code while preserving intentional public demo behavior.
-- [ ] Re-run the full Homebrew cask audit with supported developer tools (Xcode 27.0 required on this Mac; 26.6 currently installed). See `homebrew.md` for commands and completed checks.
 - [ ] Smoke-test Homebrew installation and upgrade without replacing the existing app installation; public tap/fetch, DMG checksum, signature, and notarization checks already passed.
 
 ## Current Sprint

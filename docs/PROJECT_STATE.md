@@ -9,12 +9,12 @@
 ## Now
 - **Phase:** post-release; v1.6.2 (build 165) released 2026-09-17.
 - **Focus:** v1.6.2 (165) is live on all channels; user testing the updater from installed 1.6.1. v1.7 work remains on `fix/isolated-production-tests`.
-- **Blockers:** The inherited cleanup blocker is mitigated in 1.6.2 by disabling cleanup; permanent repair remains in v1.7. Full Homebrew audit also awaits Xcode 27.0 (26.6 installed).
+- **Blockers:** The inherited cleanup blocker is mitigated in 1.6.2 by disabling cleanup; permanent repair remains in v1.7.
 - **Next:** user verifies the updater from installed 1.6.1; resume separate v1.7 acceptance on `fix/isolated-production-tests` afterward.
 - **Updated:** 2026-09-17.
 
 ## Recent
-- **2026-09-17:** published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. Installed 1.6.1 retained for user updater testing.
+- **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. Installed 1.6.1 retained for user updater testing.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 - **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
@@ -33,7 +33,7 @@
 
 ## Infrastructure
 - **Release:** GitHub `Xpycode/syncthingStatus`; v1.6.2 (165) Universal DMG notarized/stapled. GitHub, updater, Homebrew fetch and homepage download hashes verified live 2026-09-17. Cleanup is temporarily disabled.
-- **Homebrew:** `Casks/syncthingstatus.rb` is live in this repository's custom tap; fresh public tap and fetch verified 2026-09-05. Install commands and validation limits: [Homebrew distribution](homebrew.md).
+- **Homebrew:** `Casks/syncthingstatus.rb` is live in this repository's custom tap; v1.6.2 public fetch and full strict online audit passed 2026-09-17 with Xcode 27.2. Install commands and validation limits: [Homebrew distribution](homebrew.md).
 - **Upgrade caveat:** versions ≤1.6.0 cannot install their own updates; users need one manual DMG installation. Sparkle installation was verified end-to-end from v1.6.1.
 - **Live feed:** root `appcast.xml` on `main` is production. Publish the DMG before exposing an appcast item; keep drafts outside the live feed.
 - **Filesystem access:** App Sandbox stays enabled; security-scoped bookmarks keyed `FolderAccessBookmark.<folderID>` replace Full Disk Access.
