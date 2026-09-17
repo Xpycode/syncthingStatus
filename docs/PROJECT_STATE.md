@@ -15,10 +15,10 @@
 - **Next:** restart the loopback responder and unique-bundle fixture, then complete notification scope/relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined flows in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
 - **Updated:** 2026-09-17.
 
-- **Hotfix release:** v1.6.2 (165) published and live-verified on GitHub, Sparkle, Homebrew and homepage. Cleanup disabled by user decision; installed 1.6.1 is running for updater acceptance.
+- **Hotfix release:** v1.6.2 (165) published and live-verified on GitHub, Sparkle, Homebrew and homepage. Cleanup disabled by user decision; user confirmed successful updater installation from 1.6.1 to 1.6.2.
 
 ## Recent
-- **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. Installed 1.6.1 retained for user updater testing.
+- **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. User confirmed the updater installation works.
 - **2026-09-11:** checkpointed the isolated Wave 4 UI harness after live clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings checks; remaining scope/relaunch, cleanup-window and TCC cases stay open.
 - **2026-09-11:** partially accepted Wave 4: 4.2/A7 passed with a disposable daemon; 114 tests, controlled pagination, independent review and a fresh Debug launch pass, while isolated UI/TCC cases remain.
 - **2026-09-11:** closed Wave 3 after a fresh build, another clean 85-test run, independent review and 25 stable About/version samples across live refreshes; also explained healthy device-local file-count differences, recorded a UI clarification, and tightened Wave 4 after readiness review. The unchanged 85-test baseline passed again before Wave 4 execution.
@@ -61,7 +61,7 @@
 - Next pickup: restart `tools/wave4-fixture-server.py`, build/launch via `tools/build-wave4-acceptance-fixture.sh`, then complete notification disclosure/scope relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined cases. The fixture defaults currently point to the disposable loopback configuration.
 - Git: `fix/isolated-production-tests`; this incomplete fixture checkpoint is committed and pushed. Merge and release remain unauthorized.
 - Tasks: ten archived, three active acceptance tasks, seven deferred backlog items and two Inbox observations; 10/20 (50%). GitHub #2/#6 remain deferred; #5 shipped in 1.6.2.
-- App handoff: only `/Applications/syncthingStatus.app` v1.6.1 is running, retained at user request to test the live updater to 1.6.2 (165).
+- App handoff: user confirmed the installed 1.6.1 → 1.6.2 updater flow works; updater acceptance is complete.
 - Validation: 114/114 tests, normal unsigned Debug compile, isolated fixture build/signing/entitlements, tool syntax/compile checks, live clean-recovery/picker/connection/Settings checks and `git diff --check` passed. No production defaults, Keychain credentials, bookmarks or daemon state were mutated.
 - Model fit: deep capability + high reasoning — next action completes several stateful macOS UI/TCC flows. Current setting is not reliably exposed.
 - Public release is v1.6.2 (165); cleanup disabled. User update acceptance from installed 1.6.1 remains; v1.7 work is separate.
