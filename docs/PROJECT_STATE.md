@@ -7,14 +7,14 @@
 - **Minimum macOS:** 15.5; release supports Intel and Apple Silicon.
 
 ## Now
-- **Phase:** post-release; v1.6.1 (build 163) released 2026-08-10.
-- **Focus:** v1.6.2 (165) release: verified layout hotfix with cleanup disabled; publishing all channels. v1.7 work remains on `fix/isolated-production-tests`.
+- **Phase:** post-release; v1.6.2 (build 165) released 2026-09-17.
+- **Focus:** v1.6.2 (165) is live on all channels; user testing the updater from installed 1.6.1. v1.7 work remains on `fix/isolated-production-tests`.
 - **Blockers:** The inherited cleanup blocker is mitigated in 1.6.2 by disabling cleanup; permanent repair remains in v1.7. Full Homebrew audit also awaits Xcode 27.0 (26.6 installed).
-- **Next:** follow the active review-fix plan: separate cleanup access scope from the current folder root and add production regression tests before changing the remaining review findings.
+- **Next:** user verifies the updater from installed 1.6.1; resume separate v1.7 acceptance on `fix/isolated-production-tests` afterward.
 - **Updated:** 2026-09-17.
 
 ## Recent
-- **2026-09-17:** accepted the focused dropdown hotfix; built/notarized 1.6.2, prepared every release channel and updated README/changelog. Cleanup disabled by user decision; publication authorized; restored installed 1.6.1 for updater testing.
+- **2026-09-17:** published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. Installed 1.6.1 retained for user updater testing.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 - **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
@@ -23,16 +23,16 @@
 ## Backlog
 - **Review queue:** one active cleanup blocker, 11 confirmed backlog items (nine review follow-ups and two Homebrew checks), and two observations awaiting reproduction are tracked in [Tasks](TASKS.md). See the [review](reviews/2026-09-05-usability-code-review.md) for evidence and priority.
 - **v1.7 priority:** investigate refresh overruns with offline devices. Requests can outlast the 10-second refresh interval and be cancelled by the next cycle; suspect disconnected-device `db/completion` reaching the 30-second resource timeout. About-version flickering is already fixed.
-- **v1.7 polish:** Feedback / Donate / Help, window frame autosave, CHANGELOG, split the large Views and Client files, refresh About credits on reconnect.
+- **v1.7 polish:** Feedback / Donate / Help, window frame autosave, split the large Views and Client files, refresh About credits on reconnect.
 - **Remote HTTPS:** consider opt-in certificate pinning if more NAS / remote-host reports arrive; self-signed certificate auto-trust is restricted to loopback.
 - **User follow-up:** reply to the HTTPS reporter with v1.6.1 and the one-time manual-download instruction.
 - **Signing-key housekeeping:** label the Group B Sparkle entry in Strongbox; optional named Keychain import. Custody details remain in the historical snapshot.
 - **Cookbook candidates:** real-home tilde expansion with `stat(2)` / errno probing; `SMAppService.mainApp` for Launch at Login.
 - **Optional user cleanup:** revoke the obsolete Full Disk Access grant for this app; retain the daemon's grant.
-- **Website handoff:** add the Homebrew option to the app page; instructions left in `3-Websites/App-Websites/APPS/apps.lucesumbrarum.com/docs/HANDOFF-syncthingstatus-homebrew.md` and linked from that project's task list. Website edit/deploy pending.
+- **Website:** Homebrew instructions are live; v1.6.2 page/catalogue/sitemap/download deployed and verified 2026-09-17; counters and feedback preserved.
 
 ## Infrastructure
-- **Release:** GitHub `Xpycode/syncthingStatus`; v1.6.1 DMG notarized and stapled. Appcast and website were verified live at release.
+- **Release:** GitHub `Xpycode/syncthingStatus`; v1.6.2 (165) Universal DMG notarized/stapled. GitHub, updater, Homebrew fetch and homepage download hashes verified live 2026-09-17. Cleanup is temporarily disabled.
 - **Homebrew:** `Casks/syncthingstatus.rb` is live in this repository's custom tap; fresh public tap and fetch verified 2026-09-05. Install commands and validation limits: [Homebrew distribution](homebrew.md).
 - **Upgrade caveat:** versions ≤1.6.0 cannot install their own updates; users need one manual DMG installation. Sparkle installation was verified end-to-end from v1.6.1.
 - **Live feed:** root `appcast.xml` on `main` is production. Publish the DMG before exposing an appcast item; keep drafts outside the live feed.
@@ -52,7 +52,7 @@
 - [Homebrew distribution](homebrew.md) — cask validation, publication, and release maintenance.
 
 ## Resume
-- Fixes are explicitly deferred to the next session. Start with `IMPLEMENTATION_PLAN.md` and the cleanup root mismatch; application source is unchanged. Avoid cleanup until fixed.
+- v1.6.2 is published with cleanup disabled. Permanent cleanup repair and later acceptance work are on `fix/isolated-production-tests`; use that branch’s current plan/state when resuming v1.7.
 - Deferred: 11 confirmed backlog items and two unconfirmed observations, plus one active release blocker. No half-done application edit.
 - Model fit: deep capability + high reasoning for destructive-path identity and refresh concurrency; use smaller agents for bounded independent validation.
 - For every public app release, follow [Release maintenance](homebrew.md#release-maintenance): GitHub DMG first, then Sparkle + cask metadata, website deployment, and live checks. Ordinary edits do not require a release.
