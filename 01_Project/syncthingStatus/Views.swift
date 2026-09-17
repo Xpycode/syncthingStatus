@@ -1314,11 +1314,16 @@ struct FolderStatusRow: View {
                     Text(folder.label.isEmpty ? folder.id : folder.label)
                         .fontWeight(.medium)
                         .lineLimit(1)
-                    Text(folder.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                        .help(folder.label.isEmpty ? folder.id : folder.label)
+                    Text(folder.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(folder.path)
                 }
-                .layoutPriority(1)
-
-                Spacer()
+                // The name/path takes the remaining width, yielding to counts and status.
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
                 if let status {
                     VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
@@ -1329,11 +1334,9 @@ struct FolderStatusRow: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
+                    .fixedSize(horizontal: true, vertical: false)
                 }
 
-                Spacer()
-                
                 if let status {
                     VStack(alignment: .trailing, spacing: AppConstants.UI.spacingXS) {
                         HStack {
@@ -1342,11 +1345,14 @@ struct FolderStatusRow: View {
                         }
                         if status.hasPendingWork {
                             Text(status.pendingSummary).font(.caption2).foregroundColor(.orange)
+                                .lineLimit(2)
+                                .help(status.pendingSummary)
                         } else {
                             Text("Up to date").font(.caption2).foregroundColor(.green)
                         }
                     }
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
+                    // Bound the status column so long paths cannot squeeze it to a few pixels.
+                    .frame(width: 110, alignment: .trailing)
                 }
             }
             if let status, status.state == "syncing", status.needBytes > 0 {
