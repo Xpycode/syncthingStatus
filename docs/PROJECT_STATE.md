@@ -8,13 +8,13 @@
 
 ## Now
 - **Phase:** post-release; v1.6.2 (build 165) released 2026-09-17.
-- **Focus:** v1.6.2 (165) is live on all channels; user testing the updater from installed 1.6.1. v1.7 work remains on `fix/isolated-production-tests`.
+- **Focus:** v1.6.2 (165) is live on all channels; user confirmed the 1.6.1 → 1.6.2 updater installation works. v1.7 work remains on `fix/isolated-production-tests`.
 - **Blockers:** The inherited cleanup blocker is mitigated in 1.6.2 by disabling cleanup; permanent repair remains in v1.7.
-- **Next:** user verifies the updater from installed 1.6.1; resume separate v1.7 acceptance on `fix/isolated-production-tests` afterward.
+- **Next:** resume separate v1.7 acceptance on `fix/isolated-production-tests` afterward.
 - **Updated:** 2026-09-17.
 
 ## Recent
-- **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. Installed 1.6.1 retained for user updater testing.
+- **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. User confirmed the updater installation works.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 - **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
