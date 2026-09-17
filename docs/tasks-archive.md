@@ -1,9 +1,11 @@
 # Completed Tasks
 
-Total archived: 8
-Last updated: 2026-09-11
+Total archived: 9
+Last updated: 2026-09-17
 
 ## Completed
+
+- **GitHub #5** Long-name dropdown layout reproduced, fixed and user-accepted; shipped in v1.6.2 (165) with cleanup disabled. (2026-09-17)
 
 - **4.2** Verify targeted pause/resume against a disposable Syncthing daemon: final-source production harness, connection-transition regressions, independent review, and unrelated-state preservation passed. (2026-09-11) — [Evidence](reviews/evidence/2026-09-11/wave-4.md).
 

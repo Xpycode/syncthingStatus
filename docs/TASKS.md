@@ -18,7 +18,6 @@
 User confirmed 2026-09-05: continue the cleanup safety sprint; handle these separately afterward. They must not delay a verified cleanup safety fix.
 
 - [ ] [GitHub #2](https://github.com/Xpycode/syncthingStatus/issues/2) — implement genuine monochrome menu-bar rendering in the UI wave; the existing setting retains colored assets. Preserve distinguishable sync/error states.
-- [ ] [GitHub #5](https://github.com/Xpycode/syncthingStatus/issues/5) — reproduce the reporter's long-path layout failure and fix it in the UI wave; verify narrow windows and long folder/path names against the attached screenshot.
 - [ ] [GitHub #6](https://github.com/Xpycode/syncthingStatus/issues/6) — complete the existing Homebrew validation follow-ups, then reply with the published custom-tap instructions and resolve the issue as appropriate. Publication/replies are separate work; no reply sent in this sprint.
 
 ## Current Sprint

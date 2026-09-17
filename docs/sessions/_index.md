@@ -1,5 +1,7 @@
 # Session Index
 
+- [2026-09-17](2026-09-17.md) — Published v1.6.2 (165): long-name dropdown fix and disabled unsafe cleanup; GitHub, Sparkle, Homebrew and homepage verified; README/changelog updated. Installed 1.6.1 left running for user updater test.
+
 - [2026-09-11](2026-09-11.md) — Closed Wave 3; Wave 4 remains partial at 4.2/A7. Added a unique isolated UI fixture and passed recovery/picker/connection/Settings checks; scope relaunch, cleanup-window and TCC gates remain.
 
 - [2026-09-06](2026-09-06.md) — Cleanup/status complete; refresh implementation passes 85 tests ×3 and independent review. Fresh app/Refresh smoke verified. Stopped during About stability observation; finish 3.4 next. Pre-clear docs synced; Wave 3 uncommitted.
