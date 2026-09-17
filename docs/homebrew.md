@@ -92,3 +92,11 @@ draft URLs or signatures: the referenced DMG must already be public.
   `brew fetch --cask` verified the release successfully. Temporary validation taps
   were removed and Homebrew developer mode restored to off.
 - Full Homebrew installation was not run against the existing app installation.
+
+## v1.6.2 validation completed (2026-09-17)
+
+- Public cask serves v1.6.2 (165), SHA-256 `51641e72c54458147b8ca3c8133b017db3d3b6ad6b24a7366fdbcbe71caf09fe`.
+- Selected developer directory: `/Applications/Xcode-beta.app/Contents/Developer`; Xcode 27.2 (27B5019j).
+- Full `brew audit --cask --online --strict` passed (exit 0) against the published cask in a fresh disposable tap. The previous Xcode prerequisite blocker is resolved.
+- Cask style and public checksum-verified fetch also passed. Temporary audit tap removed; Homebrew developer mode restored off.
+- Full installation/upgrade smoke testing remains separate. The audit did not replace or relaunch the user's installed app.

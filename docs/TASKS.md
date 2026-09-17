@@ -10,7 +10,6 @@
 - [ ] [Review] Clarify shared versus device-local folder totals: the compact row currently shows an unlabeled local file/byte count that can legitimately differ across Macs because of ignore rules. Prefer shared/global inventory in the compact row; retain both in Details and explain large healthy differences neutrally, without a warning or notification.
 - [ ] [Review] Give global and per-item pause/selection controls explicit accessible scope; verify cleanup selection labels and focused main-menu action discoverability.
 - [ ] [Review] Separate cleanup/demo and Settings/view responsibilities, consolidate HTTP helpers, and reduce developer scenario/unused animation code while preserving intentional public demo behavior.
-- [ ] Re-run the full Homebrew cask audit with supported developer tools (Xcode 27.0 required on this Mac; 26.6 currently installed). See `homebrew.md` for commands and completed checks.
 - [ ] Smoke-test Homebrew installation and upgrade without replacing the existing app installation; public tap/fetch, DMG checksum, signature, and notarization checks already passed.
 
 ### GitHub follow-ups — deferred until after cleanup safety

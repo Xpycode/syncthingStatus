@@ -1,9 +1,11 @@
 # Completed Tasks
 
-Total archived: 9
+Total archived: 10
 Last updated: 2026-09-17
 
 ## Completed
+
+- **Homebrew audit** Full strict online audit of the published v1.6.2 cask passed with Xcode 27.2; toolchain blocker resolved. (2026-09-17)
 
 - **GitHub #5** Long-name dropdown layout reproduced, fixed and user-accepted; shipped in v1.6.2 (165) with cleanup disabled. (2026-09-17)
 

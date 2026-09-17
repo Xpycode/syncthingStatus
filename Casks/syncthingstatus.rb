@@ -1,6 +1,6 @@
 cask "syncthingstatus" do
-  version "1.6.1"
-  sha256 "b5f2475772164f2807fdba7256bc812562ab74813e6c89b85c3d9dc3d6835422"
+  version "1.6.2"
+  sha256 "51641e72c54458147b8ca3c8133b017db3d3b6ad6b24a7366fdbcbe71caf09fe"
 
   url "https://github.com/Xpycode/syncthingStatus/releases/download/v#{version}/syncthingStatus-v#{version}.dmg"
   name "syncthingStatus"
