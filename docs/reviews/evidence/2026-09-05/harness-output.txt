@@ -1,0 +1,6 @@
+ancestorGrantAccepted=true
+configuredFolder=/private/tmp/syncthingStatus-review-evidence/fixture/Sync/Project
+computedDeletionTarget=/private/tmp/syncthingStatus-review-evidence/fixture/Sync/OtherFolder
+intendedDeletionTarget=/private/tmp/syncthingStatus-review-evidence/fixture/Sync/Project/OtherFolder
+siblingExistsAfterDelete=false
+intendedExistsAfterDelete=true

@@ -162,3 +162,16 @@ This file tracks the WHY behind technical and design decisions.
 
 ---
 *Add decisions as they are made. Future-you will thank present-you.*
+
+## Condensed Log (migrated from PROJECT_STATE.md, 2026-09-05)
+
+- **`db/need`** (receiver vantage) over `db/remoteneed` (sender vantage) for candidate listing — see `decisions.md`.
+- Phase 0 popover-gap fix shippable in isolation (decoded `needDeletes` + `needTotalItems` on `SyncthingFolderStatus`).
+- Dedicated `NSWindow` over popover-attached sheet for cleanup UI; per-folder dedup with focus-existing semantics.
+- Selection state lives in the SwiftUI View with `.onChange` intersection — not in the controller.
+- `nonisolated static validatePath` rejects `..`, `/`, `\0`, escaping paths via symlink-resolved strict-prefix check.
+- `CocoaError` typed catches over NSError integer codes; ENOENT counts as success (idempotent on race).
+- Closure-bridged AppKit (dismiss + request-access) keeps `Client.swift` framework-agnostic.
+- Loosened `makeRequest<T: Codable>` to `<T: Decodable>` — response types only need `Decodable`.
+- **Diagnostic logging via `OSLogStore` export**, not file-tee — sandbox-clean, App-Store safe, no churn at 25 existing log sites. Bookend `notice` lines at app launch and export-time guarantee a non-empty file on clean sessions.
+- **About panel uses `orderFrontStandardAboutPanel(options:)` with `.credits`** for the Syncthing version — reuses Apple's standard panel rather than building a custom window.
