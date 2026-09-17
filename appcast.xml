@@ -22,6 +22,27 @@
              Draft new items in docs/ and move them here only after the GitHub release + DMG exist. -->
 
         <item>
+            <title>Version 1.6.2</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.6.2</h2>
+                <p>Fixes long folder names and paths distorting the menu bar dropdown. Names and paths now truncate to fit, keeping file counts, sizes, and sync status readable. Hover over truncated text to see it in full.</p>
+                <p><strong>Safety:</strong> Stuck-deletion cleanup is temporarily disabled while a folder-selection safety issue is corrected. Monitoring and stuck-deletion alerts remain available.</p>
+                <p>Pending-work summaries stay compact, with the full summary available on hover.</p>
+                <p><strong>Updating from v1.6.0 or earlier?</strong> Please <a href="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.2/syncthingStatus-v1.6.2.dmg">download the DMG manually</a> once. In-app installation works from v1.6.1 onward.</p>
+            ]]></description>
+            <pubDate>Thu, 17 Sep 2026 16:13:44 +0200</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.2/syncthingStatus-v1.6.2.dmg"
+                sparkle:version="165"
+                sparkle:shortVersionString="1.6.2"
+                length="3542329"
+                type="application/octet-stream"
+                sparkle:edSignature="2AAG6AZ3kSkLVHl3at+e9ggLgN1+rKQIxvJZ9fyzcpPvMBppJPPmBh8xKZg7owHQNQMpvwM2kIntygDqeslpDw=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
             <title>Version 1.6.1</title>
             <description><![CDATA[
                 <h2>What's New in Version 1.6.1</h2>
