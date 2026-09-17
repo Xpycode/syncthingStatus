@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>syncthingStatus Updates</title>
+        <link>https://github.com/Xpycode/syncthingStatus/releases</link>
+        <description>Most recent updates to syncthingStatus</description>
+        <language>en</language>
+
+        <!--
+        To add a new release:
+        1. Build the app for release: xcodebuild -scheme syncthingStatus -configuration Release archive
+        2. Export the .app from the archive
+        3. Create a DMG with the app
+        4. Sign the update with: sign_update syncthingStatus-vX.X.dmg
+        5. Copy the signature from the output
+        6. Add a new <item> below with the version, signature, and download URL
+        7. Push this file to the main branch
+        -->
+
+        <!-- ⚠️ This file on `main` IS the live Sparkle feed (SUFeedURL = raw.githubusercontent…/main/appcast.xml).
+             Never push a draft <item> here — installed apps will offer it immediately.
+             Draft new items in docs/ and move them here only after the GitHub release + DMG exist. -->
+
+        <item>
+            <title>Version 1.6.2</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.6.2</h2>
+                <p>Fixes long folder names and paths distorting the menu bar dropdown. Names and paths now truncate to fit, keeping file counts, sizes, and sync status readable. Hover over truncated text to see it in full.</p>
+                <p>Pending-work summaries stay compact, with the full summary available on hover.</p>
+                <p><strong>Updating from v1.6.0 or earlier?</strong> Please <a href="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.2/syncthingStatus-v1.6.2.dmg">download the DMG manually</a> once. In-app installation works from v1.6.1 onward.</p>
+            ]]></description>
+            <pubDate>Thu, 17 Sep 2026 16:13:44 +0200</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.2/syncthingStatus-v1.6.2.dmg"
+                sparkle:version="164"
+                sparkle:shortVersionString="1.6.2"
+                length="3657481"
+                type="application/octet-stream"
+                sparkle:edSignature="tvSdbb7vuYzz8tVdvKeO6ssH3jhjWfwmy+08oKgJyM68EAcfg4Kdgvmx8NRGM+1AUoh9yDW/hqgC9PexS2XbBA=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.6.1</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.6.1</h2>
+                <p><strong>⚠️ Note for updaters:</strong> installing this update via in-app update from v1.6.0 or earlier will fail with "An error occurred while launching the installer" &mdash; a bug in the <em>old</em> version's installer permissions, fixed in 1.6.1. Please <a href="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg">download 1.6.1 manually</a> this one time; future updates will then install normally.</p>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>In-app updates can now actually install</strong> &mdash; every sandboxed version so far could download an update but failed at the install step. The sandbox accommodations Sparkle's installer requires are now in place, so updates <em>from</em> 1.6.1 onward install normally.</li>
+                    <li><strong>Works with "Use HTTPS for GUI"</strong> &mdash; if Syncthing's GUI was set to HTTPS (which also silently redirects the default <code>http://127.0.0.1:8384</code> there), the app could not connect at all: macOS rejected Syncthing's self-signed certificate with an alarming "server that is pretending to be" error. The app now trusts Syncthing's certificate <strong>for local connections only</strong> (localhost / 127.x.x.x / ::1). Connections to a remote Syncthing over HTTPS still fail closed &mdash; but now with a clear message naming the setting.</li>
+                    <li><strong>About panel no longer claims "Syncthing: not connected"</strong> while fully connected &mdash; a background refresh being superseded could wipe the remembered Syncthing version; it now survives cancelled refreshes.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 10 Aug 2026 18:49:54 +0200</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg"
+                sparkle:version="163"
+                sparkle:shortVersionString="1.6.1"
+                length="3655480"
+                type="application/octet-stream"
+                sparkle:edSignature="EMu0MMGuGdxUL9tnNimVwUUI8F8BdyHiDvydU1C4hzfDzWbeoq+qq4ttGDF6vsE7WU9PbW8RN3LbLow+H7guCw=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.6.0</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.6.0</h2>
+                <h3>New</h3>
+                <ul>
+                    <li><strong>Stuck-deletion detection &amp; cleanup</strong> &mdash; when Syncthing can't finish deleting a file, the folder stays "Out of sync" indefinitely. syncthingStatus now detects this, flags it with an amber alert row in the popover, and opens a dedicated cleanup window that lists every stuck item, lets you <strong>Reveal</strong> each one in Finder, and &mdash; once you grant folder access &mdash; safely removes the leftovers and rescans so the folder goes green again.</li>
+                    <li><strong>Sandbox-safe folder access</strong> &mdash; the cleanup flow requests access to only the affected folder via the standard macOS open panel and remembers it with a security-scoped bookmark. No Full Disk Access required.</li>
+                    <li><strong>Inline Rescan button</strong> on the out-of-sync folder row &mdash; one-click rescan without opening the context menu.</li>
+                    <li><strong>Diagnostic export</strong> &mdash; one-click export of the app's recent logs from Settings for bug reports. Sandbox-clean; nothing is written to disk during normal use.</li>
+                    <li><strong>Versions at a glance</strong> &mdash; the popover's Local Device row shows the app and running Syncthing versions, and the About panel reports the connected Syncthing version.</li>
+                </ul>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>No more false "Disconnected" flash</strong> &mdash; refreshing while another refresh was in flight (e.g. right after changing a setting) could briefly flip the icon to red. A superseded refresh is now ignored instead of being reported as a disconnection.</li>
+                    <li><strong>Reliable on non-English systems</strong> &mdash; internal cancellation checks no longer depend on English error text, so transient errors no longer leak to the UI on localized macOS installs.</li>
+                    <li><strong>Launch at Login actually works</strong> &mdash; the Settings toggle had never registered the app with macOS. Flipping it on now really adds syncthingStatus to System Settings &rarr; Login Items.</li>
+                    <li><strong>Pause/Resume no longer fails silently</strong> &mdash; if pausing or resuming a device or folder doesn't reach Syncthing, the app now shows the error instead of doing nothing.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Sun, 12 Jul 2026 20:49:00 +0200</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.0/syncthingStatus-v1.6.0.dmg"
+                sparkle:version="162"
+                sparkle:shortVersionString="1.6.0"
+                length="3649427"
+                type="application/octet-stream"
+                sparkle:edSignature="xx8/sRQa5HS2AZxyQcuvlMCkomBHsLETSKcmdO2Dt5+0aRX7OG5QlI2F6ZBUTzZB9yhTgt3QoVRhPjT+68H5AA=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.5.5</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5.5</h2>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>False "Out of sync" indicator fixed</strong> &mdash; the menu bar icon used to latch to red when Syncthing was actually fine, especially after routine background scans. The status logic now treats scanning, scan-waiting, sync-preparing/waiting, and cleaning states as healthy, and only reports out-of-sync when there is meaningful pending data.</li>
+                    <li>Cached folder status is cleared on fetch failure so a transient hiccup cannot persist as a stuck red icon.</li>
+                    <li>Removed devices and folders no longer leave stale entries behind in memory.</li>
+                </ul>
+                <h3>New</h3>
+                <ul>
+                    <li><strong>Brand-new app icon and status bar icons.</strong></li>
+                    <li><strong>Status icon style</strong> setting in Preferences &mdash; choose Monochrome (classic) or Traffic-Light (adds an amber warning state for soft conditions like paused devices).</li>
+                    <li><strong>Sync notification cooldown</strong> &mdash; throttle "Sync Complete" notifications per folder (default 5 min, range 0&ndash;60). Stops the notification spam when a folder churns through many small syncs.</li>
+                </ul>
+                <h3>Internal</h3>
+                <ul>
+                    <li>Defensive decoding of Syncthing API responses so future field renames cannot brick the icon.</li>
+                    <li>Status-fetch failures now log via OSLog (subsystem <code>com.lucesumbrarum.syncthingStatus</code>, category <code>FolderStatus</code>) for easier diagnosis.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 28 Apr 2026 04:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.5/syncthingStatus-v1.5.5.dmg"
+                sparkle:version="155"
+                sparkle:shortVersionString="1.5.5"
+                length="3603708"
+                type="application/octet-stream"
+                sparkle:edSignature="jJ8vWSlLZvUtWtWvwkiPcsLLxydCKX7w1zzkOvTDBin1P+A9c9GQFm5BBCELHThk17JpHcQNgj2kBbspaDVJAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.5.1</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5.1</h2>
+                <ul>
+                    <li><strong>Bug Fix</strong> - Fixed an issue where the app incorrectly prompted for updates when already on the latest version</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 31 Dec 2025 15:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5.1/syncthingStatus-v1.5.1.dmg"
+                sparkle:version="4"
+                sparkle:shortVersionString="1.5.1"
+                length="2238807"
+                type="application/octet-stream"
+                sparkle:edSignature="XcQ1MmLFAKSoPIDkUxzgsKyw6yKX1aex6gDrxNSFiCTb0PYr1IA/N9NbQOrrj1LhxVBEQkCkPSjSEU/T9f8aAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.5</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.5</h2>
+                <ul>
+                    <li><strong>Auto-Updates</strong> - The app can now check for and install updates automatically via Sparkle</li>
+                    <li>Check for updates manually from the app menu or Settings</li>
+                    <li>Configure automatic update checking in Settings</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 02 Dec 2025 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.5/syncthingStatus-v1.5.dmg"
+                sparkle:version="3"
+                sparkle:shortVersionString="1.5"
+                length="2238740"
+                type="application/octet-stream"
+                sparkle:edSignature="m5Kghiqey2grmtyBSTNTIho3q6zdTESj18vQf06wU4v+AzuU3sviwzdsOQ0Qr2rJX/0Zf5jPxzXodZhDByJLDA=="
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 1.4</title>
+            <description><![CDATA[
+                <h2>What's New in Version 1.4</h2>
+                <h3>Bug Fixes</h3>
+                <ul>
+                    <li><strong>Fixed Dock Icon Behavior</strong> - The dock icon now correctly disappears when the main window is closed</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 19 Nov 2024 02:11:59 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Xpycode/syncthingStatus/releases/download/v1.4/syncthingStatus-v1.4.dmg"
+                sparkle:version="2"
+                sparkle:shortVersionString="1.4"
+                length="0"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>15.5</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>

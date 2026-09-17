@@ -6,13 +6,21 @@
   ![macOS](https://img.shields.io/badge/macOS-15.5%2B-blue)
   ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
   ![License](https://img.shields.io/badge/license-MIT-green)
-  ![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)
-  [![Download](https://img.shields.io/badge/Download-v1.6.1-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
+  ![Version](https://img.shields.io/badge/version-1.6.2-brightgreen)
+  [![Download](https://img.shields.io/badge/Download-v1.6.2-blue?style=flat-square)](https://github.com/Xpycode/syncthingStatus/releases/latest)
   [![Homebrew](https://img.shields.io/badge/Homebrew-Install-FBB040?logo=homebrew&logoColor=white)](#install-with-homebrew)
   ![Downloads](https://img.shields.io/github/downloads/Xpycode/syncthingStatus/total?style=flat-square)
 </div>
 
-> ⚠️ **Updating from v1.6.0 or earlier?** Please [download v1.6.1 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.1/syncthingStatus-v1.6.1.dmg) — one time only. In-app update on older versions downloads fine but then fails to install ("An error occurred while launching the installer"): the app is sandboxed, and the installer permissions Sparkle needs in a sandbox were missing. v1.6.1 fixes this, so updates **from** v1.6.1 onward install normally.
+> ⚠️ **Updating from v1.6.0 or earlier?** Please [download v1.6.2 manually](https://github.com/Xpycode/syncthingStatus/releases/download/v1.6.2/syncthingStatus-v1.6.2.dmg) — one time only. In-app update on older versions downloads fine but then fails to install ("An error occurred while launching the installer"): the app is sandboxed, and the installer permissions Sparkle needs in a sandbox were missing. v1.6.1 fixes this, so updates **from** v1.6.1 onward install normally.
+
+## What's New in Version 1.6.2
+
+### Bug Fixes
+- **Long folder names no longer distort the menu bar dropdown.** Folder names and paths truncate to fit while file counts, sizes, and sync status remain readable. Hover over a name or path to see its full text.
+- **Pending-work summaries stay compact**, with the full summary available on hover.
+
+This is a focused layout fix based on v1.6.1. See the [changelog](CHANGELOG.md) for release history.
 
 ## What's New in Version 1.6.1
 

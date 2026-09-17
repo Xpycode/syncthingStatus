@@ -8,17 +8,17 @@
 
 ## Now
 - **Phase:** post-release; v1.6.1 (build 163) released 2026-08-10.
-- **Focus:** v1.7 review fixes next session, starting with safe cleanup target selection.
+- **Focus:** v1.6.2 layout hotfix prepared; publication awaits the inherited cleanup-risk decision. v1.7 work remains on `fix/isolated-production-tests`.
 - **Blockers:** cleanup can delete below an ancestor or obsolete bookmark root instead of the configured folder; isolated fixtures reproduce data loss. Fix before release. Full Homebrew audit also awaits Xcode 27.0 (26.6 installed).
 - **Next:** follow the active review-fix plan: separate cleanup access scope from the current folder root and add production regression tests before changing the remaining review findings.
-- **Updated:** 2026-09-05.
+- **Updated:** 2026-09-17.
 
 ## Recent
+- **2026-09-17:** accepted the focused dropdown hotfix; built/notarized 1.6.2, prepared every release channel and updated README/changelog. Publication awaits cleanup-risk decision; restored installed 1.6.1 for updater testing.
 - **2026-09-05:** completed the app/code/usability review; reproduced a cleanup data-loss risk, false healthy status, and dropped refreshes; preserved evidence and queued fixes for next session.
 - **2026-09-05:** published the Homebrew tap, added README install/upgrade links, slimmed this digest, and recorded the release checklist plus a website handoff.
 - **2026-08-10:** released v1.6.1 with working automatic update installation; website updated too.
 - **2026-08-09:** fixed connections to local Syncthing instances using self-signed HTTPS certificates.
-- **2026-07-12:** released v1.6.0 with stuck-delete cleanup, folder access grants, Rescan, and working Launch at Login.
 
 ## Backlog
 - **Review queue:** one active cleanup blocker, 11 confirmed backlog items (nine review follow-ups and two Homebrew checks), and two observations awaiting reproduction are tracked in [Tasks](TASKS.md). See the [review](reviews/2026-09-05-usability-code-review.md) for evidence and priority.
