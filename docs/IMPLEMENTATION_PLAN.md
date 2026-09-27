@@ -12,7 +12,7 @@ Waves 1–4 address correctness and recovery; Wave 5 covers usability. Wave 6 is
 
 ## Deferred GitHub follow-ups
 
-On 2026-09-05 the user authorized continuing only the cleanup safety sprint. GitHub [#2](https://github.com/Xpycode/syncthingStatus/issues/2) (genuine monochrome rendering) and [#5](https://github.com/Xpycode/syncthingStatus/issues/5) (long-path layout reproduction/fix) belong with later UI work. [#6](https://github.com/Xpycode/syncthingStatus/issues/6) needs Homebrew validation follow-through and a response. All three are explicitly linked in `TASKS.md`; handle after cleanup safety, without making them prerequisites for a safety fix.
+On 2026-09-05 the user prioritized cleanup safety. GitHub [#5](https://github.com/Xpycode/syncthingStatus/issues/5) shipped in v1.6.2 and was closed on 2026-09-27. GitHub [#2](https://github.com/Xpycode/syncthingStatus/issues/2) still needs genuine monochrome rendering; [#6](https://github.com/Xpycode/syncthingStatus/issues/6) needs isolated custom-tap install/upgrade verification and a reporter response. Their [queued follow-up plan](PLAN-github-followups-2-6.md) is separate from the active Wave 4 acceptance sprint. Neither issue is a prerequisite for the safety fix.
 
 ## Acceptance criteria
 
@@ -186,6 +186,7 @@ Depends on Wave 5. Explicitly defer these if needed; they must not hold a verifi
 
 - [ ] **6.4 — Remove demonstrably unused icon animation code.** Targets: `SyncthingStatusIcon.swift` and call sites.
   - Success: trace references; remove only dead machinery and retain active icon states/intentional animation. If still used, document and skip instead of changing behavior to meet a cleanup quota.
+  - Scheduling: serialize with [GH2.3/GH2.5](PLAN-github-followups-2-6.md) if #2 is selected; do not edit the icon renderer concurrently or use this maintenance task to remove required states.
   - Backpressure: `rg -n 'animation|animate|Timer' 01_Project/syncthingStatus`, B, V for both icon styles/state transitions.
 
 ### Wave 7 — integration and release readiness
@@ -198,6 +199,7 @@ Depends on Waves 1–5 and selected Wave 6 tasks. Publication remains a separate
 
 - [ ] **7.2 — Record release readiness and distribution limits.** Depends on 7.1. Targets: release-readiness review, `docs/homebrew.md`, task/state docs and release notes for verified changes.
   - Success: run `/check ship` before recommending release. Recheck the recorded Homebrew supported-Xcode prerequisite and test install/upgrade separately from the existing installation; record unavailable checks rather than passing them. Keep website Homebrew handoff visible. For separately requested publication, follow `homebrew.md` Release maintenance: DMG first, then live Sparkle/cask metadata and website deployment.
+  - Scheduling: [GH6.1–GH6.4](PLAN-github-followups-2-6.md) provide the separate current-release Homebrew install/upgrade evidence when selected; reuse it rather than repeating the same check without a changed release or remaining risk.
   - Backpressure: `/check ship`, applicable audit/install commands in `docs/homebrew.md`, D. Distribution toolchain limits do not block ordinary source fixes.
 
 ## API contracts checked
