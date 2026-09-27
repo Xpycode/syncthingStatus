@@ -13,21 +13,21 @@
 - **Execution:** Wave 4 is [partially accepted](reviews/evidence/2026-09-11/wave-4.md): 4.2/A7 passed. A unique sandboxed bundle, isolated defaults/credentials, loopback Syncthing responder and AX driver now exist; clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings passed live. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain open.
 - **Blockers:** the fixture's notification disclosure/scope interaction and remaining relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted cases were not completed before the user stopped execution.
 - **Next:** restart the loopback responder and unique-bundle fixture, then complete notification scope/relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined flows in [Wave 4 evidence](reviews/evidence/2026-09-11/wave-4.md).
-- **Updated:** 2026-09-17.
+- **Updated:** 2026-09-27.
 
 - **Hotfix release:** v1.6.2 (165) published and live-verified on GitHub, Sparkle, Homebrew and homepage. Cleanup disabled by user decision; user confirmed successful updater installation from 1.6.1 to 1.6.2.
 
 ## Recent
+- **2026-09-27:** reconciled this Mac's Syncthing-carried files with the already pushed v1.7 branch and fast-forwarded the local `main` reference; replied to and closed GitHub #5, and drafted specs for #2 and #6. The v1.7 branch has not yet integrated the v1.6.2 release branch.
 - **2026-09-17:** full Homebrew audit passed with Xcode 27.2; published v1.6.2 (165) with the accepted long-name layout fix and cleanup disabled; all channels verified, README/changelog updated. User confirmed the updater installation works.
 - **2026-09-11:** checkpointed the isolated Wave 4 UI harness after live clean recovery, picker cancel/regrant, loopback connection and Connection-first Settings checks; remaining scope/relaunch, cleanup-window and TCC cases stay open.
 - **2026-09-11:** partially accepted Wave 4: 4.2/A7 passed with a disposable daemon; 114 tests, controlled pagination, independent review and a fresh Debug launch pass, while isolated UI/TCC cases remain.
 - **2026-09-11:** closed Wave 3 after a fresh build, another clean 85-test run, independent review and 25 stable About/version samples across live refreshes; also explained healthy device-local file-count differences, recorded a UI clarification, and tightened Wave 4 after readiness review. The unchanged 85-test baseline passed again before Wave 4 execution.
-- **2026-09-06:** implemented refresh ownership and bounded workers; 85 tests ×3 and independent review passed. Fresh sandboxed app launched; three Refresh clicks and About version checked. Stopped during repeated About observation; changes remain uncommitted.
 
 ## Backlog
 - **Review queue:** ten archived tasks, three active Wave 4 acceptance tasks, seven deferred backlog items and two Inbox observations are tracked in [Tasks](TASKS.md). Overall progress: 10/20 (50%).
 - **v1.7 priority:** Wave 4 implementation is complete but its live gate remains. Offline-peer overrun was measured at 16.7808 s; the separate 30 s resource-timeout hypothesis remains unconfirmed. Timer/manual refreshes now coalesce and slow entries use bounded workers.
-- **GitHub issues:** #2 genuine monochrome icons and #6 Homebrew response are explicitly deferred until after cleanup safety; linked tasks are recorded in `TASKS.md` (user decision 2026-09-05).
+- **GitHub issues:** #5 was closed on 2026-09-27 after the shipped v1.6.2 fix was explained to the reporter. #2 genuine monochrome icons and #6 Homebrew install validation/reporter response remain open; [draft specs](../specs/) define their remaining work. Both follow-ups remain deferred until after cleanup safety (user decision 2026-09-05).
 - **v1.7 polish:** Feedback / Donate / Help, window frame autosave, split the large Views and Client files, refresh About credits on reconnect.
 - **Remote HTTPS:** consider opt-in certificate pinning if more NAS / remote-host reports arrive; self-signed certificate auto-trust is restricted to loopback.
 - **User follow-up:** reply to the HTTPS reporter with v1.6.1 and the one-time manual-download instruction.
@@ -60,7 +60,7 @@
 - Execution incomplete: Waves 1–3/A1–A5 and Wave 4 task 4.2/A7 passed. Tasks 4.1, 4.3–4.5 and A6/A8/A9 remain unchecked for their isolated live UI/TCC matrix.
 - Next pickup: restart `tools/wave4-fixture-server.py`, build/launch via `tools/build-wave4-acceptance-fixture.sh`, then complete notification disclosure/scope relaunch, cleanup-window pagination/retry/cancel and TCC denied/granted/combined cases. The fixture defaults currently point to the disposable loopback configuration.
 - Git: `fix/isolated-production-tests`; this incomplete fixture checkpoint is committed and pushed. Merge and release remain unauthorized.
-- Tasks: ten archived, three active acceptance tasks, seven deferred backlog items and two Inbox observations; 10/20 (50%). GitHub #2/#6 remain deferred; #5 shipped in 1.6.2.
+- Tasks: ten archived, three active acceptance tasks, seven deferred backlog items and two Inbox observations; 10/20 (50%). GitHub #2/#6 remain deferred with draft specs; #5 shipped in 1.6.2 and was closed with a reporter reply on 2026-09-27.
 - App handoff: user confirmed the installed 1.6.1 → 1.6.2 updater flow works; updater acceptance is complete.
 - Validation: 114/114 tests, normal unsigned Debug compile, isolated fixture build/signing/entitlements, tool syntax/compile checks, live clean-recovery/picker/connection/Settings checks and `git diff --check` passed. No production defaults, Keychain credentials, bookmarks or daemon state were mutated.
 - Model fit: deep capability + high reasoning — next action completes several stateful macOS UI/TCC flows. Current setting is not reliably exposed.
